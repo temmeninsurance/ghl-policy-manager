@@ -1,0 +1,626 @@
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════════╗
+  ║          TEMMEN PORTAL — GHL Policy Manager Widget v2.1 (iframe)           ║
+  ╠══════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                              ║
+  ║  HOSTING:                                                                    ║
+  ║    1. Upload this file to GitHub → enable GitHub Pages                      ║
+  ║       URL will be: https://<user>.github.io/<repo>/                         ║
+  ║                                                                              ║
+  ║  GHL PRIVATE INTEGRATION (contact tab):                                     ║
+  ║    1. Settings → Private Integrations → Policy Widget API → Basic Info      ║
+  ║    2. Set Contact Tab URL to:                                                ║
+  ║       https://<user>.github.io/<repo>/?contactId={{contact.id}}&locationId={{location.id}}  ║
+  ║    3. Save                                                                   ║
+  ║                                                                              ║
+  ║  FIRST USE (per browser):                                                    ║
+  ║    The widget will ask for the Private Integration API key once.             ║
+  ║    Paste it in and click Connect — it is saved in localStorage.             ║
+  ║                                                                              ║
+  ║  CUSTOM FIELD (one-time per sub-account):                                   ║
+  ║    Settings → Custom Fields → + Add Field                                   ║
+  ║      Type: Multi Line  |  Label: Policies Data  |  Key: policies_data       ║
+  ╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<style>
+#tpm{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#111827;line-height:1.5;padding:4px 0}
+#tpm *{box-sizing:border-box}
+#tpm .tpm-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:36px;color:#6b7280;font-size:13px}
+#tpm .tpm-spin{width:18px;height:18px;border:2px solid #e5e7eb;border-top-color:#0d9488;border-radius:50%;animation:tpm-spin .7s linear infinite;flex-shrink:0}
+@keyframes tpm-spin{to{transform:rotate(360deg)}}
+#tpm .tpm-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+#tpm .tpm-hdr-title{font-size:15px;font-weight:700;color:#111827}
+#tpm .tpm-hdr-right{display:flex;align-items:center;gap:8px}
+#tpm .tpm-save-ind{font-size:11px;color:#9ca3af}
+#tpm .tpm-key-btn{font-size:11px;color:#9ca3af;background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px}
+#tpm .tpm-key-btn:hover{background:#f3f4f6;color:#374151}
+#tpm .tpm-migrate{display:flex;align-items:center;gap:10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:11px 14px;margin-bottom:12px;flex-wrap:wrap}
+#tpm .tpm-migrate-msg{flex:1;font-size:12px;color:#92400e;min-width:160px}
+#tpm .tpm-migrate-btn{padding:6px 14px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+#tpm .tpm-migrate-btn:hover{background:#d97706}
+#tpm .tpm-tabs{display:flex;border-bottom:2px solid #e5e7eb;margin-bottom:12px;gap:2px}
+#tpm .tpm-tab{padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:5px;transition:color .15s}
+#tpm .tpm-tab:hover{color:#374151}
+#tpm .tpm-tab.tpm-tab-on{color:#0d9488;border-bottom-color:#0d9488}
+#tpm .tpm-tab-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#f3f4f6;color:#6b7280;font-size:11px}
+#tpm .tpm-tab-cnt.tpm-tab-cnt-on{background:#ccfbf1;color:#0d9488}
+#tpm .tpm-cards{display:flex;flex-direction:column;gap:8px}
+#tpm .tpm-card{border:1px solid #e5e7eb;border-radius:10px;padding:13px 14px;background:#fff;transition:border-color .15s,box-shadow .15s}
+#tpm .tpm-card:hover{border-color:#99f6e4;box-shadow:0 1px 6px rgba(13,148,136,.1)}
+#tpm .tpm-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+#tpm .tpm-card-carrier{font-weight:600;font-size:14px;color:#111827}
+#tpm .tpm-card-type{font-size:12px;color:#6b7280;margin-top:2px}
+#tpm .tpm-card-btns{display:flex;align-items:center;gap:4px;flex-shrink:0}
+#tpm .tpm-card-meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6}
+#tpm .tpm-meta{display:flex;flex-direction:column;gap:1px}
+#tpm .tpm-meta-l{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af}
+#tpm .tpm-meta-v{font-size:12px;color:#374151;font-weight:500}
+#tpm .tpm-icon-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:none;background:none;color:#9ca3af;cursor:pointer;transition:all .15s}
+#tpm .tpm-icon-btn:hover{background:#f3f4f6;color:#374151}
+#tpm .tpm-icon-del:hover{background:#fee2e2;color:#dc2626}
+#tpm .tpm-badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:9999px;font-size:11px;font-weight:600}
+#tpm .tpm-badge-green{background:#d1fae5;color:#065f46}
+#tpm .tpm-badge-yellow{background:#fef3c7;color:#92400e}
+#tpm .tpm-badge-gray{background:#f3f4f6;color:#6b7280}
+#tpm .tpm-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;padding:10px;border:2px dashed #d1d5db;border-radius:10px;background:none;color:#6b7280;font-size:13px;cursor:pointer;transition:all .15s}
+#tpm .tpm-add-btn:hover{border-color:#0d9488;color:#0d9488;background:#f0fdfa}
+#tpm .tpm-empty{text-align:center;padding:30px 16px;color:#9ca3af}
+#tpm .tpm-empty-ico{font-size:28px;margin-bottom:8px}
+#tpm .tpm-setup{padding:20px 4px}
+#tpm .tpm-setup-title{font-size:15px;font-weight:700;color:#111827;margin-bottom:6px}
+#tpm .tpm-setup-sub{font-size:12px;color:#6b7280;margin-bottom:16px;line-height:1.6}
+#tpm .tpm-setup input{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;color:#111827;outline:none;font-family:inherit;margin-bottom:10px}
+#tpm .tpm-setup input:focus{border-color:#0d9488;box-shadow:0 0 0 3px rgba(13,148,136,.1)}
+#tpm .tpm-setup-btn{width:100%;padding:10px;background:#0d9488;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+#tpm .tpm-setup-btn:hover{background:#0f766e}
+#tpm .tpm-err{background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:12px;color:#dc2626;margin-bottom:10px}
+.tpm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px}
+.tpm-modal{background:#fff;border-radius:16px;width:100%;max-width:580px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.tpm-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e5e7eb;flex-shrink:0}
+.tpm-modal-title{font-size:16px;font-weight:700;color:#111827}
+.tpm-modal-close{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:7px;border:none;background:none;color:#9ca3af;font-size:18px;cursor:pointer;transition:all .15s}
+.tpm-modal-close:hover{background:#f3f4f6;color:#374151}
+.tpm-modal-body{padding:20px;overflow-y:auto;flex:1}
+.tpm-modal-ftr{display:flex;align-items:center;gap:8px;padding:16px 20px;border-top:1px solid #e5e7eb;flex-shrink:0}
+.tpm-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tpm-full{grid-column:1 / -1}
+.tpm-fg{display:flex;flex-direction:column;gap:4px}
+.tpm-fg label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280}
+.tpm-fg input,.tpm-fg select,.tpm-fg textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;color:#111827;background:#fff;width:100%;outline:none;transition:border-color .15s;font-family:inherit}
+.tpm-fg input:focus,.tpm-fg select:focus,.tpm-fg textarea:focus{border-color:#0d9488;box-shadow:0 0 0 3px rgba(13,148,136,.1)}
+.tpm-fg textarea{resize:vertical;min-height:72px}
+.tpm-sec-hdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;padding-top:6px;margin-top:4px;border-top:1px solid #f3f4f6}
+.tpm-btn{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+.tpm-btn-ghost{background:#f9fafb;color:#374151;border:1px solid #e5e7eb}
+.tpm-btn-ghost:hover{background:#f3f4f6}
+.tpm-btn-primary{background:#0d9488;color:#fff}
+.tpm-btn-primary:hover{background:#0f766e}
+.tpm-btn-primary:disabled{background:#99f6e4;color:#fff;cursor:not-allowed}
+.tpm-btn-danger{background:#fee2e2;color:#dc2626}
+.tpm-btn-danger:hover{background:#fecaca}
+</style>
+
+<div id="tpm">
+  <div class="tpm-loading"><div class="tpm-spin"></div>Loading policies&hellip;</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── READ URL PARAMS ──────────────────────────────────────────────────────── */
+  function getParam(name) {
+    var m = window.location.search.match(new RegExp('[?&]' + name + '=([^&]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  /* ── CONFIG ───────────────────────────────────────────────────────────────── */
+  var CONTACT_ID  = getParam('contactId');
+  var LOCATION_ID = getParam('locationId');
+  var API_BASE    = 'https://services.leadconnectorhq.com';
+  var FIELD_KEY   = 'contact.policies_data';
+  var LS_KEY      = 'tpm_key_' + LOCATION_ID;
+
+  /* API key stored in localStorage — entered once via setup screen */
+  var API_KEY = localStorage.getItem(LS_KEY) || '';
+
+  /* ── STATE ────────────────────────────────────────────────────────────────── */
+  var policies      = [];
+  var agents        = [];
+  var activeTab     = 'core';
+  var editingId     = null;
+  var editingPolicy = null;
+  var saving        = false;
+  var legacy        = null;
+
+  /* ── CONSTANTS ────────────────────────────────────────────────────────────── */
+  var TAB_LABELS = { core: 'Core', ancillary: 'Ancillary', financial: 'Financial' };
+
+  var POLICY_TYPES = {
+    core: ['Medicare Advantage', 'MAPD', 'PDP', 'Medicare Supplement', 'Other'],
+    ancillary: ['Dental', 'Vision', 'Hearing', 'Hospital Indemnity', 'Cancer',
+      'Heart & Stroke', 'Accident', 'Critical Illness', 'Short Term Care', 'Other'],
+    financial: ['Life Insurance', 'Annuity', 'Final Expense', 'Whole Life',
+      'Term Life', 'Universal Life', 'IUL', 'Other']
+  };
+
+  var STATUS_OPTS   = ['Active', 'Pending', 'Inactive', 'Terminated', 'Lapsed', 'Cancelled'];
+  var BIZ_TYPES     = ['New Business', 'Client Rewrite', 'Winback'];
+  var ELECT_PERIODS = ['AEP', 'OEP', 'SEP', 'New to Medicare', 'IEP', 'N/A'];
+  var PAY_METHODS   = ['Auto Pay', 'Direct Bill', 'Social Security Withhold', 'Bank Draft', 'N/A'];
+  var LEGACY_KEYS   = ['medicare_company', 'policy_type', 'agent_name', 'plan_effective_date',
+    'ancillary_policy_company', 'date_app_submitted', 'chargeback_date', 'client_status'];
+
+  /* ── UTILITIES ────────────────────────────────────────────────────────────── */
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    var x = new Date(d);
+    return isNaN(x.getTime()) ? String(d) : x.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function statusBadge(status) {
+    var cls = status === 'Active' ? 'tpm-badge-green'
+            : status === 'Pending' ? 'tpm-badge-yellow'
+            : 'tpm-badge-gray';
+    return '<span class="tpm-badge ' + cls + '">' + esc(status || 'Unknown') + '</span>';
+  }
+
+  function updateSaveIndicator() {
+    var el = document.getElementById('tpm-save-ind');
+    if (el) el.textContent = saving ? 'Saving…' : '';
+  }
+
+  /* ── GHL API ──────────────────────────────────────────────────────────────── */
+  function ghlReq(method, path, body) {
+    var opts = {
+      method: method,
+      headers: {
+        'Authorization': 'Bearer ' + API_KEY,
+        'Version': '2021-04-15',
+        'Content-Type': 'application/json'
+      }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(API_BASE + path, opts).then(function (r) {
+      return r.json().then(function (d) {
+        if (!r.ok) throw new Error(d.message || ('GHL error ' + r.status));
+        return d;
+      });
+    });
+  }
+
+  /* ── SETUP SCREEN ─────────────────────────────────────────────────────────── */
+  function showSetup(errMsg) {
+    var root = document.getElementById('tpm');
+    if (!root) return;
+    root.innerHTML = '<div class="tpm-setup">'
+      + '<div class="tpm-setup-title">Connect Policy Manager</div>'
+      + '<div class="tpm-setup-sub">Paste your GHL Private Integration API key below.<br>'
+      + 'Find it: GHL &rarr; Settings &rarr; Private Integrations &rarr; Policy Widget API &rarr; API Key</div>'
+      + (errMsg ? '<div class="tpm-err">' + esc(errMsg) + '</div>' : '')
+      + '<input type="password" id="tpm-key-input" placeholder="pk_live_..." autocomplete="off">'
+      + '<button class="tpm-setup-btn" onclick="tpmSaveKey()">Save &amp; Connect</button>'
+      + '</div>';
+    var inp = document.getElementById('tpm-key-input');
+    if (inp) inp.focus();
+  }
+
+  window.tpmSaveKey = function () {
+    var inp = document.getElementById('tpm-key-input');
+    var key = inp ? inp.value.trim() : '';
+    if (!key) return;
+    API_KEY = key;
+    localStorage.setItem(LS_KEY, key);
+    loadData();
+  };
+
+  window.tpmClearKey = function () {
+    if (!confirm('Disconnect and clear saved API key?')) return;
+    localStorage.removeItem(LS_KEY);
+    API_KEY = '';
+    showSetup();
+  };
+
+  /* ── INIT ─────────────────────────────────────────────────────────────────── */
+  function init() {
+    if (!CONTACT_ID) {
+      document.getElementById('tpm').innerHTML =
+        '<div class="tpm-loading">No contact ID — open this page from a GHL contact tab.</div>';
+      return;
+    }
+    if (!API_KEY) { showSetup(); return; }
+    loadData();
+  }
+
+  function loadData() {
+    var root = document.getElementById('tpm');
+    if (root) root.innerHTML = '<div class="tpm-loading"><div class="tpm-spin"></div>Loading policies&hellip;</div>';
+
+    Promise.all([
+      ghlReq('GET', '/contacts/' + CONTACT_ID),
+      ghlReq('GET', '/users/?locationId=' + LOCATION_ID + '&limit=100')
+    ]).then(function (res) {
+      processData(res[0], res[1]);
+    }).catch(function (e) {
+      var msg = e.message || '';
+      if (msg.indexOf('401') !== -1 || msg.toLowerCase().indexOf('unauthorized') !== -1) {
+        localStorage.removeItem(LS_KEY);
+        API_KEY = '';
+        showSetup('API key invalid or expired. Please re-enter it.');
+      } else {
+        console.error('TPM load error:', e);
+        render();
+      }
+    }).then(function () {
+      if (API_KEY) render();
+    });
+  }
+
+  function processData(contactRes, usersRes) {
+    var contact = contactRes.contact || contactRes;
+    var cf = Array.isArray(contact.customFields) ? contact.customFields : [];
+    var i, j, k, key, fk;
+
+    for (i = 0; i < cf.length; i++) {
+      fk = cf[i].fieldKey || '';
+      if (fk === FIELD_KEY || fk === 'policies_data') {
+        if (cf[i].value) {
+          try {
+            var parsed = JSON.parse(cf[i].value);
+            if (Array.isArray(parsed)) policies = parsed;
+          } catch (e) {}
+        }
+        break;
+      }
+    }
+
+    var leg = {};
+    for (j = 0; j < LEGACY_KEYS.length; j++) {
+      key = LEGACY_KEYS[j];
+      for (k = 0; k < cf.length; k++) {
+        fk = cf[k].fieldKey || '';
+        if ((fk === 'contact.' + key || fk === key) && cf[k].value) {
+          leg[key] = cf[k].value; break;
+        }
+      }
+    }
+    var hasMigrated = policies.some(function (p) { return p._migrated; });
+    if (Object.keys(leg).length > 0 && !hasMigrated) legacy = leg;
+
+    var userList = usersRes.users || [];
+    for (i = 0; i < userList.length; i++) {
+      var u = userList[i];
+      var name = ([u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || '').trim();
+      if (name) agents.push({ id: u.id, name: name });
+    }
+    agents.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  /* ── SAVE ─────────────────────────────────────────────────────────────────── */
+  function savePolicies(onDone) {
+    saving = true;
+    updateSaveIndicator();
+    ghlReq('PUT', '/contacts/' + CONTACT_ID, {
+      customFields: [{ key: FIELD_KEY, field_value: JSON.stringify(policies) }]
+    }).then(function () {
+      saving = false;
+      updateSaveIndicator();
+      if (typeof onDone === 'function') onDone();
+    }).catch(function (e) {
+      saving = false;
+      updateSaveIndicator();
+      alert('Save failed: ' + e.message);
+    });
+  }
+
+  /* ── MIGRATE LEGACY ───────────────────────────────────────────────────────── */
+  function migrateLegacy() {
+    if (!legacy) return;
+    var now = new Date().toISOString();
+    if (legacy.medicare_company || legacy.policy_type) {
+      policies.push({
+        id: uid(), tab: 'core',
+        carrier: legacy.medicare_company || '', policyType: legacy.policy_type || '',
+        planName: '', planCode: '', policyNumber: '', memberIdNumber: '',
+        status: legacy.client_status || 'Active', businessType: 'New Business',
+        agentName: legacy.agent_name || '',
+        effectiveDate: legacy.plan_effective_date || '',
+        applicationDate: legacy.date_app_submitted || '',
+        terminationDate: '', renewalDate: '',
+        chargebackDate: legacy.chargeback_date || '',
+        electionPeriod: '', paymentMethod: '',
+        monthlyPremium: '', annualPremium: '', faceAmount: '', notes: '',
+        _migrated: true, createdAt: now, updatedAt: now
+      });
+    }
+    if (legacy.ancillary_policy_company) {
+      policies.push({
+        id: uid(), tab: 'ancillary',
+        carrier: legacy.ancillary_policy_company, policyType: '',
+        planName: '', planCode: '', policyNumber: '', memberIdNumber: '',
+        status: 'Active', businessType: 'New Business', agentName: legacy.agent_name || '',
+        effectiveDate: '', applicationDate: '', terminationDate: '',
+        chargebackDate: '', electionPeriod: '', paymentMethod: '',
+        monthlyPremium: '', annualPremium: '', faceAmount: '', notes: '',
+        _migrated: true, createdAt: now, updatedAt: now
+      });
+    }
+    legacy = null;
+    savePolicies(function () { render(); });
+  }
+
+  /* ── BLANK POLICY ─────────────────────────────────────────────────────────── */
+  function blankPolicy() {
+    var now = new Date().toISOString();
+    return {
+      id: uid(), tab: activeTab,
+      carrier: '', policyType: '', planName: '', planCode: '',
+      policyNumber: '', memberIdNumber: '',
+      status: 'Active', businessType: 'New Business', agentName: '',
+      effectiveDate: '', applicationDate: '', terminationDate: '', renewalDate: '',
+      chargebackDate: '', electionPeriod: '', paymentMethod: '',
+      monthlyPremium: '', annualPremium: '', faceAmount: '', notes: '',
+      createdAt: now, updatedAt: now
+    };
+  }
+
+  /* ── RENDER ───────────────────────────────────────────────────────────────── */
+  function render() {
+    var root = document.getElementById('tpm');
+    if (!root) return;
+
+    var counts = { core: 0, ancillary: 0, financial: 0 };
+    var byTab  = { core: [], ancillary: [], financial: [] };
+    var i, t;
+    for (i = 0; i < policies.length; i++) {
+      t = policies[i].tab || 'core';
+      if (byTab[t]) { byTab[t].push(policies[i]); counts[t]++; }
+    }
+
+    var html = '<div class="tpm-hdr">'
+      + '<span class="tpm-hdr-title">Policy Manager</span>'
+      + '<div class="tpm-hdr-right">'
+      + '<span id="tpm-save-ind" class="tpm-save-ind"></span>'
+      + '<button class="tpm-key-btn" onclick="tpmClearKey()" title="Disconnect API key">&#9679;&#9679;&#9679;</button>'
+      + '</div></div>';
+
+    if (legacy) {
+      html += '<div class="tpm-migrate"><span>⚠️</span>'
+        + '<span class="tpm-migrate-msg">Legacy policy data detected — convert to multi-policy format?</span>'
+        + '<button class="tpm-migrate-btn" onclick="tpmMigrate()">Migrate Now</button></div>';
+    }
+
+    var TABS = ['core', 'ancillary', 'financial'];
+    html += '<div class="tpm-tabs">';
+    for (i = 0; i < TABS.length; i++) {
+      t = TABS[i];
+      var on = (activeTab === t);
+      html += '<button class="tpm-tab' + (on ? ' tpm-tab-on' : '') + '" onclick="tpmTab(\'' + t + '\')">'
+        + TAB_LABELS[t]
+        + '<span class="tpm-tab-cnt' + (on ? ' tpm-tab-cnt-on' : '') + '">' + counts[t] + '</span>'
+        + '</button>';
+    }
+    html += '</div>';
+
+    var cur = byTab[activeTab];
+    html += '<div class="tpm-cards">';
+    if (cur.length === 0) {
+      html += '<div class="tpm-empty"><div class="tpm-empty-ico">&#128203;</div>'
+        + '<div>No ' + TAB_LABELS[activeTab] + ' policies yet</div></div>';
+    } else {
+      for (i = 0; i < cur.length; i++) html += renderCard(cur[i]);
+    }
+    html += '</div>';
+
+    html += '<button class="tpm-add-btn" onclick="tpmOpen(\'new\')">'
+      + '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">'
+      + '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      + '&nbsp;Add ' + TAB_LABELS[activeTab] + ' Policy</button>';
+
+    root.innerHTML = html;
+  }
+
+  /* ── RENDER CARD ──────────────────────────────────────────────────────────── */
+  function renderCard(p) {
+    var meta = [];
+    if (p.agentName)      meta.push(['Agent',      esc(p.agentName)]);
+    if (p.effectiveDate)  meta.push(['Effective',   fmtDate(p.effectiveDate)]);
+    if (p.policyNumber)   meta.push(['Policy #',    esc(p.policyNumber)]);
+    if (p.monthlyPremium) meta.push(['Mo. Premium', '$' + esc(p.monthlyPremium)]);
+    if (p.businessType)   meta.push(['Business',    esc(p.businessType)]);
+    if (p.planName)       meta.push(['Plan',        esc(p.planName)]);
+
+    var editSvg = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+      + '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>'
+      + '<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    var delSvg = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+      + '<polyline points="3 6 5 6 21 6"/>'
+      + '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'
+      + '<path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+
+    var html = '<div class="tpm-card"><div class="tpm-card-top"><div>'
+      + '<div class="tpm-card-carrier">' + (esc(p.carrier) || '<span style="color:#9ca3af">No Carrier</span>') + '</div>'
+      + '<div class="tpm-card-type">' + esc(p.policyType || '—') + '</div>'
+      + '</div><div class="tpm-card-btns">' + statusBadge(p.status)
+      + '<button class="tpm-icon-btn" title="Edit" onclick="tpmOpen(\'' + p.id + '\')">' + editSvg + '</button>'
+      + '<button class="tpm-icon-btn tpm-icon-del" title="Delete" onclick="tpmDelete(\'' + p.id + '\')">' + delSvg + '</button>'
+      + '</div></div>';
+
+    if (meta.length > 0) {
+      html += '<div class="tpm-card-meta">';
+      for (var m = 0; m < meta.length; m++) {
+        html += '<div class="tpm-meta">'
+          + '<span class="tpm-meta-l">' + meta[m][0] + '</span>'
+          + '<span class="tpm-meta-v">' + meta[m][1] + '</span></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /* ── FORM HELPERS ─────────────────────────────────────────────────────────── */
+  function fg(label, inputHtml, full) {
+    return '<div class="tpm-fg' + (full ? ' tpm-full' : '') + '"><label>' + label + '</label>' + inputHtml + '</div>';
+  }
+
+  function selOpts(list, selected, blankLabel) {
+    var s = blankLabel ? '<option value="">' + esc(blankLabel) + '</option>' : '';
+    for (var i = 0; i < list.length; i++) {
+      s += '<option value="' + esc(list[i]) + '"' + (list[i] === selected ? ' selected' : '') + '>' + esc(list[i]) + '</option>';
+    }
+    return s;
+  }
+
+  /* ── RENDER MODAL ─────────────────────────────────────────────────────────── */
+  function renderModal() {
+    var old = document.getElementById('tpm-overlay');
+    if (old) old.remove();
+    if (!editingId || !editingPolicy) return;
+
+    var p     = editingPolicy;
+    var isNew = (editingId === 'new');
+    var types = POLICY_TYPES[p.tab] || [];
+    var a;
+
+    var agentOpts = '<option value="">— Select agent —</option>';
+    for (a = 0; a < agents.length; a++) {
+      agentOpts += '<option value="' + esc(agents[a].name) + '"'
+        + (agents[a].name === p.agentName ? ' selected' : '') + '>' + esc(agents[a].name) + '</option>';
+    }
+
+    var html = '<div id="tpm-overlay" class="tpm-overlay" onclick="tpmOverlayClick(event)">'
+      + '<div class="tpm-modal">'
+      + '<div class="tpm-modal-hdr">'
+      + '<div class="tpm-modal-title">' + (isNew ? 'Add' : 'Edit') + ' ' + TAB_LABELS[p.tab] + ' Policy</div>'
+      + '<button class="tpm-modal-close" onclick="tpmClose()">&#10005;</button>'
+      + '</div><div class="tpm-modal-body"><form id="tpm-form" onsubmit="return false">'
+      + '<input type="hidden" name="id"        value="' + esc(p.id)        + '">'
+      + '<input type="hidden" name="tab"       value="' + esc(p.tab)       + '">'
+      + '<input type="hidden" name="createdAt" value="' + esc(p.createdAt) + '">'
+      + '<input type="hidden" name="_migrated" value="' + esc(p._migrated ? '1' : '') + '">'
+      + '<div class="tpm-form-grid">'
+      + '<div class="tpm-sec-hdr tpm-full">Policy Information</div>'
+      + fg('Carrier *', '<input type="text" name="carrier" value="' + esc(p.carrier) + '" placeholder="e.g. Aetna, Humana, UHC" required>')
+      + fg('Policy Type', '<select name="policyType">' + selOpts(types, p.policyType, '— Select type —') + '</select>')
+      + fg('Plan Name', '<input type="text" name="planName" value="' + esc(p.planName) + '" placeholder="e.g. Freedom PPO 040">')
+      + fg('Plan Code / ID', '<input type="text" name="planCode" value="' + esc(p.planCode) + '" placeholder="e.g. H1234-001">')
+      + fg('Policy Number', '<input type="text" name="policyNumber" value="' + esc(p.policyNumber) + '">')
+      + fg('Member ID', '<input type="text" name="memberIdNumber" value="' + esc(p.memberIdNumber) + '">')
+      + fg('Status', '<select name="status">' + selOpts(STATUS_OPTS, p.status) + '</select>')
+      + fg('Type of Business', '<select name="businessType">' + selOpts(BIZ_TYPES, p.businessType) + '</select>')
+      + '<div class="tpm-sec-hdr tpm-full">Agent &amp; Dates</div>'
+      + fg('Agent', '<select name="agentName">' + agentOpts + '</select>')
+      + fg('Effective Date',   '<input type="date" name="effectiveDate"   value="' + esc(p.effectiveDate   || '') + '">')
+      + fg('Application Date', '<input type="date" name="applicationDate" value="' + esc(p.applicationDate || '') + '">')
+      + fg('Termination Date', '<input type="date" name="terminationDate" value="' + esc(p.terminationDate || '') + '">');
+
+    if (p.tab === 'core' || p.tab === 'financial') {
+      html += fg('Renewal Date', '<input type="date" name="renewalDate" value="' + esc(p.renewalDate || '') + '">');
+    }
+    if (p.tab === 'core' || p.tab === 'ancillary') {
+      html += fg('Election Period', '<select name="electionPeriod">' + selOpts(ELECT_PERIODS, p.electionPeriod || '', '— Select —') + '</select>')
+        + fg('Chargeback Date', '<input type="date" name="chargebackDate" value="' + esc(p.chargebackDate || '') + '">')
+        + fg('Payment Method', '<select name="paymentMethod">' + selOpts(PAY_METHODS, p.paymentMethod || '', '— Select —') + '</select>');
+    }
+    if (p.tab === 'financial') {
+      html += fg('Face Amount ($)', '<input type="text" name="faceAmount" value="' + esc(p.faceAmount || '') + '" placeholder="e.g. 250000">');
+    }
+
+    html += '<div class="tpm-sec-hdr tpm-full">Financials</div>'
+      + fg('Monthly Premium ($)', '<input type="text" name="monthlyPremium" value="' + esc(p.monthlyPremium || '') + '" placeholder="e.g. 42.50">')
+      + fg('Annual Premium ($)',  '<input type="text" name="annualPremium"  value="' + esc(p.annualPremium  || '') + '" placeholder="e.g. 510.00">')
+      + '<div class="tpm-sec-hdr tpm-full">Notes</div>'
+      + '<div class="tpm-fg tpm-full"><label>Notes</label>'
+      + '<textarea name="notes" rows="3" placeholder="Additional notes…">' + esc(p.notes || '') + '</textarea></div>'
+      + '</div></form></div>'
+      + '<div class="tpm-modal-ftr">'
+      + (!isNew ? '<button class="tpm-btn tpm-btn-danger" onclick="tpmDelete(\'' + esc(p.id) + '\',true)">Delete</button>' : '')
+      + '<div style="flex:1"></div>'
+      + '<button class="tpm-btn tpm-btn-ghost" onclick="tpmClose()">Cancel</button>'
+      + '<button class="tpm-btn tpm-btn-primary" id="tpm-save-btn" onclick="tpmSaveForm()">Save Policy</button>'
+      + '</div></div></div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+
+  /* ── GLOBAL EVENT HANDLERS ────────────────────────────────────────────────── */
+  window.tpmTab = function (t) { activeTab = t; render(); };
+
+  window.tpmOpen = function (id) {
+    if (id === 'new') {
+      editingPolicy = blankPolicy(); editingId = 'new';
+    } else {
+      for (var i = 0; i < policies.length; i++) {
+        if (policies[i].id === id) {
+          editingPolicy = JSON.parse(JSON.stringify(policies[i]));
+          editingId = id; break;
+        }
+      }
+    }
+    renderModal();
+  };
+
+  window.tpmClose = function () {
+    editingId = null; editingPolicy = null;
+    var o = document.getElementById('tpm-overlay');
+    if (o) o.remove();
+  };
+
+  window.tpmOverlayClick = function (e) {
+    if (e.target && e.target.id === 'tpm-overlay') window.tpmClose();
+  };
+
+  window.tpmMigrate = function () { migrateLegacy(); };
+
+  window.tpmDelete = function (id, fromModal) {
+    if (!confirm('Delete this policy? This cannot be undone.')) return;
+    policies = policies.filter(function (p) { return p.id !== id; });
+    if (fromModal) window.tpmClose();
+    savePolicies(function () { render(); });
+  };
+
+  window.tpmSaveForm = function () {
+    var form = document.getElementById('tpm-form');
+    if (!form) return;
+    var carrierEl = form.elements['carrier'];
+    if (!carrierEl || !carrierEl.value.trim()) {
+      if (carrierEl) carrierEl.focus();
+      alert('Carrier is required.');
+      return;
+    }
+    var btn = document.getElementById('tpm-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    var data = {};
+    var els = form.elements;
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].name) data[els[i].name] = els[i].value;
+    }
+    data._migrated = (data._migrated === '1');
+    data.updatedAt = new Date().toISOString();
+
+    var found = false;
+    for (var j = 0; j < policies.length; j++) {
+      if (policies[j].id === data.id) { policies[j] = data; found = true; break; }
+    }
+    if (!found) policies.push(data);
+
+    savePolicies(function () { window.tpmClose(); render(); });
+  };
+
+  /* ── BOOT ─────────────────────────────────────────────────────────────────── */
+  init();
+
+}());
+</script>
