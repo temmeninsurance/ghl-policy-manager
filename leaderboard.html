@@ -1490,13 +1490,20 @@ function renderSidebar() {
   const sb = el("aside", { class: "sidebar" + (collapsed ? " collapsed" : "") });
   const hdr = el("div", { class: "sidebar-hdr" });
   hdr.append(el("span", {}, "Dashboards"));
+  const hdrActions = el("div", { style: "display:flex;gap:2px" });
+  if (!state.readOnly) {
+    const addBtn = el("button", { class: "toggle-btn", title: "New dashboard", style: "color:var(--accent);font-size:14px;font-weight:700",
+      onclick: addDashboard }, "+");
+    hdrActions.append(addBtn);
+  }
   const toggle = el("button", { class: "toggle-btn", title: collapsed ? "Expand" : "Collapse" }, collapsed ? "›" : "‹");
   toggle.addEventListener("click", () => {
     state.sidebarCollapsed = !state.sidebarCollapsed;
     localStorage.setItem(LS.SIDEBAR, state.sidebarCollapsed ? "1" : "0");
     render();
   });
-  hdr.append(toggle);
+  hdrActions.append(toggle);
+  hdr.append(hdrActions);
   sb.append(hdr);
 
   const list = el("div", { class: "sidebar-list" });
