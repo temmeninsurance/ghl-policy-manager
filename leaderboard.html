@@ -1230,6 +1230,54 @@ function rowsInTimeRange(rows, dateCol, range) {
     return d && d >= start && d <= end;
   });
 }
+/* ════════════════════════════════════════════════════════════════════════
+   Business-day helpers + pacing math
+   ════════════════════════════════════════════════════════════════════════ */
+function isBusinessDay(d) {
+  const day = d.getDay();        // 0 = Sunday, 6 = Saturday
+  return day !== 0 && day !== 6;
+}
+function businessDaysBetween(start, end) {
+  if (end < start) return 0;
+  let count = 0;
+  const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const stop = new Date(end.getFullYear(),  end.getMonth(),  end.getDate());
+  while (cur <= stop) {
+    if (isBusinessDay(cur)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+function pacingPeriodRange(period, today) {
+  switch (period) {
+    case "WTD": {
+      const day = today.getDay();
+      const offset = day === 0 ? 6 : day - 1; // week starts Monday
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+      const end   = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
+      return [start, end];
+    }
+    case "QTD": {
+      const q = Math.floor(today.getMonth() / 3) * 3;
+      return [new Date(today.getFullYear(), q, 1), new Date(today.getFullYear(), q + 3, 0, 23, 59, 59, 999)];
+    }
+    case "YTD":
+      return [new Date(today.getFullYear(), 0, 1), new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999)];
+    case "MTD":
+    default:
+      return [new Date(today.getFullYear(), today.getMonth(), 1),
+              new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)];
+  }
+}
+function pacingMetrics(w, today = new Date()) {
+  const [periodStart, periodEnd] = pacingPeriodRange(w.period || "MTD", today);
+  const elapsedEnd = today < periodEnd ? today : periodEnd;
+  const businessOnly = w.businessDaysOnly !== false; // default true
+  const totalDays   = businessOnly ? businessDaysBetween(periodStart, periodEnd)   : Math.round((periodEnd   - periodStart) / 86400000) + 1;
+  const elapsedDays = businessOnly ? businessDaysBetween(periodStart, elapsedEnd)  : Math.round((elapsedEnd  - periodStart) / 86400000) + 1;
+  return { periodStart, periodEnd, elapsedEnd, totalDays, elapsedDays, businessOnly };
+}
+
 function aggregate(rows, agg, column) {
   if (agg === "COUNT") return rows.length;
   if (agg === "COUNT_DISTINCT") {
@@ -1674,6 +1722,7 @@ function defaultSpan(kind) {
     case "leaderboard": return { cols: 6, rows: 6 };
     case "chart":       return { cols: 8, rows: 4 };
     case "goal":        return { cols: 4, rows: 3 };
+    case "pacing":      return { cols: 4, rows: 3 };
     case "kpi":         return { cols: 3, rows: 2 };
     default:            return { cols: 4, rows: 3 };
   }
@@ -1704,37 +1753,59 @@ function renderWidget(w) {
   }
 
   // Resolve effective time filter:
-  //   global AUTO -> use widget's own setting (default "MTD")
+  //   pacing       -> always uses its own period (the whole point of the kind)
+  //   global AUTO  -> widget's own setting (default "MTD")
   //   anything else -> global overrides
-  const effective = state.timeFilter.kind === "AUTO"
-    ? { kind: w.timeFilter || "MTD" }
-    : state.timeFilter;
-  const range = timeRange(effective.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd });
+  const isPacing = w.kind === "pacing";
+  const effective = isPacing
+    ? { kind: (w.period || "MTD") + "*PACING" }   // marker, never used by timeRange
+    : state.timeFilter.kind === "AUTO"
+      ? { kind: w.timeFilter || "MTD" }
+      : state.timeFilter;
+  const range = !isPacing
+    ? timeRange(effective.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd })
+    : null;
 
   const titleRow = el("div", { class: "w-title", style: "display:flex;justify-content:space-between;align-items:center;gap:8px" });
   titleRow.append(el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, w.title || w.kind));
+  const periodLabel = isPacing
+    ? "Pacing · " + timeFilterLabel(w.period || "MTD") + (w.businessDaysOnly !== false ? " (business days)" : "")
+    : timeFilterLabel(effective.kind);
   titleRow.append(el("span", {
-    style: "font-size:10px;color:" + (state.timeFilter.kind === "AUTO" ? "var(--text-faint)" : "var(--accent)") + ";font-weight:600;letter-spacing:.4px;flex-shrink:0",
-    title: state.timeFilter.kind === "AUTO" ? "This widget's saved time period" : "Overridden by global filter",
-  }, timeFilterLabel(effective.kind)));
+    style: "font-size:10px;color:" + (isPacing ? "var(--accent-2)" : (state.timeFilter.kind === "AUTO" ? "var(--text-faint)" : "var(--accent)")) + ";font-weight:600;letter-spacing:.4px;flex-shrink:0",
+    title: isPacing ? "Projects end-of-period based on current pace" : (state.timeFilter.kind === "AUTO" ? "This widget's saved time period" : "Overridden by global filter"),
+  }, periodLabel));
   node.append(titleRow);
 
   const body = el("div", { class: "w-body" });
   node.append(body);
 
   const dateCol = state.config.columns.date;
-  const inRange = rowsInTimeRange(state.rows, dateCol, range).filter(r => rowMatchesAll(r, w.filters));
+  const inRange = !isPacing
+    ? rowsInTimeRange(state.rows, dateCol, range).filter(r => rowMatchesAll(r, w.filters))
+    : [];
 
-  // Apply threshold-based color tier on KPI / goal widgets
+  // Apply threshold-based color tier
   if (w.kind === "kpi" || w.kind === "goal") {
     const value = aggregate(inRange, w.agg, w.column);
     const tier = widgetColorTier(w, value);
+    if (tier) node.classList.add("tier-" + tier);
+  } else if (isPacing) {
+    // Pacing tier reflects the PROJECTED value vs thresholds
+    const today = new Date();
+    const m = pacingMetrics(w, today);
+    const periodRows = rowsInTimeRange(state.rows, dateCol, [m.periodStart, today])
+      .filter(r => rowMatchesAll(r, w.filters));
+    const current = aggregate(periodRows, w.agg, w.column);
+    const projected = m.elapsedDays > 0 ? current * (m.totalDays / m.elapsedDays) : 0;
+    const tier = widgetColorTier(w, projected);
     if (tier) node.classList.add("tier-" + tier);
   }
 
   try {
     if (w.kind === "kpi")         renderKpi(body, w, inRange);
     else if (w.kind === "goal")   renderGoal(body, w, inRange);
+    else if (w.kind === "pacing") renderPacing(body, w);
     else if (w.kind === "leaderboard") renderLeaderboard(body, w, inRange);
     else if (w.kind === "chart")  renderChart(body, w, inRange, range);
   } catch (e) {
@@ -1895,6 +1966,38 @@ function renderGoal(node, w, rows) {
   node.append(bar);
 }
 
+function renderPacing(body, w) {
+  const today = new Date();
+  const m = pacingMetrics(w, today);
+  const dateCol = state.config.columns.date;
+  // Pacing always reads its own period (ignores global time-filter chips)
+  const periodRows = rowsInTimeRange(state.rows, dateCol, [m.periodStart, today])
+    .filter(r => rowMatchesAll(r, w.filters));
+  const current = aggregate(periodRows, w.agg, w.column);
+  const projected = m.elapsedDays > 0 ? current * (m.totalDays / m.elapsedDays) : 0;
+  const fmt = v => w.format === "money" ? fmtMoney(v) : fmtNum(v);
+
+  const projLabel = el("div", { class: "kpi-value" }, fmt(projected));
+  body.append(projLabel);
+
+  // explanatory subtitle
+  body.append(el("div", { class: "kpi-sub" },
+    `Currently ${fmt(current)} · day ${m.elapsedDays} of ${m.totalDays}${m.businessOnly ? " business" : ""}`));
+
+  // optional target line + progress bar
+  if (w.target) {
+    const pct = (projected / w.target) * 100;
+    body.append(el("div", { class: "goal-meta", style: "margin-top:14px" },
+      el("div", {}, el("div", { class: "goal-pct" }, pct.toFixed(0) + "%")),
+      el("div", {}, fmt(projected) + " / " + fmt(w.target) + " target"),
+    ));
+    const bar = el("div", { class: "goal-bar" });
+    const fill = el("div"); fill.style.width = Math.min(100, pct) + "%";
+    bar.append(fill);
+    body.append(bar);
+  }
+}
+
 async function renderLeaderboard(node, w, rows) {
   const groupCol = w.groupBy || state.config.columns.email;
   const nameCol  = state.config.columns.name;
@@ -2026,7 +2129,13 @@ function openWidgetModal(widgetId) {
   // type
   m.append(el("label", {}, "Widget type"));
   const kindSel = el("select");
-  [["kpi","KPI tile"],["goal","Goal / progress"],["leaderboard","Leaderboard"],["chart","Trend chart"]].forEach(([v,l]) => {
+  [
+    ["kpi","KPI tile"],
+    ["goal","Goal / progress"],
+    ["pacing","Pacing (projected end of period)"],
+    ["leaderboard","Leaderboard"],
+    ["chart","Trend chart"],
+  ].forEach(([v,l]) => {
     kindSel.append(el("option", { value: v, selected: w.kind === v ? "selected" : null }, l));
   });
   m.append(kindSel);
@@ -2048,21 +2157,23 @@ function openWidgetModal(widgetId) {
       return w1;
     })());
 
-    // Per-widget time period
-    body.append(el("label", {}, "Time period"));
-    const timeSel = el("select");
-    [
-      ["TODAY","Today"],["YESTERDAY","Yesterday"],
-      ["WEEK","This Week"],["LAST_WEEK","Last Week"],
-      ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],
-      ["ALL","All Time"],
-    ].forEach(([v,l]) => {
-      timeSel.append(el("option", { value: v, selected: (w.timeFilter || "MTD") === v ? "selected" : null }, l));
-    });
-    timeSel.addEventListener("change", () => w.timeFilter = timeSel.value);
-    body.append(timeSel);
-    body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
-      "💡 This applies when the top filter is set to 'Auto (per widget)'. Selecting Today/MTD/etc. up there overrides every widget."));
+    // Per-widget time period (not shown for pacing — pacing has its own period)
+    if (w.kind !== "pacing") {
+      body.append(el("label", {}, "Time period"));
+      const timeSel = el("select");
+      [
+        ["TODAY","Today"],["YESTERDAY","Yesterday"],
+        ["WEEK","This Week"],["LAST_WEEK","Last Week"],
+        ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],
+        ["ALL","All Time"],
+      ].forEach(([v,l]) => {
+        timeSel.append(el("option", { value: v, selected: (w.timeFilter || "MTD") === v ? "selected" : null }, l));
+      });
+      timeSel.addEventListener("change", () => w.timeFilter = timeSel.value);
+      body.append(timeSel);
+      body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "💡 This applies when the top filter is set to 'Auto (per widget)'. Selecting Today/MTD/etc. up there overrides every widget."));
+    }
 
     // aggregation + column
     body.append(el("div", { class: "row2" },
@@ -2101,9 +2212,35 @@ function openWidgetModal(widgetId) {
       t.addEventListener("input", () => w.target = parseFloat(t.value));
       body.append(t);
     }
+    if (w.kind === "pacing") {
+      body.append(el("div", { class: "row2" },
+        (() => { const c = el("div");
+          c.append(el("label", { style: "margin-top:0" }, "Pacing period"));
+          const a = el("select");
+          [["WTD","Weekly (this week)"],["MTD","Monthly (this month)"],["QTD","Quarterly (this quarter)"],["YTD","Yearly (this year)"]]
+            .forEach(([v,l]) => a.append(el("option", { value: v, selected: (w.period||"MTD")===v?"selected":null }, l)));
+          a.addEventListener("change", () => w.period = a.value);
+          c.append(a); return c;
+        })(),
+        (() => { const c = el("div");
+          c.append(el("label", { style: "margin-top:0" }, "Working days"));
+          const a = el("select");
+          [["true","Business days only (Mon-Fri)"],["false","All calendar days"]]
+            .forEach(([v,l]) => a.append(el("option", { value: v, selected: ((w.businessDaysOnly !== false) === (v === "true")) ? "selected" : null }, l)));
+          a.addEventListener("change", () => w.businessDaysOnly = a.value === "true");
+          c.append(a); return c;
+        })(),
+      ));
+      body.append(el("label", {}, "Target (optional)"));
+      const t = el("input", { type: "number", placeholder: "e.g. 1000000", value: w.target ?? "" });
+      t.addEventListener("input", () => w.target = t.value === "" ? null : parseFloat(t.value));
+      body.append(t);
+      body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "Projection = current value × (total days in period ÷ days elapsed). With business days on, weekends don't drag the projection down."));
+    }
 
-    // Color thresholds — KPI and goal widgets get a green/yellow/red tint
-    if (w.kind === "kpi" || w.kind === "goal") {
+    // Color thresholds — KPI / goal / pacing widgets get a green/yellow/red tint
+    if (w.kind === "kpi" || w.kind === "goal" || w.kind === "pacing") {
       body.append(el("label", {}, "Color thresholds (optional)"));
       const dirRow = el("div", { class: "row2" });
       const dirCell = el("div");
