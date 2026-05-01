@@ -306,8 +306,19 @@
   .modal .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 22px; }
   .filter-row {
-    display: grid; grid-template-columns: 1fr 1fr 1fr 32px;
+    display: grid; grid-template-columns: 80px 1fr 1fr 1fr 32px;
     gap: 8px; align-items: center; margin-bottom: 8px;
+  }
+  .filter-row .combinator-cell {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    color: var(--text-faint); text-transform: uppercase;
+  }
+  .filter-row .combinator-cell select {
+    width: 100%; padding: 6px 4px; text-align: center;
+    background: var(--bg-3); color: var(--accent);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 11px; font-weight: 700;
   }
   .filter-row button {
     background: transparent; color: var(--text-faint);
@@ -859,10 +870,25 @@ function applyFilter(value, op, target, target2) {
     default: return true;
   }
 }
-function rowMatchesAll(row, filters) {
+/* Evaluate filters with AND/OR. Each filter (except the first) has a
+   combinator: "AND" | "OR". AND binds tighter than OR (standard logic).
+     A AND B OR C AND D  =>  (A AND B) OR (C AND D)
+     A OR B              =>  A OR B
+     A AND B AND C       =>  all required
+   First filter's combinator is ignored. Filters with no `combinator`
+   field default to AND (back-compat with the old all-must-match shape). */
+function rowMatchesFilters(row, filters) {
   if (!filters || !filters.length) return true;
-  return filters.every(f => applyFilter(row[f.column], f.op, f.value, f.value2));
+  const groups = [[filters[0]]];
+  for (let i = 1; i < filters.length; i++) {
+    const f = filters[i];
+    if ((f.combinator || "AND") === "OR") groups.push([f]);
+    else groups[groups.length - 1].push(f);
+  }
+  return groups.some(g => g.every(f => applyFilter(row[f.column], f.op, f.value, f.value2)));
 }
+// keep old name as alias so existing call sites don't break
+const rowMatchesAll = rowMatchesFilters;
 function rowsInTimeRange(rows, dateCol, range) {
   if (!dateCol) return rows;
   const [start, end] = range;
@@ -1414,13 +1440,26 @@ function openWidgetModal(widgetId) {
     }
 
     // filters
-    body.append(el("label", {}, "Filters (all must match)"));
+    body.append(el("label", {}, "Filters (mix AND/OR — AND binds tighter than OR)"));
     const fwrap = el("div");
     body.append(fwrap);
     function renderFilters() {
       fwrap.innerHTML = "";
       (w.filters || []).forEach((f, idx) => {
         const row = el("div", { class: "filter-row" });
+
+        // first row: "WHERE" label; subsequent rows: AND/OR selector
+        const combo = el("div", { class: "combinator-cell" });
+        if (idx === 0) {
+          combo.append(el("span", {}, "WHERE"));
+        } else {
+          const sel = el("select");
+          sel.append(el("option", { value: "AND", selected: (f.combinator || "AND") === "AND" ? "selected" : null }, "AND"));
+          sel.append(el("option", { value: "OR",  selected: f.combinator === "OR"  ? "selected" : null }, "OR"));
+          sel.addEventListener("change", () => { f.combinator = sel.value; });
+          combo.append(sel);
+        }
+
         const cs = el("select");
         cs.append(el("option", { value: "" }, "(column)"));
         state.columns.forEach(c2 => cs.append(el("option", { value: c2, selected: f.column === c2 ? "selected" : null }, c2)));
@@ -1432,12 +1471,12 @@ function openWidgetModal(widgetId) {
         vs.addEventListener("input", () => f.value = vs.value);
         if (["is_empty","not_empty"].includes(f.op)) vs.style.visibility = "hidden";
         const rm = el("button", { onclick: () => { w.filters.splice(idx,1); renderFilters(); } }, "✕");
-        row.append(cs, os, vs, rm);
+        row.append(combo, cs, os, vs, rm);
         fwrap.append(row);
       });
       const add = el("button", { class: "add-filter-btn", onclick: () => {
         w.filters = w.filters || [];
-        w.filters.push({ column: "", op: "equals", value: "" });
+        w.filters.push({ combinator: "AND", column: "", op: "equals", value: "" });
         renderFilters();
       } }, "+ Add filter");
       fwrap.append(add);
