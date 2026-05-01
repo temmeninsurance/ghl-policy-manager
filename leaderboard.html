@@ -264,34 +264,33 @@
   .w-body > div:not(.chart-wrap) { overflow-y: auto; }
   .lb-row {
     display: grid;
-    grid-template-columns: 36px 36px 1fr auto;
-    align-items: center; gap: 10px;
-    padding: 10px 6px; border-bottom: 1px solid var(--border);
+    grid-template-columns: 44px 44px 1fr auto;
+    align-items: center; gap: 13px;
+    padding: 13px 8px; border-bottom: 1px solid var(--border);
     transition: background .2s;
   }
   .lb-row:last-child { border-bottom: none; }
   .lb-row:hover { background: var(--card-2); }
   .lb-rank {
-    font-size: 16px; font-weight: 700; color: var(--text-dim);
+    font-size: 20px; font-weight: 700; color: var(--text-dim);
     text-align: center;
   }
   .lb-row.r1 .lb-rank { color: var(--gold); }
   .lb-row.r2 .lb-rank { color: var(--silver); }
   .lb-row.r3 .lb-rank { color: var(--bronze); }
   .lb-avatar {
-    width: 32px; height: 32px; border-radius: 50%;
+    width: 40px; height: 40px; border-radius: 50%;
     background: var(--bg-3); color: var(--text);
     display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; overflow: hidden;
+    font-size: 15px; font-weight: 700; overflow: hidden;
     border: 2px solid transparent;
   }
   .lb-row.r1 .lb-avatar { border-color: var(--gold); }
   .lb-row.r2 .lb-avatar { border-color: var(--silver); }
   .lb-row.r3 .lb-avatar { border-color: var(--bronze); }
   .lb-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .lb-name { font-weight: 600; font-size: 14px; }
-  .lb-name small { display: block; color: var(--text-faint); font-weight: 400; font-size: 11px; }
-  .lb-value { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .lb-name { font-weight: 600; font-size: 18px; }
+  .lb-value { font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
 
   /* Chart */
   .chart-wrap { position: relative; flex: 1; min-height: 120px; }
@@ -1548,12 +1547,10 @@ async function renderLeaderboard(node, w, rows) {
       });
     }
     const valLabel = w.format === "money" ? fmtMoney(it.value) : fmtNum(it.value);
-    const nameNode = el("div", { class: "lb-name" }, it.name);
-    if (it.email && it.email !== it.name) nameNode.append(el("small", {}, it.email));
     row.append(
       el("div", { class: "lb-rank" }, "#" + (i+1)),
       av,
-      nameNode,
+      el("div", { class: "lb-name" }, it.name),
       el("div", { class: "lb-value" }, valLabel),
     );
     wrap.append(row);
