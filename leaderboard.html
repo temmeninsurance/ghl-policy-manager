@@ -430,6 +430,28 @@
     border: 1px solid var(--border); border-radius: 6px;
     font-size: 11px; font-weight: 700;
   }
+  /* Searchable value combobox inside filter rows */
+  .value-combo { position: relative; }
+  .value-combo input { width: 100%; }
+  .value-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; max-height: 240px; overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .vd-item {
+    padding: 7px 11px; font-size: 12px; cursor: pointer;
+    color: var(--text); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .vd-item:hover, .vd-item.active {
+    background: rgba(56,225,194,.12); color: var(--accent);
+  }
+  .vd-item .vd-hint {
+    color: var(--text-faint); font-size: 10px; margin-left: 6px;
+  }
+  .vd-empty { padding: 10px 11px; font-size: 12px; color: var(--text-faint); }
   .filter-row button {
     background: transparent; color: var(--text-faint);
     border: 1px solid var(--border); border-radius: 6px;
@@ -1099,6 +1121,7 @@ async function loadData() {
   try {
     const values = await fetchTabValues(state.sheetId, state.dataTab);
     state.rawValues = values;
+    _uniqueValuesCache = null; // data changed; invalidate filter-value suggestions
     if (!values.length) { state.columns = []; state.rows = []; }
     else {
       state.columns = values[0].map(c => String(c ?? "").trim());
@@ -1116,6 +1139,24 @@ async function loadData() {
     renderTopbar();
     renderDashboard();
   }
+}
+
+/* Unique values for a column, cached. Powers the searchable filter dropdown. */
+let _uniqueValuesCache = null;
+function uniqueValuesForColumn(col) {
+  if (!col) return [];
+  if (!_uniqueValuesCache) _uniqueValuesCache = new Map();
+  if (_uniqueValuesCache.has(col)) return _uniqueValuesCache.get(col);
+  const set = new Set();
+  for (const r of state.rows) {
+    const v = r[col];
+    if (v == null || v === "") continue;
+    set.add(String(v).trim());
+  }
+  const arr = Array.from(set).filter(Boolean).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+  _uniqueValuesCache.set(col, arr);
+  return arr;
 }
 
 /* Convert a sheet cell to a JS Date that represents the same wall-clock day
@@ -2138,6 +2179,84 @@ function renderChart(node, w, rows, range) {
   state.charts.set(w.id, ch);
 }
 
+/* Searchable value combobox for filter rows. Suggestions = the unique
+   values in the selected column, narrowed by what the user has typed. */
+function makeSearchableValueInput(filter, getColumn) {
+  const wrap = el("div", { class: "value-combo" });
+  const input = el("input", { type: "text", placeholder: "value", autocomplete: "off", value: filter.value ?? "" });
+  const dropdown = el("div", { class: "value-dropdown", style: "display:none" });
+  let activeIdx = -1, currentMatches = [];
+
+  function renderMatches() {
+    const col = getColumn();
+    dropdown.innerHTML = "";
+    activeIdx = -1;
+    if (!col) {
+      dropdown.append(el("div", { class: "vd-empty" }, "Pick a column first to see suggestions."));
+      dropdown.style.display = "block";
+      return;
+    }
+    const all = uniqueValuesForColumn(col);
+    if (!all.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, "No values found in this column yet."));
+      dropdown.style.display = "block";
+      return;
+    }
+    const q = (input.value || "").toLowerCase();
+    const matches = q
+      ? all.filter(v => v.toLowerCase().includes(q)).slice(0, 100)
+      : all.slice(0, 100);
+    currentMatches = matches;
+    if (!matches.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, "No matches. Type a value above and press Enter to use it as-is."));
+      dropdown.style.display = "block";
+      return;
+    }
+    matches.forEach((v, i) => {
+      const it = el("div", { class: "vd-item", "data-idx": i }, v);
+      // optional: show occurrence count
+      it.addEventListener("mousedown", e => {
+        e.preventDefault(); // keep focus so blur doesn't fire first
+        input.value = v;
+        filter.value = v;
+        dropdown.style.display = "none";
+      });
+      dropdown.append(it);
+    });
+    if (q && all.length > matches.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, `Showing ${matches.length} of ${all.length} values · keep typing to narrow`));
+    } else if (all.length > matches.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, `${matches.length} of ${all.length} values · type to filter`));
+    }
+    dropdown.style.display = "block";
+  }
+  function setActive(idx) {
+    $$(".vd-item", dropdown).forEach(n => n.classList.remove("active"));
+    if (idx >= 0 && idx < currentMatches.length) {
+      activeIdx = idx;
+      const node = dropdown.querySelector(`.vd-item[data-idx="${idx}"]`);
+      if (node) { node.classList.add("active"); node.scrollIntoView({ block: "nearest" }); }
+    }
+  }
+
+  input.addEventListener("focus", renderMatches);
+  input.addEventListener("input", () => { filter.value = input.value; renderMatches(); });
+  input.addEventListener("blur",  () => setTimeout(() => { dropdown.style.display = "none"; }, 180));
+  input.addEventListener("keydown", e => {
+    if (dropdown.style.display === "none") return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(Math.min(activeIdx + 1, currentMatches.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(Math.max(activeIdx - 1, 0)); }
+    else if (e.key === "Enter" && activeIdx >= 0) {
+      e.preventDefault();
+      const v = currentMatches[activeIdx];
+      input.value = v; filter.value = v; dropdown.style.display = "none";
+    } else if (e.key === "Escape") { dropdown.style.display = "none"; }
+  });
+
+  wrap.append(input, dropdown);
+  return { wrap, input };
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    Widget editor modal
    ════════════════════════════════════════════════════════════════════════ */
@@ -2358,11 +2477,13 @@ function openWidgetModal(widgetId) {
         const os = el("select");
         OPERATORS.forEach(o => os.append(el("option", { value: o, selected: f.op === o ? "selected" : null }, o.replace(/_/g," "))));
         os.addEventListener("change", () => { f.op = os.value; renderFilters(); });
-        const vs = el("input", { type: "text", placeholder: "value", value: f.value ?? "" });
-        vs.addEventListener("input", () => f.value = vs.value);
-        if (["is_empty","not_empty"].includes(f.op)) vs.style.visibility = "hidden";
+
+        // Searchable value input — pulls unique values from the selected column
+        const valueBox = makeSearchableValueInput(f, () => f.column);
+        if (["is_empty","not_empty"].includes(f.op)) valueBox.wrap.style.visibility = "hidden";
+
         const rm = el("button", { onclick: () => { w.filters.splice(idx,1); renderFilters(); } }, "✕");
-        row.append(combo, cs, os, vs, rm);
+        row.append(combo, cs, os, valueBox.wrap, rm);
         fwrap.append(row);
       });
       const add = el("button", { class: "add-filter-btn", onclick: () => {
