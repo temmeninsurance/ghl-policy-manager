@@ -396,6 +396,7 @@ const state = {
   loading: false,
   lastFetched: null,
   charts: new Map(), // widgetId -> Chart instance
+  readOnly: false,   // true if current user can't write to the sheet
 };
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -621,23 +622,28 @@ async function writeTabValues(sheetId, tabName, values) {
 async function ensureConfigTab(sheetId) {
   const has = state.tabs.some(t => t.title === CFG.CONFIG_TAB);
   if (has) return;
-  await api(`/${sheetId}:batchUpdate`, {
-    method: "POST",
-    body: JSON.stringify({
-      requests: [{
-        addSheet: {
-          properties: {
-            title: CFG.CONFIG_TAB,
-            hidden: true,
-            gridProperties: { rowCount: 200, columnCount: 4 },
+  try {
+    await api(`/${sheetId}:batchUpdate`, {
+      method: "POST",
+      body: JSON.stringify({
+        requests: [{
+          addSheet: {
+            properties: {
+              title: CFG.CONFIG_TAB,
+              hidden: true,
+              gridProperties: { rowCount: 200, columnCount: 4 },
+            },
           },
-        },
-      }],
-    }),
-  });
-  // refresh tab list
-  const meta = await fetchSheetMeta(sheetId);
-  state.tabs = meta.tabs;
+        }],
+      }),
+    });
+    const meta = await fetchSheetMeta(sheetId);
+    state.tabs = meta.tabs;
+  } catch (e) {
+    // 403 → user has view-only access; continue, they'll just see existing dashboard
+    if (String(e.message).includes("403")) { state.readOnly = true; return; }
+    throw e;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -667,8 +673,17 @@ async function saveConfig(cfg) {
     ["dashboard", JSON.stringify(cfg), new Date().toISOString(), state.user?.email || ""],
     ["dataTab", JSON.stringify(state.dataTab), new Date().toISOString(), state.user?.email || ""],
   ];
-  await writeTabValues(state.sheetId, CFG.CONFIG_TAB, values);
-  state.config = cfg;
+  try {
+    await writeTabValues(state.sheetId, CFG.CONFIG_TAB, values);
+    state.config = cfg;
+    state.readOnly = false;
+  } catch (e) {
+    if (String(e.message).includes("403")) {
+      state.readOnly = true;
+      throw new Error("You have view-only access to this sheet — ask the owner to give you Editor access to change widgets.");
+    }
+    throw e;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -886,8 +901,13 @@ function renderTopbar() {
     bar.append(meta);
   }
   if (state.config) {
-    bar.append(el("button", { class: "icon-btn", onclick: () => openWidgetModal(null) }, "+ Widget"));
-    bar.append(el("button", { class: "icon-btn", onclick: openSettingsModal }, "⚙ Settings"));
+    if (state.readOnly) {
+      bar.append(el("span", { class: "chip", style: "background:rgba(245,158,11,.15);color:var(--warn);border-color:rgba(245,158,11,.3)" }, "View only"));
+    } else {
+      bar.append(el("button", { class: "icon-btn", onclick: () => openWidgetModal(null) }, "+ Widget"));
+      bar.append(el("button", { class: "icon-btn", onclick: openSettingsModal }, "⚙ Settings"));
+    }
+    bar.append(el("button", { class: "icon-btn", onclick: copyShareLink, title: "Copy a link other users can open to see this exact dashboard" }, "🔗 Share"));
   }
   bar.append(
     el("button", { class: "icon-btn", onclick: toggleTheme, title: "Toggle theme" }, currentTheme() === "dark" ? "☀" : "☾"),
@@ -1069,10 +1089,12 @@ function renderDashboard() {
 
 function renderWidget(w) {
   const node = el("div", { class: `widget w-${w.size || 2}` });
-  node.append(el("div", { class: "w-actions" },
-    el("button", { onclick: () => openWidgetModal(w.id) }, "Edit"),
-    el("button", { onclick: () => deleteWidget(w.id) }, "✕"),
-  ));
+  if (!state.readOnly) {
+    node.append(el("div", { class: "w-actions" },
+      el("button", { onclick: () => openWidgetModal(w.id) }, "Edit"),
+      el("button", { onclick: () => deleteWidget(w.id) }, "✕"),
+    ));
+  }
   node.append(el("div", { class: "w-title" }, w.title || w.kind));
 
   const range = timeRange(state.timeFilter.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd });
@@ -1431,6 +1453,19 @@ function openSettingsModal() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   Share link
+   ════════════════════════════════════════════════════════════════════════ */
+function copyShareLink() {
+  if (!state.sheetId) return;
+  const url = `${location.origin}${location.pathname}?sheet=${state.sheetId}`;
+  navigator.clipboard.writeText(url).then(() => {
+    toast("Share link copied — anyone with Sheet access can open this dashboard", "ok");
+  }).catch(() => {
+    prompt("Copy this URL:", url);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    Theme
    ════════════════════════════════════════════════════════════════════════ */
 function currentTheme() { return document.body.getAttribute("data-theme") || "dark"; }
@@ -1459,7 +1494,10 @@ async function boot() {
   if (!loadStoredAuth()) { render(); return; }
   if (!state.user?.email) await fetchUserEmail();
 
-  const savedSheetId = localStorage.getItem(LS.SHEET_ID);
+  // ?sheet=<id> URL param wins over localStorage so a shared link always lands you in the right place
+  const urlSheetId = parseSheetId(new URLSearchParams(location.search).get("sheet") || "");
+  const savedSheetId = urlSheetId || localStorage.getItem(LS.SHEET_ID);
+  if (urlSheetId) localStorage.setItem(LS.SHEET_ID, urlSheetId);
   if (savedSheetId) {
     try {
       const meta = await fetchSheetMeta(savedSheetId);
