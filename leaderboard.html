@@ -1,0 +1,1485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Leaderboard Dashboard</title>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════════╗
+  ║                  PLECTO-STYLE LEADERBOARD DASHBOARD                          ║
+  ╠══════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                              ║
+  ║  ONE-TIME SETUP                                                              ║
+  ║                                                                              ║
+  ║  1. Create an OAuth 2.0 Client ID in Google Cloud Console:                   ║
+  ║       https://console.cloud.google.com/apis/credentials                      ║
+  ║       • Application type: Web application                                    ║
+  ║       • Authorized JavaScript origins:                                       ║
+  ║           https://<your-user>.github.io                                      ║
+  ║           http://localhost:8000   (for local testing)                        ║
+  ║       • Authorized redirect URIs:    (none needed for token flow)            ║
+  ║                                                                              ║
+  ║  2. Enable the Google Sheets API for the same project:                       ║
+  ║       https://console.cloud.google.com/apis/library/sheets.googleapis.com    ║
+  ║                                                                              ║
+  ║  3. Paste the Client ID into OAUTH_CLIENT_ID below, commit, push.            ║
+  ║                                                                              ║
+  ║  4. Open https://<your-user>.github.io/<repo>/leaderboard.html               ║
+  ║       • Sign in with Google                                                  ║
+  ║       • Paste the Google Sheet URL, pick the data tab                        ║
+  ║       • Configure date / email / numeric columns                             ║
+  ║       • Add KPI / leaderboard / goal / chart widgets                         ║
+  ║                                                                              ║
+  ║  Dashboard config is stored in a hidden tab '__plecto_config' inside the     ║
+  ║  same Google Sheet, so every viewer sees the same widgets.                   ║
+  ║                                                                              ║
+  ╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+
+<script>
+  /* ════════════════════════════════════════════════════════════════════════
+     CONFIG — edit this block
+     ════════════════════════════════════════════════════════════════════════ */
+  window.PLECTO_CONFIG = {
+    // Paste your Google OAuth 2.0 Web Client ID here
+    OAUTH_CLIENT_ID: "PASTE_YOUR_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com",
+
+    // Scopes — needs read+write because dashboard config is stored in the sheet
+    SCOPES: "https://www.googleapis.com/auth/spreadsheets",
+
+    // How often to re-pull sheet data (ms)
+    REFRESH_MS: 60_000,
+
+    // Tab name used to store dashboard config inside the sheet
+    CONFIG_TAB: "__plecto_config",
+  };
+</script>
+
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-2: #121a31;
+    --bg-3: #1a2542;
+    --card: #131c36;
+    --card-2: #182347;
+    --border: #243056;
+    --text: #e6ecff;
+    --text-dim: #93a0c8;
+    --text-faint: #5d6a93;
+    --accent: #38e1c2;
+    --accent-2: #5b8def;
+    --gold: #fbbf24;
+    --silver: #cbd5e1;
+    --bronze: #d97706;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --shadow: 0 1px 0 rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.35);
+    --radius: 14px;
+  }
+  [data-theme="light"] {
+    --bg: #f1f5f9;
+    --bg-2: #e2e8f0;
+    --bg-3: #cbd5e1;
+    --card: #ffffff;
+    --card-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-dim: #475569;
+    --text-faint: #94a3b8;
+    --accent: #0d9488;
+    --accent-2: #2563eb;
+    --shadow: 0 1px 0 rgba(0,0,0,.02), 0 8px 24px rgba(15,23,42,.08);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+  input, select { font-family: inherit; }
+
+  /* ─── Top bar ──────────────────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px; background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar .brand {
+    font-weight: 700; font-size: 15px; letter-spacing: .2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar .brand-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 12px var(--accent);
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .meta { color: var(--text-dim); font-size: 12px; }
+  .topbar .meta b { color: var(--text); font-weight: 600; }
+  .icon-btn {
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .icon-btn.primary {
+    background: var(--accent); color: #001b15; border-color: var(--accent);
+    font-weight: 600;
+  }
+  .icon-btn.primary:hover { filter: brightness(1.1); }
+  .icon-btn.danger { color: var(--danger); border-color: rgba(239,68,68,.4); }
+
+  /* ─── Filter bar ──────────────────────────────────────────── */
+  .filterbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 18px; background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .chip {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px;
+    background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid transparent; cursor: pointer; user-select: none;
+    transition: color .15s, background .15s, border-color .15s;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    background: rgba(56,225,194,.12); color: var(--accent);
+    border-color: rgba(56,225,194,.3);
+  }
+  .filterbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .filterbar input[type="date"] {
+    background: var(--bg-3); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 8px; font-size: 12px;
+  }
+
+  /* ─── Dashboard grid ──────────────────────────────────────── */
+  .stage { padding: 16px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 14px;
+  }
+  .widget {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px; position: relative; overflow: hidden;
+    min-height: 160px;
+  }
+  .widget .w-actions {
+    position: absolute; top: 8px; right: 8px;
+    display: none; gap: 4px;
+  }
+  .widget:hover .w-actions { display: flex; }
+  .w-actions button {
+    background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 3px 7px; font-size: 11px; cursor: pointer;
+  }
+  .w-actions button:hover { color: var(--text); }
+  .w-title {
+    font-size: 12px; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: .8px; font-weight: 600; margin-bottom: 10px;
+  }
+  /* widget size variants */
+  .w-1 { grid-column: span 3; }
+  .w-2 { grid-column: span 4; }
+  .w-3 { grid-column: span 6; }
+  .w-4 { grid-column: span 8; }
+  .w-5 { grid-column: span 12; }
+  @media (max-width: 1100px) {
+    .w-1, .w-2 { grid-column: span 6; }
+    .w-3, .w-4 { grid-column: span 12; }
+  }
+  @media (max-width: 600px) {
+    .w-1, .w-2, .w-3, .w-4 { grid-column: span 12; }
+  }
+
+  /* KPI tile */
+  .kpi-value { font-size: 44px; font-weight: 700; letter-spacing: -.5px; }
+  .kpi-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+  .kpi-delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+  .kpi-delta.up { color: var(--success); }
+  .kpi-delta.down { color: var(--danger); }
+
+  /* Goal */
+  .goal-bar {
+    height: 14px; background: var(--bg-3); border-radius: 999px;
+    overflow: hidden; margin: 14px 0 8px;
+  }
+  .goal-bar > div {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .6s ease;
+  }
+  .goal-meta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .goal-meta .goal-pct { color: var(--text); font-weight: 700; font-size: 16px; }
+
+  /* Leaderboard */
+  .lb-row {
+    display: grid;
+    grid-template-columns: 36px 36px 1fr auto;
+    align-items: center; gap: 10px;
+    padding: 10px 6px; border-bottom: 1px solid var(--border);
+    transition: background .2s;
+  }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row:hover { background: var(--card-2); }
+  .lb-rank {
+    font-size: 16px; font-weight: 700; color: var(--text-dim);
+    text-align: center;
+  }
+  .lb-row.r1 .lb-rank { color: var(--gold); }
+  .lb-row.r2 .lb-rank { color: var(--silver); }
+  .lb-row.r3 .lb-rank { color: var(--bronze); }
+  .lb-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--bg-3); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; overflow: hidden;
+    border: 2px solid transparent;
+  }
+  .lb-row.r1 .lb-avatar { border-color: var(--gold); }
+  .lb-row.r2 .lb-avatar { border-color: var(--silver); }
+  .lb-row.r3 .lb-avatar { border-color: var(--bronze); }
+  .lb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .lb-name { font-weight: 600; font-size: 14px; }
+  .lb-name small { display: block; color: var(--text-faint); font-weight: 400; font-size: 11px; }
+  .lb-value { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+
+  /* Chart */
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ─── Empty / login screens ───────────────────────────────── */
+  .center-screen {
+    min-height: calc(100vh - 64px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; max-width: 480px; width: 100%;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 { margin: 0 0 6px; font-size: 20px; }
+  .panel p { color: var(--text-dim); margin: 0 0 18px; }
+  .panel label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 6px; }
+  .panel input, .panel select {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+  }
+  .panel .row { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+
+  /* ─── Modal ───────────────────────────────────────────────── */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(2,6,23,.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .modal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px;
+    width: 100%; max-width: 640px; max-height: 88vh; overflow: auto;
+    box-shadow: var(--shadow);
+  }
+  .modal h3 { margin: 0 0 4px; font-size: 17px; }
+  .modal .modal-sub { color: var(--text-dim); font-size: 12px; margin-bottom: 18px; }
+  .modal label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 6px; font-weight: 600; }
+  .modal input, .modal select {
+    width: 100%; padding: 9px 11px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+  .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 22px; }
+  .filter-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 32px;
+    gap: 8px; align-items: center; margin-bottom: 8px;
+  }
+  .filter-row button {
+    background: transparent; color: var(--text-faint);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; height: 36px;
+  }
+  .filter-row button:hover { color: var(--danger); border-color: var(--danger); }
+  .add-filter-btn {
+    background: transparent; color: var(--accent); border: 1px dashed var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+    margin-top: 6px;
+  }
+  .add-filter-btn:hover { border-color: var(--accent); }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 16px; font-size: 13px; z-index: 200;
+    box-shadow: var(--shadow);
+    animation: toast-in .2s ease;
+  }
+  .toast.err { border-color: var(--danger); color: var(--danger); }
+  .toast.ok  { border-color: var(--success); }
+  @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--text-dim);
+  }
+  .empty h3 { color: var(--text); margin: 0 0 6px; }
+
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+    display: inline-block; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* tiny helper */
+  .row { display: flex; align-items: center; gap: 8px; }
+  .muted { color: var(--text-dim); }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .5; } }
+</style>
+</head>
+<body data-theme="dark">
+
+<div id="app"></div>
+
+<!-- Google Identity Services (OAuth) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Chart.js for time-series widget -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   App state
+   ════════════════════════════════════════════════════════════════════════ */
+const CFG = window.PLECTO_CONFIG;
+const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
+const LS = {
+  TOKEN:    "plecto.token",
+  TOKEN_EXP:"plecto.token_exp",
+  SHEET_ID: "plecto.sheet_id",
+  TAB:      "plecto.tab",
+  THEME:    "plecto.theme",
+  USER:     "plecto.user_email",
+};
+
+const state = {
+  token: null,
+  tokenExp: 0,
+  tokenClient: null,
+  user: null,        // { email }
+  sheetId: null,
+  sheetTitle: null,
+  tabs: [],          // [{title, sheetId}]
+  dataTab: null,     // current data tab name
+  columns: [],       // header row
+  rows: [],          // array of row objects
+  rawValues: [],     // raw 2-D values from Sheets
+  config: null,      // { columns:{date,email,name?}, widgets:[...] }
+  timeFilter: { kind: "MTD", customStart: null, customEnd: null },
+  refreshTimer: null,
+  loading: false,
+  lastFetched: null,
+  charts: new Map(), // widgetId -> Chart instance
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   Utilities
+   ════════════════════════════════════════════════════════════════════════ */
+const $  = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+const el = (tag, attrs={}, ...children) => {
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k === "html") n.innerHTML = v;
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (c == null || c === false) continue;
+    n.append(c.nodeType ? c : document.createTextNode(c));
+  }
+  return n;
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtNum = n => {
+  if (n == null || isNaN(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n/1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return (n/1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return (n/1e3).toFixed(1) + "K";
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+};
+const fmtMoney = n => "$" + fmtNum(n);
+const initials = s => (s||"").split(/\s+|@/).filter(Boolean).slice(0,2).map(x => x[0]?.toUpperCase()).join("") || "?";
+async function md5Hex(str) {
+  // simple MD5 for Gravatar — small inline implementation
+  function rh(n){let j,s='';for(j=0;j<=3;j++)s+=((n>>(j*8+4))&0x0F).toString(16)+((n>>(j*8))&0x0F).toString(16);return s;}
+  function ad(x,y){const l=(x&0xFFFF)+(y&0xFFFF);return (((x>>16)+(y>>16)+(l>>16))<<16)|(l&0xFFFF);}
+  function rl(n,c){return (n<<c)|(n>>>(32-c));}
+  function cm(q,a,b,x,s,t){return ad(rl(ad(ad(a,q),ad(x,t)),s),b);}
+  function ff(a,b,c,d,x,s,t){return cm((b&c)|((~b)&d),a,b,x,s,t);}
+  function gg(a,b,c,d,x,s,t){return cm((b&d)|(c&(~d)),a,b,x,s,t);}
+  function hh(a,b,c,d,x,s,t){return cm(b^c^d,a,b,x,s,t);}
+  function ii(a,b,c,d,x,s,t){return cm(c^(b|(~d)),a,b,x,s,t);}
+  function cb(s){const n=s.length,b=[];for(let i=0;i<n*8;i+=8)b[i>>5]|=(s.charCodeAt(i/8)&0xFF)<<(i%32);return b;}
+  let x=cb(str.toLowerCase().trim()),len=str.length*8;
+  x[len>>5]|=0x80<<(len%32);x[(((len+64)>>>9)<<4)+14]=len;
+  let a=1732584193,b=-271733879,c=-1732584194,d=271733878;
+  for(let i=0;i<x.length;i+=16){
+    const oa=a,ob=b,oc=c,od=d;
+    a=ff(a,b,c,d,x[i+0]||0,7,-680876936);d=ff(d,a,b,c,x[i+1]||0,12,-389564586);c=ff(c,d,a,b,x[i+2]||0,17,606105819);b=ff(b,c,d,a,x[i+3]||0,22,-1044525330);
+    a=ff(a,b,c,d,x[i+4]||0,7,-176418897);d=ff(d,a,b,c,x[i+5]||0,12,1200080426);c=ff(c,d,a,b,x[i+6]||0,17,-1473231341);b=ff(b,c,d,a,x[i+7]||0,22,-45705983);
+    a=ff(a,b,c,d,x[i+8]||0,7,1770035416);d=ff(d,a,b,c,x[i+9]||0,12,-1958414417);c=ff(c,d,a,b,x[i+10]||0,17,-42063);b=ff(b,c,d,a,x[i+11]||0,22,-1990404162);
+    a=ff(a,b,c,d,x[i+12]||0,7,1804603682);d=ff(d,a,b,c,x[i+13]||0,12,-40341101);c=ff(c,d,a,b,x[i+14]||0,17,-1502002290);b=ff(b,c,d,a,x[i+15]||0,22,1236535329);
+    a=gg(a,b,c,d,x[i+1]||0,5,-165796510);d=gg(d,a,b,c,x[i+6]||0,9,-1069501632);c=gg(c,d,a,b,x[i+11]||0,14,643717713);b=gg(b,c,d,a,x[i+0]||0,20,-373897302);
+    a=gg(a,b,c,d,x[i+5]||0,5,-701558691);d=gg(d,a,b,c,x[i+10]||0,9,38016083);c=gg(c,d,a,b,x[i+15]||0,14,-660478335);b=gg(b,c,d,a,x[i+4]||0,20,-405537848);
+    a=gg(a,b,c,d,x[i+9]||0,5,568446438);d=gg(d,a,b,c,x[i+14]||0,9,-1019803690);c=gg(c,d,a,b,x[i+3]||0,14,-187363961);b=gg(b,c,d,a,x[i+8]||0,20,1163531501);
+    a=gg(a,b,c,d,x[i+13]||0,5,-1444681467);d=gg(d,a,b,c,x[i+2]||0,9,-51403784);c=gg(c,d,a,b,x[i+7]||0,14,1735328473);b=gg(b,c,d,a,x[i+12]||0,20,-1926607734);
+    a=hh(a,b,c,d,x[i+5]||0,4,-378558);d=hh(d,a,b,c,x[i+8]||0,11,-2022574463);c=hh(c,d,a,b,x[i+11]||0,16,1839030562);b=hh(b,c,d,a,x[i+14]||0,23,-35309556);
+    a=hh(a,b,c,d,x[i+1]||0,4,-1530992060);d=hh(d,a,b,c,x[i+4]||0,11,1272893353);c=hh(c,d,a,b,x[i+7]||0,16,-155497632);b=hh(b,c,d,a,x[i+10]||0,23,-1094730640);
+    a=hh(a,b,c,d,x[i+13]||0,4,681279174);d=hh(d,a,b,c,x[i+0]||0,11,-358537222);c=hh(c,d,a,b,x[i+3]||0,16,-722521979);b=hh(b,c,d,a,x[i+6]||0,23,76029189);
+    a=hh(a,b,c,d,x[i+9]||0,4,-640364487);d=hh(d,a,b,c,x[i+12]||0,11,-421815835);c=hh(c,d,a,b,x[i+15]||0,16,530742520);b=hh(b,c,d,a,x[i+2]||0,23,-995338651);
+    a=ii(a,b,c,d,x[i+0]||0,6,-198630844);d=ii(d,a,b,c,x[i+7]||0,10,1126891415);c=ii(c,d,a,b,x[i+14]||0,15,-1416354905);b=ii(b,c,d,a,x[i+5]||0,21,-57434055);
+    a=ii(a,b,c,d,x[i+12]||0,6,1700485571);d=ii(d,a,b,c,x[i+3]||0,10,-1894986606);c=ii(c,d,a,b,x[i+10]||0,15,-1051523);b=ii(b,c,d,a,x[i+1]||0,21,-2054922799);
+    a=ii(a,b,c,d,x[i+8]||0,6,1873313359);d=ii(d,a,b,c,x[i+15]||0,10,-30611744);c=ii(c,d,a,b,x[i+6]||0,15,-1560198380);b=ii(b,c,d,a,x[i+13]||0,21,1309151649);
+    a=ii(a,b,c,d,x[i+4]||0,6,-145523070);d=ii(d,a,b,c,x[i+11]||0,10,-1120210379);c=ii(c,d,a,b,x[i+2]||0,15,718787259);b=ii(b,c,d,a,x[i+9]||0,21,-343485551);
+    a=ad(a,oa);b=ad(b,ob);c=ad(c,oc);d=ad(d,od);
+  }
+  return rh(a)+rh(b)+rh(c)+rh(d);
+}
+const gravatar = async email => {
+  if (!email) return null;
+  const h = await md5Hex(String(email).trim());
+  return `https://www.gravatar.com/avatar/${h}?d=404&s=80`;
+};
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+let toastTimer;
+function toast(msg, kind="") {
+  clearTimeout(toastTimer);
+  $$(".toast").forEach(n => n.remove());
+  const t = el("div", { class: "toast " + kind }, msg);
+  document.body.append(t);
+  toastTimer = setTimeout(() => t.remove(), 3200);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Auth (Google Identity Services)
+   ════════════════════════════════════════════════════════════════════════ */
+function initTokenClient() {
+  if (state.tokenClient) return;
+  if (!window.google?.accounts?.oauth2) return;
+  state.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CFG.OAUTH_CLIENT_ID,
+    scope: CFG.SCOPES,
+    callback: (resp) => {
+      if (resp.error) {
+        toast("Sign-in failed: " + resp.error, "err");
+        return;
+      }
+      state.token = resp.access_token;
+      state.tokenExp = Date.now() + (resp.expires_in - 60) * 1000;
+      localStorage.setItem(LS.TOKEN, state.token);
+      localStorage.setItem(LS.TOKEN_EXP, String(state.tokenExp));
+      // try to get email via userinfo
+      fetchUserEmail().then(() => boot());
+    },
+  });
+}
+async function fetchUserEmail() {
+  try {
+    const r = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: "Bearer " + state.token }
+    });
+    if (r.ok) {
+      const d = await r.json();
+      state.user = { email: d.email };
+      localStorage.setItem(LS.USER, d.email || "");
+    }
+  } catch {}
+}
+function signIn() {
+  if (CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) {
+    toast("Set OAUTH_CLIENT_ID in the CONFIG block first", "err");
+    return;
+  }
+  initTokenClient();
+  if (!state.tokenClient) {
+    toast("Google Identity script not loaded yet — try again in a second", "err");
+    return;
+  }
+  state.tokenClient.requestAccessToken({ prompt: "" });
+}
+function signOut() {
+  if (state.token && window.google?.accounts?.oauth2) {
+    google.accounts.oauth2.revoke(state.token, () => {});
+  }
+  state.token = null; state.tokenExp = 0; state.user = null;
+  localStorage.removeItem(LS.TOKEN);
+  localStorage.removeItem(LS.TOKEN_EXP);
+  localStorage.removeItem(LS.USER);
+  clearInterval(state.refreshTimer);
+  render();
+}
+function tokenValid() {
+  return state.token && Date.now() < state.tokenExp;
+}
+function loadStoredAuth() {
+  const tok = localStorage.getItem(LS.TOKEN);
+  const exp = parseInt(localStorage.getItem(LS.TOKEN_EXP) || "0", 10);
+  if (tok && Date.now() < exp) {
+    state.token = tok;
+    state.tokenExp = exp;
+    state.user = { email: localStorage.getItem(LS.USER) || "" };
+    return true;
+  }
+  return false;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sheets API
+   ════════════════════════════════════════════════════════════════════════ */
+async function api(path, opts={}) {
+  if (!tokenValid()) {
+    toast("Session expired — sign in again", "err");
+    signOut();
+    throw new Error("token expired");
+  }
+  const r = await fetch(SHEETS_API + path, {
+    ...opts,
+    headers: {
+      "Authorization": "Bearer " + state.token,
+      "Content-Type": "application/json",
+      ...(opts.headers || {}),
+    },
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`Sheets API ${r.status}: ${txt.slice(0, 200)}`);
+  }
+  return r.status === 204 ? null : r.json();
+}
+function parseSheetId(input) {
+  if (!input) return null;
+  const s = input.trim();
+  const m = s.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (m) return m[1];
+  if (/^[a-zA-Z0-9-_]{20,}$/.test(s)) return s;
+  return null;
+}
+async function fetchSheetMeta(id) {
+  const meta = await api(`/${id}?fields=properties(title),sheets(properties(sheetId,title,index))`);
+  return {
+    title: meta.properties.title,
+    tabs: meta.sheets.map(s => ({
+      title: s.properties.title,
+      sheetId: s.properties.sheetId,
+      index: s.properties.index,
+    })).sort((a,b) => a.index - b.index),
+  };
+}
+async function fetchTabValues(sheetId, tabName) {
+  const range = `'${tabName.replace(/'/g, "''")}'`;
+  const data = await api(`/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
+  return data.values || [];
+}
+async function writeTabValues(sheetId, tabName, values) {
+  const range = `'${tabName.replace(/'/g, "''")}'!A1`;
+  // clear first, then write
+  await api(`/${sheetId}/values/${encodeURIComponent("'" + tabName.replace(/'/g, "''") + "'")}:clear`, { method: "POST", body: "{}" });
+  await api(`/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, {
+    method: "PUT",
+    body: JSON.stringify({ values }),
+  });
+}
+async function ensureConfigTab(sheetId) {
+  const has = state.tabs.some(t => t.title === CFG.CONFIG_TAB);
+  if (has) return;
+  await api(`/${sheetId}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [{
+        addSheet: {
+          properties: {
+            title: CFG.CONFIG_TAB,
+            hidden: true,
+            gridProperties: { rowCount: 200, columnCount: 4 },
+          },
+        },
+      }],
+    }),
+  });
+  // refresh tab list
+  const meta = await fetchSheetMeta(sheetId);
+  state.tabs = meta.tabs;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Config persistence (config tab inside the sheet)
+   schema: A=key, B=value(json), C=updatedAt, D=updatedBy
+   ════════════════════════════════════════════════════════════════════════ */
+async function loadConfig() {
+  let rows;
+  try {
+    rows = await fetchTabValues(state.sheetId, CFG.CONFIG_TAB);
+  } catch (e) {
+    return null;
+  }
+  if (!rows || rows.length < 2) return null;
+  const map = {};
+  for (let i = 1; i < rows.length; i++) {
+    const [k, v] = rows[i];
+    if (!k) continue;
+    try { map[k] = JSON.parse(v); } catch { map[k] = v; }
+  }
+  if (!map.dashboard) return null;
+  return map.dashboard;
+}
+async function saveConfig(cfg) {
+  const values = [
+    ["key", "value", "updatedAt", "updatedBy"],
+    ["dashboard", JSON.stringify(cfg), new Date().toISOString(), state.user?.email || ""],
+    ["dataTab", JSON.stringify(state.dataTab), new Date().toISOString(), state.user?.email || ""],
+  ];
+  await writeTabValues(state.sheetId, CFG.CONFIG_TAB, values);
+  state.config = cfg;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Data load + parse
+   ════════════════════════════════════════════════════════════════════════ */
+async function loadData() {
+  if (!state.sheetId || !state.dataTab) return;
+  state.loading = true;
+  renderTopbar();
+  try {
+    const values = await fetchTabValues(state.sheetId, state.dataTab);
+    state.rawValues = values;
+    if (!values.length) { state.columns = []; state.rows = []; }
+    else {
+      state.columns = values[0].map(c => String(c ?? "").trim());
+      state.rows = values.slice(1).map(r => {
+        const obj = {};
+        for (let i = 0; i < state.columns.length; i++) obj[state.columns[i]] = r[i];
+        return obj;
+      });
+    }
+    state.lastFetched = new Date();
+  } catch (e) {
+    toast("Failed to load sheet: " + e.message, "err");
+  } finally {
+    state.loading = false;
+    renderTopbar();
+    renderDashboard();
+  }
+}
+
+/* convert sheet cell → JS Date when possible */
+function toDate(v) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) return v;
+  if (typeof v === "number") {
+    // Google Sheets serial number (days since 1899-12-30)
+    const ms = (v - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    return isNaN(d) ? null : d;
+  }
+  if (typeof v === "string") {
+    const d = new Date(v);
+    return isNaN(d) ? null : d;
+  }
+  return null;
+}
+function toNumber(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return v;
+  const cleaned = String(v).replace(/[$,\s]/g, "").replace(/[()]/g, "");
+  const neg = String(v).includes("(");
+  const n = parseFloat(cleaned);
+  if (isNaN(n)) return null;
+  return neg ? -n : n;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Time-period filtering
+   ════════════════════════════════════════════════════════════════════════ */
+function timeRange(kind, custom) {
+  const now = new Date();
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
+  const today = startOfDay(now);
+  switch (kind) {
+    case "TODAY":     return [today, endOfDay(now)];
+    case "YESTERDAY": { const y = new Date(today); y.setDate(y.getDate()-1); return [y, endOfDay(y)]; }
+    case "WEEK": {
+      const s = new Date(today); s.setDate(s.getDate() - 6);
+      return [s, endOfDay(now)];
+    }
+    case "LAST_WEEK": {
+      const s = new Date(today); s.setDate(s.getDate() - 13);
+      const e = new Date(today); e.setDate(e.getDate() - 7);
+      return [s, endOfDay(e)];
+    }
+    case "MTD":  return [new Date(now.getFullYear(), now.getMonth(), 1), endOfDay(now)];
+    case "QTD": {
+      const q = Math.floor(now.getMonth()/3)*3;
+      return [new Date(now.getFullYear(), q, 1), endOfDay(now)];
+    }
+    case "YTD":  return [new Date(now.getFullYear(), 0, 1), endOfDay(now)];
+    case "ALL":  return [new Date(0), endOfDay(now)];
+    case "CUSTOM": {
+      const s = custom?.start ? new Date(custom.start) : new Date(0);
+      const e = custom?.end   ? endOfDay(new Date(custom.end)) : endOfDay(now);
+      return [s, e];
+    }
+    default: return [new Date(0), endOfDay(now)];
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Formula engine
+   ────────────────────────────────────────────────────────────────────────
+   filterRow:    operators on a single column
+   aggregateRows: SUM | COUNT | COUNT_DISTINCT | AVG | MIN | MAX
+   evalWidget:   applies time filter + widget filters + groupBy as needed
+   ════════════════════════════════════════════════════════════════════════ */
+const OPERATORS = ["equals","not_equals","contains","not_contains","gt","lt","gte","lte","between","is_empty","not_empty"];
+
+function applyFilter(value, op, target, target2) {
+  switch (op) {
+    case "equals":       return String(value ?? "") === String(target ?? "");
+    case "not_equals":   return String(value ?? "") !== String(target ?? "");
+    case "contains":     return String(value ?? "").toLowerCase().includes(String(target ?? "").toLowerCase());
+    case "not_contains": return !String(value ?? "").toLowerCase().includes(String(target ?? "").toLowerCase());
+    case "gt":           return toNumber(value) >  toNumber(target);
+    case "lt":           return toNumber(value) <  toNumber(target);
+    case "gte":          return toNumber(value) >= toNumber(target);
+    case "lte":          return toNumber(value) <= toNumber(target);
+    case "between": {
+      const n = toNumber(value);
+      return n != null && n >= toNumber(target) && n <= toNumber(target2);
+    }
+    case "is_empty":     return value == null || String(value).trim() === "";
+    case "not_empty":    return value != null && String(value).trim() !== "";
+    default: return true;
+  }
+}
+function rowMatchesAll(row, filters) {
+  if (!filters || !filters.length) return true;
+  return filters.every(f => applyFilter(row[f.column], f.op, f.value, f.value2));
+}
+function rowsInTimeRange(rows, dateCol, range) {
+  if (!dateCol) return rows;
+  const [start, end] = range;
+  return rows.filter(r => {
+    const d = toDate(r[dateCol]);
+    return d && d >= start && d <= end;
+  });
+}
+function aggregate(rows, agg, column) {
+  if (agg === "COUNT") return rows.length;
+  if (agg === "COUNT_DISTINCT") {
+    const s = new Set();
+    rows.forEach(r => { const v = r[column]; if (v != null && v !== "") s.add(String(v)); });
+    return s.size;
+  }
+  const nums = rows.map(r => toNumber(r[column])).filter(v => v != null);
+  if (!nums.length) return 0;
+  switch (agg) {
+    case "SUM": return nums.reduce((a,b) => a+b, 0);
+    case "AVG": return nums.reduce((a,b) => a+b, 0) / nums.length;
+    case "MIN": return Math.min(...nums);
+    case "MAX": return Math.max(...nums);
+    default:    return 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Rendering
+   ════════════════════════════════════════════════════════════════════════ */
+function render() {
+  const app = $("#app");
+  app.innerHTML = "";
+
+  if (!tokenValid()) {
+    app.append(renderLogin());
+    return;
+  }
+  if (!state.sheetId) {
+    app.append(renderTopbar(), renderSheetPicker());
+    return;
+  }
+  if (!state.dataTab || !state.config) {
+    app.append(renderTopbar(), renderDataTabPicker());
+    return;
+  }
+  app.append(renderTopbar(), renderFilterbar());
+  const stage = el("div", { class: "stage", id: "stage" });
+  app.append(stage);
+  renderDashboard();
+}
+
+function renderLogin() {
+  const cs = el("div", { class: "center-screen" });
+  const p = el("div", { class: "panel" });
+  p.append(
+    el("h2", {}, "Leaderboard Dashboard"),
+    el("p", {}, "Sign in with Google to read your spreadsheet."),
+    el("div", { class: "row", style: "justify-content:flex-end" },
+      el("button", { class: "icon-btn primary", onclick: signIn }, "Sign in with Google"),
+    ),
+  );
+  if (CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) {
+    p.append(el("p", { class: "muted", style: "margin-top:18px;font-size:12px" },
+      "⚠ OAUTH_CLIENT_ID is not configured. See the comment at the top of leaderboard.html."));
+  }
+  cs.append(p);
+  return cs;
+}
+
+function renderTopbar() {
+  // re-render in place if it already exists (so loading state updates without flicker)
+  const existing = $(".topbar");
+  if (existing) existing.remove();
+  const bar = el("div", { class: "topbar" });
+  bar.append(
+    el("div", { class: "brand" },
+      el("span", { class: "brand-dot" }),
+      "Leaderboard",
+    ),
+    el("div", { class: "spacer" }),
+  );
+  if (state.sheetTitle) {
+    const meta = el("div", { class: "meta" });
+    meta.innerHTML = `Sheet: <b>${esc(state.sheetTitle)}</b>${state.dataTab ? ` · <b>${esc(state.dataTab)}</b>` : ""}` +
+      (state.loading ? ` · <span class="pulse">refreshing…</span>` :
+        state.lastFetched ? ` · <span class="muted">${state.lastFetched.toLocaleTimeString()}</span>` : "");
+    bar.append(meta);
+  }
+  if (state.config) {
+    bar.append(el("button", { class: "icon-btn", onclick: () => openWidgetModal(null) }, "+ Widget"));
+    bar.append(el("button", { class: "icon-btn", onclick: openSettingsModal }, "⚙ Settings"));
+  }
+  bar.append(
+    el("button", { class: "icon-btn", onclick: toggleTheme, title: "Toggle theme" }, currentTheme() === "dark" ? "☀" : "☾"),
+    el("button", { class: "icon-btn", onclick: () => loadData(), title: "Refresh" }, "↻"),
+    el("button", { class: "icon-btn danger", onclick: signOut }, "Sign out"),
+  );
+  // attach at top of #app
+  const app = $("#app");
+  app.prepend(bar);
+  return bar;
+}
+
+function renderSheetPicker() {
+  const cs = el("div", { class: "center-screen" });
+  const p = el("div", { class: "panel" });
+  p.append(
+    el("h2", {}, "Connect a Google Sheet"),
+    el("p", {}, "Paste the URL of the Google Sheet you want to read. The dashboard will read data from a tab you select, and store its config in a hidden tab in the same sheet."),
+    el("label", {}, "Google Sheet URL or ID"),
+  );
+  const input = el("input", { type: "text", placeholder: "https://docs.google.com/spreadsheets/d/..." });
+  p.append(input);
+  const errEl = el("p", { class: "muted", style: "color:var(--danger);display:none;margin-top:8px;font-size:12px" });
+  p.append(errEl);
+  p.append(el("div", { class: "row" },
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      const id = parseSheetId(input.value);
+      if (!id) { errEl.textContent = "Couldn't read a sheet ID from that URL."; errEl.style.display = "block"; return; }
+      errEl.style.display = "none";
+      try {
+        const meta = await fetchSheetMeta(id);
+        state.sheetId = id; state.sheetTitle = meta.title; state.tabs = meta.tabs;
+        localStorage.setItem(LS.SHEET_ID, id);
+        await ensureConfigTab(id);
+        // if config already exists, jump straight in
+        const existing = await loadConfig();
+        if (existing) {
+          state.config = existing;
+          state.dataTab = existing.dataTab;
+          if (state.dataTab) {
+            await loadData();
+            startAutoRefresh();
+            render();
+            return;
+          }
+        }
+        render();
+      } catch (e) {
+        errEl.textContent = "Failed: " + e.message;
+        errEl.style.display = "block";
+      }
+    } }, "Connect"),
+  ));
+  cs.append(p);
+  return cs;
+}
+
+function renderDataTabPicker() {
+  const cs = el("div", { class: "center-screen" });
+  const p = el("div", { class: "panel" });
+  p.append(
+    el("h2", {}, "Choose data tab & columns"),
+    el("p", {}, "Pick the tab containing one row per event/transaction, then identify the date and email columns."),
+  );
+  p.append(el("label", {}, "Data tab"));
+  const tabSel = el("select");
+  state.tabs.filter(t => t.title !== CFG.CONFIG_TAB).forEach(t => {
+    tabSel.append(el("option", { value: t.title }, t.title));
+  });
+  p.append(tabSel);
+
+  const dateLabel = el("label", {}, "Date column");
+  const dateSel = el("select");
+  const emailLabel = el("label", {}, "Email column (for avatars)");
+  const emailSel = el("select");
+  const nameLabel = el("label", {}, "Name column (optional, for display)");
+  const nameSel = el("select");
+  p.append(dateLabel, dateSel, emailLabel, emailSel, nameLabel, nameSel);
+
+  async function loadCols() {
+    dateSel.innerHTML = ""; emailSel.innerHTML = ""; nameSel.innerHTML = "";
+    nameSel.append(el("option", { value: "" }, "(none)"));
+    try {
+      const values = await fetchTabValues(state.sheetId, tabSel.value);
+      const cols = (values[0] || []).map(c => String(c ?? "").trim());
+      cols.forEach(c => {
+        dateSel.append(el("option", { value: c }, c));
+        emailSel.append(el("option", { value: c }, c));
+        nameSel.append(el("option", { value: c }, c));
+      });
+      // best-effort defaults
+      const guess = (re) => cols.find(c => re.test(c));
+      const gd = guess(/date|created|timestamp|time/i); if (gd) dateSel.value = gd;
+      const ge = guess(/email|mail/i); if (ge) emailSel.value = ge;
+      const gn = guess(/^name$|agent|rep|owner|user/i); if (gn) nameSel.value = gn;
+    } catch (e) {
+      toast("Failed to read tab: " + e.message, "err");
+    }
+  }
+  tabSel.addEventListener("change", loadCols);
+  loadCols();
+
+  p.append(el("div", { class: "row", style: "margin-top:18px;justify-content:flex-end" },
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      state.dataTab = tabSel.value;
+      const cfg = {
+        dataTab: tabSel.value,
+        columns: { date: dateSel.value, email: emailSel.value, name: nameSel.value || null },
+        widgets: defaultWidgets(),
+      };
+      try {
+        await saveConfig(cfg);
+        await loadData();
+        startAutoRefresh();
+        render();
+      } catch (e) {
+        toast("Failed to save config: " + e.message, "err");
+      }
+    } }, "Save & build dashboard"),
+  ));
+  cs.append(p);
+  return cs;
+}
+
+function defaultWidgets() {
+  return [
+    { id: uid(), kind: "leaderboard", title: "Leaderboard", size: 4, agg: "COUNT", column: "", filters: [], limit: 10 },
+  ];
+}
+
+function renderFilterbar() {
+  const bar = el("div", { class: "filterbar" });
+  const opts = [
+    ["TODAY","Today"],["YESTERDAY","Yesterday"],["WEEK","This Week"],["LAST_WEEK","Last Week"],
+    ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],["ALL","All Time"],
+  ];
+  opts.forEach(([k,l]) => {
+    const c = el("div", { class: "chip" + (state.timeFilter.kind === k ? " active" : "") }, l);
+    c.addEventListener("click", () => { state.timeFilter = { kind: k }; renderDashboard(); render(); });
+    bar.append(c);
+  });
+  bar.append(el("div", { class: "sep" }));
+  const customChip = el("div", { class: "chip" + (state.timeFilter.kind === "CUSTOM" ? " active" : "") }, "Custom");
+  customChip.addEventListener("click", () => {
+    state.timeFilter = { kind: "CUSTOM", customStart: state.timeFilter.customStart, customEnd: state.timeFilter.customEnd };
+    render();
+  });
+  bar.append(customChip);
+  if (state.timeFilter.kind === "CUSTOM") {
+    const s = el("input", { type: "date", value: state.timeFilter.customStart || "" });
+    const e = el("input", { type: "date", value: state.timeFilter.customEnd || "" });
+    s.addEventListener("change", () => { state.timeFilter.customStart = s.value; renderDashboard(); });
+    e.addEventListener("change", () => { state.timeFilter.customEnd = e.value; renderDashboard(); });
+    bar.append(s, el("span", { class: "muted" }, "→"), e);
+  }
+  return bar;
+}
+
+function renderDashboard() {
+  // destroy old charts
+  state.charts.forEach(c => c.destroy());
+  state.charts.clear();
+
+  const stage = $("#stage");
+  if (!stage) return;
+  stage.innerHTML = "";
+  const cfg = state.config;
+  if (!cfg || !cfg.widgets || !cfg.widgets.length) {
+    stage.append(el("div", { class: "empty" },
+      el("h3", {}, "No widgets yet"),
+      el("p", {}, "Click + Widget in the top bar to add your first KPI, leaderboard, goal, or chart."),
+    ));
+    return;
+  }
+  const grid = el("div", { class: "grid" });
+  cfg.widgets.forEach(w => grid.append(renderWidget(w)));
+  stage.append(grid);
+}
+
+function renderWidget(w) {
+  const node = el("div", { class: `widget w-${w.size || 2}` });
+  node.append(el("div", { class: "w-actions" },
+    el("button", { onclick: () => openWidgetModal(w.id) }, "Edit"),
+    el("button", { onclick: () => deleteWidget(w.id) }, "✕"),
+  ));
+  node.append(el("div", { class: "w-title" }, w.title || w.kind));
+
+  const range = timeRange(state.timeFilter.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd });
+  const dateCol = state.config.columns.date;
+  const inRange = rowsInTimeRange(state.rows, dateCol, range).filter(r => rowMatchesAll(r, w.filters));
+
+  try {
+    if (w.kind === "kpi")         renderKpi(node, w, inRange);
+    else if (w.kind === "goal")   renderGoal(node, w, inRange);
+    else if (w.kind === "leaderboard") renderLeaderboard(node, w, inRange);
+    else if (w.kind === "chart")  renderChart(node, w, inRange, range);
+  } catch (e) {
+    console.error(e);
+    node.append(el("div", { class: "muted" }, "Error: " + e.message));
+  }
+  return node;
+}
+
+function renderKpi(node, w, rows) {
+  const v = aggregate(rows, w.agg, w.column);
+  const pretty = w.format === "money" ? fmtMoney(v) : fmtNum(v);
+  node.append(el("div", { class: "kpi-value" }, pretty));
+  if (w.subtitle) node.append(el("div", { class: "kpi-sub" }, w.subtitle));
+}
+
+function renderGoal(node, w, rows) {
+  const v = aggregate(rows, w.agg, w.column);
+  const target = Number(w.target) || 0;
+  const pct = target > 0 ? Math.min(100, (v / target) * 100) : 0;
+  const meta = el("div", { class: "goal-meta" });
+  meta.append(
+    el("div", {}, el("div", { class: "goal-pct" }, pct.toFixed(0) + "%")),
+    el("div", {}, (w.format === "money" ? fmtMoney(v) : fmtNum(v)) + " / " + (w.format === "money" ? fmtMoney(target) : fmtNum(target))),
+  );
+  node.append(meta);
+  const bar = el("div", { class: "goal-bar" });
+  const fill = el("div"); fill.style.width = pct + "%";
+  bar.append(fill);
+  node.append(bar);
+}
+
+async function renderLeaderboard(node, w, rows) {
+  const groupCol = w.groupBy || state.config.columns.email;
+  const nameCol  = state.config.columns.name;
+  const groups = new Map();
+  for (const r of rows) {
+    const key = r[groupCol]; if (key == null || key === "") continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const list = Array.from(groups.entries()).map(([key, grows]) => ({
+    key,
+    name: nameCol ? (grows[0][nameCol] || key) : key,
+    email: state.config.columns.email ? grows[0][state.config.columns.email] : null,
+    value: aggregate(grows, w.agg, w.column),
+  })).sort((a,b) => (b.value||0) - (a.value||0));
+  const top = list.slice(0, w.limit || 10);
+  const wrap = el("div");
+  if (!top.length) {
+    wrap.append(el("div", { class: "muted" }, "No data in selected range."));
+    node.append(wrap); return;
+  }
+  for (let i = 0; i < top.length; i++) {
+    const it = top[i];
+    const row = el("div", { class: "lb-row" + (i<3 ? " r"+(i+1) : "") });
+    const av = el("div", { class: "lb-avatar" }, initials(it.name || it.email));
+    if (it.email) {
+      gravatar(it.email).then(url => {
+        if (!url) return;
+        const im = new Image(); im.src = url;
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      });
+    }
+    const valLabel = w.format === "money" ? fmtMoney(it.value) : fmtNum(it.value);
+    const nameNode = el("div", { class: "lb-name" }, it.name);
+    if (it.email && it.email !== it.name) nameNode.append(el("small", {}, it.email));
+    row.append(
+      el("div", { class: "lb-rank" }, "#" + (i+1)),
+      av,
+      nameNode,
+      el("div", { class: "lb-value" }, valLabel),
+    );
+    wrap.append(row);
+  }
+  node.append(wrap);
+}
+
+function renderChart(node, w, rows, range) {
+  const wrap = el("div", { class: "chart-wrap" });
+  const cv = el("canvas");
+  wrap.append(cv); node.append(wrap);
+  const dateCol = state.config.columns.date;
+  if (!dateCol) { node.append(el("div", { class: "muted" }, "No date column configured.")); return; }
+  // bucket by day (or by month if range > 90 days)
+  const days = (range[1] - range[0]) / 86400000;
+  const bucketKind = days > 90 ? "month" : "day";
+  const buckets = new Map();
+  for (const r of rows) {
+    const d = toDate(r[dateCol]); if (!d) continue;
+    const key = bucketKind === "month"
+      ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(r);
+  }
+  const labels = Array.from(buckets.keys()).sort();
+  const data = labels.map(k => aggregate(buckets.get(k), w.agg, w.column));
+  const css = getComputedStyle(document.body);
+  const accent = css.getPropertyValue("--accent").trim() || "#38e1c2";
+  const txt = css.getPropertyValue("--text-dim").trim() || "#93a0c8";
+  const grid = css.getPropertyValue("--border").trim() || "#243056";
+  const ch = new Chart(cv, {
+    type: w.chartType === "bar" ? "bar" : "line",
+    data: { labels, datasets: [{
+      label: w.title, data, borderColor: accent, backgroundColor: accent + "33",
+      tension: 0.35, fill: true, pointRadius: 2, borderWidth: 2,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: txt }, grid: { color: grid } },
+        y: { ticks: { color: txt }, grid: { color: grid }, beginAtZero: true },
+      },
+    },
+  });
+  state.charts.set(w.id, ch);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Widget editor modal
+   ════════════════════════════════════════════════════════════════════════ */
+function openWidgetModal(widgetId) {
+  const isNew = !widgetId;
+  const w = isNew
+    ? { id: uid(), kind: "kpi", title: "New KPI", size: 1, agg: "COUNT", column: "", filters: [] }
+    : JSON.parse(JSON.stringify(state.config.widgets.find(x => x.id === widgetId)));
+
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal" });
+  m.append(
+    el("h3", {}, isNew ? "Add widget" : "Edit widget"),
+    el("div", { class: "modal-sub" }, "Pick a widget type, then choose what to measure and how to filter it."),
+  );
+
+  // type
+  m.append(el("label", {}, "Widget type"));
+  const kindSel = el("select");
+  [["kpi","KPI tile"],["goal","Goal / progress"],["leaderboard","Leaderboard"],["chart","Trend chart"]].forEach(([v,l]) => {
+    kindSel.append(el("option", { value: v, selected: w.kind === v ? "selected" : null }, l));
+  });
+  m.append(kindSel);
+
+  // body container — re-render when kind changes
+  const body = el("div");
+  m.append(body);
+
+  function renderBody() {
+    body.innerHTML = "";
+    body.append(el("div", { class: "row2" },
+      (() => { const w1 = el("div");
+        w1.append(el("label", {}, "Title"));
+        const t = el("input", { type: "text", value: w.title || "" });
+        t.addEventListener("input", () => w.title = t.value);
+        w1.append(t); return w1;
+      })(),
+      (() => { const w1 = el("div");
+        w1.append(el("label", {}, "Size"));
+        const s = el("select");
+        [[1,"Small"],[2,"Medium"],[3,"Large"],[4,"X-Large"],[5,"Full row"]].forEach(([v,l]) => {
+          s.append(el("option", { value: v, selected: (w.size||2)==v ? "selected" : null }, l));
+        });
+        s.addEventListener("change", () => w.size = parseInt(s.value,10));
+        w1.append(s); return w1;
+      })(),
+    ));
+
+    // aggregation + column
+    body.append(el("div", { class: "row2" },
+      (() => { const c = el("div");
+        c.append(el("label", {}, "Aggregation"));
+        const a = el("select");
+        ["COUNT","COUNT_DISTINCT","SUM","AVG","MIN","MAX"].forEach(v => {
+          a.append(el("option", { value: v, selected: w.agg === v ? "selected" : null }, v.replace("_"," ")));
+        });
+        a.addEventListener("change", () => w.agg = a.value);
+        c.append(a); return c;
+      })(),
+      (() => { const c = el("div");
+        c.append(el("label", {}, "Column" + (w.kind === "leaderboard" || w.kind === "kpi" || w.kind==="goal" || w.kind==="chart" ? " (numeric for SUM/AVG/MIN/MAX)" : "")));
+        const a = el("select");
+        a.append(el("option", { value: "" }, "(none)"));
+        state.columns.forEach(c2 => a.append(el("option", { value: c2, selected: w.column === c2 ? "selected" : null }, c2)));
+        a.addEventListener("change", () => w.column = a.value);
+        c.append(a); return c;
+      })(),
+    ));
+
+    // format
+    body.append(el("label", {}, "Number format"));
+    const fmt = el("select");
+    [["number","Number"],["money","Currency ($)"]].forEach(([v,l]) => {
+      fmt.append(el("option", { value: v, selected: (w.format||"number")===v ? "selected" : null }, l));
+    });
+    fmt.addEventListener("change", () => w.format = fmt.value);
+    body.append(fmt);
+
+    // kind-specific
+    if (w.kind === "goal") {
+      body.append(el("label", {}, "Target value"));
+      const t = el("input", { type: "number", value: w.target ?? "" });
+      t.addEventListener("input", () => w.target = parseFloat(t.value));
+      body.append(t);
+    }
+    if (w.kind === "leaderboard") {
+      body.append(el("div", { class: "row2" },
+        (() => { const c = el("div");
+          c.append(el("label", {}, "Group by (default = email)"));
+          const a = el("select");
+          a.append(el("option", { value: "" }, "(default: email column)"));
+          state.columns.forEach(c2 => a.append(el("option", { value: c2, selected: w.groupBy===c2 ? "selected" : null }, c2)));
+          a.addEventListener("change", () => w.groupBy = a.value);
+          c.append(a); return c;
+        })(),
+        (() => { const c = el("div");
+          c.append(el("label", {}, "Show top N"));
+          const i = el("input", { type: "number", value: w.limit || 10, min: "1", max: "100" });
+          i.addEventListener("input", () => w.limit = parseInt(i.value,10) || 10);
+          c.append(i); return c;
+        })(),
+      ));
+    }
+    if (w.kind === "chart") {
+      body.append(el("label", {}, "Chart type"));
+      const a = el("select");
+      [["line","Line"],["bar","Bar"]].forEach(([v,l]) => {
+        a.append(el("option", { value: v, selected: (w.chartType||"line")===v ? "selected" : null }, l));
+      });
+      a.addEventListener("change", () => w.chartType = a.value);
+      body.append(a);
+    }
+
+    // filters
+    body.append(el("label", {}, "Filters (all must match)"));
+    const fwrap = el("div");
+    body.append(fwrap);
+    function renderFilters() {
+      fwrap.innerHTML = "";
+      (w.filters || []).forEach((f, idx) => {
+        const row = el("div", { class: "filter-row" });
+        const cs = el("select");
+        cs.append(el("option", { value: "" }, "(column)"));
+        state.columns.forEach(c2 => cs.append(el("option", { value: c2, selected: f.column === c2 ? "selected" : null }, c2)));
+        cs.addEventListener("change", () => { f.column = cs.value; });
+        const os = el("select");
+        OPERATORS.forEach(o => os.append(el("option", { value: o, selected: f.op === o ? "selected" : null }, o.replace(/_/g," "))));
+        os.addEventListener("change", () => { f.op = os.value; renderFilters(); });
+        const vs = el("input", { type: "text", placeholder: "value", value: f.value ?? "" });
+        vs.addEventListener("input", () => f.value = vs.value);
+        if (["is_empty","not_empty"].includes(f.op)) vs.style.visibility = "hidden";
+        const rm = el("button", { onclick: () => { w.filters.splice(idx,1); renderFilters(); } }, "✕");
+        row.append(cs, os, vs, rm);
+        fwrap.append(row);
+      });
+      const add = el("button", { class: "add-filter-btn", onclick: () => {
+        w.filters = w.filters || [];
+        w.filters.push({ column: "", op: "equals", value: "" });
+        renderFilters();
+      } }, "+ Add filter");
+      fwrap.append(add);
+    }
+    renderFilters();
+  }
+  kindSel.addEventListener("change", () => { w.kind = kindSel.value; renderBody(); });
+  renderBody();
+
+  m.append(el("div", { class: "actions" },
+    isNew ? null : el("button", { class: "icon-btn danger", onclick: () => { deleteWidget(w.id); back.remove(); } }, "Delete"),
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      if (isNew) state.config.widgets.push(w);
+      else {
+        const idx = state.config.widgets.findIndex(x => x.id === w.id);
+        state.config.widgets[idx] = w;
+      }
+      try {
+        await saveConfig(state.config);
+        toast("Saved", "ok");
+        renderDashboard();
+        back.remove();
+      } catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "Save"),
+  ));
+  back.append(m);
+  document.body.append(back);
+}
+
+async function deleteWidget(id) {
+  if (!confirm("Delete this widget?")) return;
+  state.config.widgets = state.config.widgets.filter(w => w.id !== id);
+  try {
+    await saveConfig(state.config);
+    renderDashboard();
+  } catch (e) { toast("Delete failed: " + e.message, "err"); }
+}
+
+function openSettingsModal() {
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal" });
+  m.append(
+    el("h3", {}, "Dashboard settings"),
+    el("div", { class: "modal-sub" }, "Sheet, data tab, and column mappings."),
+  );
+
+  m.append(el("label", {}, "Data tab"));
+  const tabSel = el("select");
+  state.tabs.filter(t => t.title !== CFG.CONFIG_TAB).forEach(t =>
+    tabSel.append(el("option", { value: t.title, selected: state.dataTab === t.title ? "selected" : null }, t.title)));
+  m.append(tabSel);
+
+  const cols = state.columns;
+  m.append(el("label", {}, "Date column"));
+  const dateSel = el("select");
+  cols.forEach(c => dateSel.append(el("option", { value: c, selected: state.config.columns.date === c ? "selected" : null }, c)));
+  m.append(dateSel);
+
+  m.append(el("label", {}, "Email column"));
+  const emailSel = el("select");
+  cols.forEach(c => emailSel.append(el("option", { value: c, selected: state.config.columns.email === c ? "selected" : null }, c)));
+  m.append(emailSel);
+
+  m.append(el("label", {}, "Name column (optional)"));
+  const nameSel = el("select");
+  nameSel.append(el("option", { value: "" }, "(none)"));
+  cols.forEach(c => nameSel.append(el("option", { value: c, selected: state.config.columns.name === c ? "selected" : null }, c)));
+  m.append(nameSel);
+
+  m.append(el("div", { class: "actions" },
+    el("button", { class: "icon-btn", onclick: () => { back.remove(); state.sheetId = null; localStorage.removeItem(LS.SHEET_ID); render(); } }, "Switch sheet"),
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      const tabChanged = tabSel.value !== state.dataTab;
+      state.dataTab = tabSel.value;
+      state.config.dataTab = tabSel.value;
+      state.config.columns = { date: dateSel.value, email: emailSel.value, name: nameSel.value || null };
+      try {
+        await saveConfig(state.config);
+        if (tabChanged) await loadData(); else renderDashboard();
+        toast("Saved", "ok");
+        back.remove();
+      } catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "Save"),
+  ));
+  back.append(m);
+  document.body.append(back);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Theme
+   ════════════════════════════════════════════════════════════════════════ */
+function currentTheme() { return document.body.getAttribute("data-theme") || "dark"; }
+function setTheme(t) {
+  document.body.setAttribute("data-theme", t);
+  localStorage.setItem(LS.THEME, t);
+}
+function toggleTheme() {
+  setTheme(currentTheme() === "dark" ? "light" : "dark");
+  renderDashboard(); // re-render charts so they pick up new colors
+  renderTopbar();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Boot / refresh loop
+   ════════════════════════════════════════════════════════════════════════ */
+function startAutoRefresh() {
+  clearInterval(state.refreshTimer);
+  state.refreshTimer = setInterval(() => {
+    if (tokenValid() && state.sheetId && state.dataTab) loadData();
+  }, CFG.REFRESH_MS);
+}
+
+async function boot() {
+  setTheme(localStorage.getItem(LS.THEME) || "dark");
+  if (!loadStoredAuth()) { render(); return; }
+  if (!state.user?.email) await fetchUserEmail();
+
+  const savedSheetId = localStorage.getItem(LS.SHEET_ID);
+  if (savedSheetId) {
+    try {
+      const meta = await fetchSheetMeta(savedSheetId);
+      state.sheetId = savedSheetId;
+      state.sheetTitle = meta.title;
+      state.tabs = meta.tabs;
+      await ensureConfigTab(savedSheetId);
+      const cfg = await loadConfig();
+      if (cfg) {
+        state.config = cfg;
+        state.dataTab = cfg.dataTab;
+        if (state.dataTab) {
+          await loadData();
+          startAutoRefresh();
+        }
+      }
+    } catch (e) {
+      console.warn("boot: " + e.message);
+      // probably expired token
+      if (String(e.message).includes("401")) { signOut(); return; }
+    }
+  }
+  render();
+}
+
+window.addEventListener("DOMContentLoaded", boot);
+// Re-init token client once GIS script has loaded
+const gsiPoll = setInterval(() => {
+  if (window.google?.accounts?.oauth2) { clearInterval(gsiPoll); initTokenClient(); }
+}, 200);
+</script>
+
+</body>
+</html>
