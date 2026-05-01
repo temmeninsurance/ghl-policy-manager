@@ -526,7 +526,15 @@ function signIn() {
     toast("Google Identity script not loaded yet — try again in a second", "err");
     return;
   }
-  state.tokenClient.requestAccessToken({ prompt: "" });
+  state.tokenClient.requestAccessToken({ prompt: "select_account" });
+}
+function switchAccount() {
+  // sign out locally then re-prompt with account chooser
+  state.token = null; state.tokenExp = 0; state.user = null;
+  localStorage.removeItem(LS.TOKEN);
+  localStorage.removeItem(LS.TOKEN_EXP);
+  localStorage.removeItem(LS.USER);
+  signIn();
 }
 function signOut() {
   if (state.token && window.google?.accounts?.oauth2) {
@@ -843,7 +851,10 @@ function renderLogin() {
   p.append(
     el("h2", {}, "Leaderboard Dashboard"),
     el("p", {}, "Sign in with Google to read your spreadsheet."),
-    el("div", { class: "row", style: "justify-content:flex-end" },
+    el("div", { class: "row", style: "justify-content:space-between;align-items:center" },
+      el("a", { href: "https://accounts.google.com/AddSession", target: "_blank", rel: "noopener",
+                style: "color:var(--text-dim);font-size:12px;text-decoration:underline" },
+         "Add a different Google account in Chrome"),
       el("button", { class: "icon-btn primary", onclick: signIn }, "Sign in with Google"),
     ),
   );
