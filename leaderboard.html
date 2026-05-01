@@ -376,6 +376,8 @@ const LS = {
   TAB:      "plecto.tab",
   THEME:    "plecto.theme",
   USER:     "plecto.user_email",
+  // local mirror of dashboard config, keyed by sheet ID — survives logout & token expiry
+  CONFIG_CACHE: (sheetId) => `plecto.config.${sheetId}`,
 };
 
 const state = {
@@ -397,6 +399,8 @@ const state = {
   lastFetched: null,
   charts: new Map(), // widgetId -> Chart instance
   readOnly: false,   // true if current user can't write to the sheet
+  saveState: "idle", // "idle" | "saving" | "saved" | "error"
+  saveError: null,
 };
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -650,24 +654,40 @@ async function ensureConfigTab(sheetId) {
    Config persistence (config tab inside the sheet)
    schema: A=key, B=value(json), C=updatedAt, D=updatedBy
    ════════════════════════════════════════════════════════════════════════ */
+function readCachedConfig(sheetId) {
+  try {
+    const raw = localStorage.getItem(LS.CONFIG_CACHE(sheetId));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function writeCachedConfig(sheetId, cfg) {
+  try { localStorage.setItem(LS.CONFIG_CACHE(sheetId), JSON.stringify(cfg)); } catch {}
+}
 async function loadConfig() {
   let rows;
   try {
     rows = await fetchTabValues(state.sheetId, CFG.CONFIG_TAB);
   } catch (e) {
-    return null;
+    // fall back to local cache if the sheet read fails (network blip, transient 403, etc.)
+    return readCachedConfig(state.sheetId);
   }
-  if (!rows || rows.length < 2) return null;
+  if (!rows || rows.length < 2) return readCachedConfig(state.sheetId);
   const map = {};
   for (let i = 1; i < rows.length; i++) {
     const [k, v] = rows[i];
     if (!k) continue;
     try { map[k] = JSON.parse(v); } catch { map[k] = v; }
   }
-  if (!map.dashboard) return null;
+  if (!map.dashboard) return readCachedConfig(state.sheetId);
+  // mirror to local cache so subsequent boots are instant + survive offline / read failures
+  writeCachedConfig(state.sheetId, map.dashboard);
   return map.dashboard;
 }
 async function saveConfig(cfg) {
+  // mirror locally FIRST so config survives even if the sheet write fails
+  state.config = cfg;
+  writeCachedConfig(state.sheetId, cfg);
+  state.saveState = "saving"; state.saveError = null; renderTopbar();
   const values = [
     ["key", "value", "updatedAt", "updatedBy"],
     ["dashboard", JSON.stringify(cfg), new Date().toISOString(), state.user?.email || ""],
@@ -675,9 +695,13 @@ async function saveConfig(cfg) {
   ];
   try {
     await writeTabValues(state.sheetId, CFG.CONFIG_TAB, values);
-    state.config = cfg;
     state.readOnly = false;
+    state.saveState = "saved"; renderTopbar();
+    setTimeout(() => { if (state.saveState === "saved") { state.saveState = "idle"; renderTopbar(); } }, 2500);
   } catch (e) {
+    state.saveState = "error";
+    state.saveError = e.message;
+    renderTopbar();
     if (String(e.message).includes("403")) {
       state.readOnly = true;
       throw new Error("You have view-only access to this sheet — ask the owner to give you Editor access to change widgets.");
@@ -895,9 +919,14 @@ function renderTopbar() {
   );
   if (state.sheetTitle) {
     const meta = el("div", { class: "meta" });
+    let saveLabel = "";
+    if (state.saveState === "saving") saveLabel = ` · <span class="pulse" style="color:var(--accent)">saving…</span>`;
+    else if (state.saveState === "saved") saveLabel = ` · <span style="color:var(--success)">✓ saved</span>`;
+    else if (state.saveState === "error") saveLabel = ` · <span style="color:var(--danger)" title="${esc(state.saveError||'')}">⚠ save failed — changes kept locally</span>`;
     meta.innerHTML = `Sheet: <b>${esc(state.sheetTitle)}</b>${state.dataTab ? ` · <b>${esc(state.dataTab)}</b>` : ""}` +
       (state.loading ? ` · <span class="pulse">refreshing…</span>` :
-        state.lastFetched ? ` · <span class="muted">${state.lastFetched.toLocaleTimeString()}</span>` : "");
+        state.lastFetched ? ` · <span class="muted">${state.lastFetched.toLocaleTimeString()}</span>` : "") +
+      saveLabel;
     bar.append(meta);
   }
   if (state.config) {
@@ -1013,10 +1042,12 @@ function renderDataTabPicker() {
   p.append(el("div", { class: "row", style: "margin-top:18px;justify-content:flex-end" },
     el("button", { class: "icon-btn primary", onclick: async () => {
       state.dataTab = tabSel.value;
+      // preserve any existing widgets — only seed defaults on first connect
+      const existingWidgets = state.config?.widgets?.length ? state.config.widgets : defaultWidgets();
       const cfg = {
         dataTab: tabSel.value,
         columns: { date: dateSel.value, email: emailSel.value, name: nameSel.value || null },
-        widgets: defaultWidgets(),
+        widgets: existingWidgets,
       };
       try {
         await saveConfig(cfg);
@@ -1499,9 +1530,15 @@ async function boot() {
   const savedSheetId = urlSheetId || localStorage.getItem(LS.SHEET_ID);
   if (urlSheetId) localStorage.setItem(LS.SHEET_ID, urlSheetId);
   if (savedSheetId) {
+    state.sheetId = savedSheetId;
+    // optimistic restore from local cache so the dashboard appears instantly
+    const cached = readCachedConfig(savedSheetId);
+    if (cached) {
+      state.config = cached;
+      state.dataTab = cached.dataTab;
+    }
     try {
       const meta = await fetchSheetMeta(savedSheetId);
-      state.sheetId = savedSheetId;
       state.sheetTitle = meta.title;
       state.tabs = meta.tabs;
       await ensureConfigTab(savedSheetId);
@@ -1516,8 +1553,8 @@ async function boot() {
       }
     } catch (e) {
       console.warn("boot: " + e.message);
-      // probably expired token
       if (String(e.message).includes("401")) { signOut(); return; }
+      // network/permission issue — keep showing the cached dashboard if we have it
     }
   }
   render();
