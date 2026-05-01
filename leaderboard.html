@@ -657,11 +657,22 @@ async function ensureConfigTab(sheetId) {
 function readCachedConfig(sheetId) {
   try {
     const raw = localStorage.getItem(LS.CONFIG_CACHE(sheetId));
-    return raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed) console.log("[plecto] loaded config from local cache:", parsed.widgets?.length, "widgets");
+    return parsed;
   } catch { return null; }
 }
 function writeCachedConfig(sheetId, cfg) {
-  try { localStorage.setItem(LS.CONFIG_CACHE(sheetId), JSON.stringify(cfg)); } catch {}
+  try {
+    localStorage.setItem(LS.CONFIG_CACHE(sheetId), JSON.stringify(cfg));
+    console.log("[plecto] cached config locally:", cfg.widgets?.length, "widgets");
+  } catch (e) { console.warn("[plecto] localStorage write failed:", e.message); }
+}
+function readCachedSheetTitle(sheetId) {
+  return localStorage.getItem("plecto.sheetTitle." + sheetId) || null;
+}
+function writeCachedSheetTitle(sheetId, title) {
+  try { localStorage.setItem("plecto.sheetTitle." + sheetId, title); } catch {}
 }
 async function loadConfig() {
   let rows;
@@ -739,18 +750,37 @@ async function loadData() {
   }
 }
 
-/* convert sheet cell → JS Date when possible */
+/* Convert a sheet cell to a JS Date that represents the same wall-clock day
+   in the user's local timezone. Sheets stores dates as serial numbers
+   (days since 1899-12-30) and they should be interpreted as local time —
+   not UTC — otherwise a sale on May 1 CDT looks like Apr 30 in UTC and
+   falls out of MTD/Today filters. */
 function toDate(v) {
   if (v == null || v === "") return null;
   if (v instanceof Date) return v;
   if (typeof v === "number") {
-    // Google Sheets serial number (days since 1899-12-30)
-    const ms = (v - 25569) * 86400 * 1000;
-    const d = new Date(ms);
+    const dayPart = Math.floor(v);
+    const timePart = v - dayPart;
+    // Build the calendar date at UTC midnight, then re-anchor to the SAME
+    // Y/M/D at LOCAL midnight so the date isn't shifted by the user's TZ.
+    const utcMs = (dayPart - 25569) * 86400000;
+    const u = new Date(utcMs);
+    const d = new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
+    if (timePart > 0) {
+      const dayMs = Math.round(timePart * 86400000);
+      d.setHours(0, 0, 0, 0);
+      d.setTime(d.getTime() + dayMs);
+    }
     return isNaN(d) ? null : d;
   }
   if (typeof v === "string") {
-    const d = new Date(v);
+    const s = v.trim();
+    // Bare ISO date like "2026-05-01" — force local midnight, not UTC
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, day] = s.split("-").map(Number);
+      return new Date(y, m - 1, day);
+    }
+    const d = new Date(s);
     return isNaN(d) ? null : d;
   }
   return null;
@@ -1185,7 +1215,22 @@ async function renderLeaderboard(node, w, rows) {
   const top = list.slice(0, w.limit || 10);
   const wrap = el("div");
   if (!top.length) {
-    wrap.append(el("div", { class: "muted" }, "No data in selected range."));
+    // diagnostic empty state — help the user figure out what's filtered out
+    const totalRows = state.rows.length;
+    const groupColLabel = groupCol || "(unset — set 'Email column' in Settings)";
+    const dateCol = state.config.columns.date;
+    const datesInRange = dateCol ? rowsInTimeRange(state.rows, dateCol, timeRange(state.timeFilter.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd })).length : totalRows;
+    wrap.append(
+      el("div", { class: "muted", style: "font-size:12px;line-height:1.7" },
+        el("div", {}, `No matching rows.`),
+        el("div", {}, `Sheet rows total: ${totalRows}`),
+        el("div", {}, `Rows in time range: ${datesInRange} (date column: ${dateCol || "(unset)"})`),
+        el("div", {}, `Group-by column: ${groupColLabel}`),
+        totalRows > 0 && datesInRange === 0
+          ? el("div", { style: "color:var(--warn);margin-top:6px" }, "→ All rows fell outside the time range. Check that the Date column in Settings points to the actual date column.")
+          : null,
+      ),
+    );
     node.append(wrap); return;
   }
   for (let i = 0; i < top.length; i++) {
@@ -1522,42 +1567,62 @@ function startAutoRefresh() {
 
 async function boot() {
   setTheme(localStorage.getItem(LS.THEME) || "dark");
-  if (!loadStoredAuth()) { render(); return; }
-  if (!state.user?.email) await fetchUserEmail();
 
   // ?sheet=<id> URL param wins over localStorage so a shared link always lands you in the right place
   const urlSheetId = parseSheetId(new URLSearchParams(location.search).get("sheet") || "");
   const savedSheetId = urlSheetId || localStorage.getItem(LS.SHEET_ID);
   if (urlSheetId) localStorage.setItem(LS.SHEET_ID, urlSheetId);
+
+  // STEP 1 — restore from cache IMMEDIATELY (no network) so the dashboard appears instantly
+  // even before sign-in. We only need a token to fetch fresh data, not to show the layout.
   if (savedSheetId) {
     state.sheetId = savedSheetId;
-    // optimistic restore from local cache so the dashboard appears instantly
+    state.sheetTitle = readCachedSheetTitle(savedSheetId);
     const cached = readCachedConfig(savedSheetId);
     if (cached) {
       state.config = cached;
       state.dataTab = cached.dataTab;
     }
+  }
+
+  // STEP 2 — if not signed in, show login (cached dashboard will be re-rendered after sign-in)
+  if (!loadStoredAuth()) { render(); return; }
+  if (!state.user?.email) await fetchUserEmail();
+
+  // Render the cached dashboard NOW so the user sees something while we fetch live data
+  render();
+
+  // STEP 3 — sync with the sheet in the background (won't blow away cached state on errors)
+  if (savedSheetId) {
     try {
       const meta = await fetchSheetMeta(savedSheetId);
       state.sheetTitle = meta.title;
       state.tabs = meta.tabs;
+      writeCachedSheetTitle(savedSheetId, meta.title);
       await ensureConfigTab(savedSheetId);
       const cfg = await loadConfig();
       if (cfg) {
         state.config = cfg;
         state.dataTab = cfg.dataTab;
-        if (state.dataTab) {
-          await loadData();
-          startAutoRefresh();
-        }
       }
+      if (state.dataTab) {
+        await loadData();
+        startAutoRefresh();
+      }
+      render();
     } catch (e) {
-      console.warn("boot: " + e.message);
-      if (String(e.message).includes("401")) { signOut(); return; }
-      // network/permission issue — keep showing the cached dashboard if we have it
+      console.warn("[plecto] background sync failed:", e.message);
+      // 401 → token expired during refresh. Don't sign out / wipe state.
+      // Just clear the token so the user can sign in again, KEEPING cached config visible.
+      if (String(e.message).includes("401")) {
+        state.token = null; state.tokenExp = 0;
+        localStorage.removeItem(LS.TOKEN);
+        localStorage.removeItem(LS.TOKEN_EXP);
+        toast("Session expired — sign in again to refresh data", "err");
+        renderTopbar();
+      }
     }
   }
-  render();
 }
 
 window.addEventListener("DOMContentLoaded", boot);
