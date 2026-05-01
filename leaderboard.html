@@ -255,8 +255,38 @@
   }
 
   /* KPI tile */
-  .kpi-value { font-size: 44px; font-weight: 700; letter-spacing: -.5px; }
+  .kpi-value { font-size: 44px; font-weight: 700; letter-spacing: -.5px; line-height: 1.05; }
   .kpi-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Center & auto-scale content for KPI / pacing / goal tiles so they
+     look right at any widget size. Container query units (cqh/cqw) let
+     the value font scale with the widget bounds. */
+  .widget.kind-kpi    .w-body,
+  .widget.kind-pacing .w-body,
+  .widget.kind-goal   .w-body {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    container-type: size;
+  }
+  .widget.kind-kpi    .kpi-value,
+  .widget.kind-pacing .kpi-value {
+    font-size: clamp(28px, min(28cqh, 16cqw), 130px);
+    width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .widget.kind-kpi    .kpi-sub,
+  .widget.kind-pacing .kpi-sub {
+    font-size: clamp(11px, min(5cqh, 2.4cqw), 18px);
+    margin-top: 6px;
+  }
+  .widget.kind-goal .goal-meta { width: 100%; }
+  .widget.kind-goal .goal-bar  { width: 100%; }
+  .widget.kind-goal .goal-pct  { font-size: clamp(16px, min(8cqh, 5cqw), 36px); }
+  /* in pacing tiles the goal-bar shows up only when target is set —
+     stretch it across the full width */
+  .widget.kind-pacing .goal-meta,
+  .widget.kind-pacing .goal-bar { width: 100%; }
 
   /* Threshold-tinted widgets (value-vs-target coloring) */
   .widget.tier-green  { background: #16a34a; border-color: #15803d; }
@@ -1740,7 +1770,7 @@ function widgetSpan(w) {
 
 function renderWidget(w) {
   const span = widgetSpan(w);
-  const node = el("div", { class: "widget" });
+  const node = el("div", { class: "widget kind-" + w.kind });
   // Explicit cell if dragged; otherwise auto-flow
   node.style.gridColumn = w.col ? `${w.col} / span ${span.cols}` : `span ${span.cols}`;
   node.style.gridRow    = w.row ? `${w.row} / span ${span.rows}` : `span ${span.rows}`;
