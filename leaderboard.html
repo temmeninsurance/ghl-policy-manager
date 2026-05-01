@@ -171,6 +171,7 @@
     display: grid;
     grid-template-columns: repeat(12, 1fr);
     grid-auto-rows: 72px;          /* base row height; widgets span N rows */
+    grid-auto-flow: dense;          /* unplaced widgets backfill gaps */
     gap: 14px;
   }
   .widget {
@@ -178,7 +179,22 @@
     border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 16px; position: relative; overflow: hidden;
     display: flex; flex-direction: column;
+    cursor: grab;
   }
+  .widget:active { cursor: grabbing; }
+  .widget.dragging {
+    opacity: .35; cursor: grabbing;
+    transform: scale(.98); transition: transform .12s, opacity .12s;
+  }
+  .drop-preview {
+    background: rgba(56,225,194,.10);
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    pointer-events: none;
+    transition: grid-row .08s, grid-column .08s;
+  }
+  .widget button, .widget input, .widget select, .widget a { cursor: pointer; }
+  .widget .resize-handle { cursor: nwse-resize; }
   .widget.resizing {
     outline: 2px dashed var(--accent); outline-offset: -2px;
     z-index: 10;
@@ -1676,8 +1692,9 @@ function widgetSpan(w) {
 function renderWidget(w) {
   const span = widgetSpan(w);
   const node = el("div", { class: "widget" });
-  node.style.gridColumn = `span ${span.cols}`;
-  node.style.gridRow = `span ${span.rows}`;
+  // Explicit cell if dragged; otherwise auto-flow
+  node.style.gridColumn = w.col ? `${w.col} / span ${span.cols}` : `span ${span.cols}`;
+  node.style.gridRow    = w.row ? `${w.row} / span ${span.rows}` : `span ${span.rows}`;
 
   if (!state.readOnly) {
     node.append(el("div", { class: "w-actions" },
@@ -1725,14 +1742,80 @@ function renderWidget(w) {
     body.append(el("div", { class: "muted" }, "Error: " + e.message));
   }
 
-  // Drag-to-resize (admins only)
+  // Drag-to-resize + drag-to-move (admins only)
   if (!state.readOnly) {
     const handle = el("div", { class: "resize-handle", title: "Drag to resize" });
-    handle.addEventListener("mousedown", e => startResize(e, node, w));
-    handle.addEventListener("touchstart", e => startResize(e.touches[0], node, w, true), { passive: false });
+    handle.addEventListener("mousedown", e => { e.stopPropagation(); startResize(e, node, w); });
+    handle.addEventListener("touchstart", e => { e.stopPropagation(); startResize(e.touches[0], node, w, true); }, { passive: false });
     node.append(handle);
+
+    node.addEventListener("mousedown", e => startMove(e, node, w));
   }
   return node;
+}
+
+/* Free drag-to-position. Sets w.col / w.row to an explicit grid cell.
+   Threshold of 6px before treating it as a drag, so single clicks still
+   feel responsive and don't accidentally reflow the layout. */
+function startMove(e, widgetNode, w) {
+  if (e.button !== 0) return;
+  // Don't drag when interacting with buttons, inputs, the resize handle, etc.
+  if (e.target.closest("button, input, select, a, .resize-handle, .w-actions")) return;
+
+  const grid = widgetNode.parentElement;
+  const span = widgetSpan(w);
+  const startX = e.clientX, startY = e.clientY;
+  const widgetRect = widgetNode.getBoundingClientRect();
+  const offsetX = startX - widgetRect.left;
+  const offsetY = startY - widgetRect.top;
+  let dragMoved = false;
+  let placeholder = null;
+  let targetCol = w.col, targetRow = w.row;
+
+  function gridMetrics() {
+    const r = grid.getBoundingClientRect();
+    const styles = getComputedStyle(grid);
+    const gap = parseFloat(styles.rowGap) || parseFloat(styles.gap) || 14;
+    const rowH = parseFloat(styles.gridAutoRows) || 72;
+    const colW = (r.width - gap * 11) / 12;
+    return { rect: r, gap, rowH, colW };
+  }
+
+  function onMove(ev) {
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    if (!dragMoved && Math.hypot(dx, dy) > 6) {
+      dragMoved = true;
+      widgetNode.classList.add("dragging");
+      placeholder = el("div", { class: "drop-preview" });
+      placeholder.style.gridColumn = `${w.col || 1} / span ${span.cols}`;
+      placeholder.style.gridRow    = `${w.row || 1} / span ${span.rows}`;
+      grid.append(placeholder);
+    }
+    if (!dragMoved) return;
+    ev.preventDefault();
+    const { rect, gap, rowH, colW } = gridMetrics();
+    // mouse position relative to grid, anchored at where the user grabbed
+    const localX = ev.clientX - rect.left - offsetX;
+    const localY = ev.clientY - rect.top  - offsetY;
+    targetCol = Math.max(1, Math.min(13 - span.cols, Math.round(localX / (colW + gap)) + 1));
+    targetRow = Math.max(1, Math.round(localY / (rowH + gap)) + 1);
+    placeholder.style.gridColumn = `${targetCol} / span ${span.cols}`;
+    placeholder.style.gridRow    = `${targetRow} / span ${span.rows}`;
+  }
+  function onUp() {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    if (!dragMoved) return;
+    widgetNode.classList.remove("dragging");
+    placeholder?.remove();
+    if (targetCol === w.col && targetRow === w.row) return;
+    w.col = targetCol; w.row = targetRow;
+    saveConfig(state.config).catch(e => toast("Save failed: " + e.message, "err"));
+    renderDashboard();
+  }
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
 }
 
 let _resizeState = null;
@@ -2129,6 +2212,14 @@ function openWidgetModal(widgetId) {
 
   m.append(el("div", { class: "actions" },
     isNew ? null : el("button", { class: "icon-btn danger", onclick: () => { deleteWidget(w.id); back.remove(); } }, "Delete"),
+    (!isNew && (w.col || w.row)) ? el("button", { class: "icon-btn", title: "Clear the saved position so this widget auto-arranges with the others", onclick: async () => {
+      delete w.col; delete w.row;
+      const d = currentDashboard();
+      const idx = d.widgets.findIndex(x => x.id === w.id);
+      if (idx >= 0) d.widgets[idx] = w;
+      try { await saveConfig(state.config); renderDashboard(); back.remove(); }
+      catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "↺ Auto-position") : null,
     el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
     el("button", { class: "icon-btn primary", onclick: async () => {
       const d = currentDashboard();
