@@ -53,6 +53,9 @@
 
     // Tab name used to store dashboard config inside the sheet
     CONFIG_TAB: "__plecto_config",
+
+    // Tab name for per-user headshots / display names
+    USERS_TAB: "__plecto_users",
   };
 </script>
 
@@ -363,6 +366,47 @@
   .muted { color: var(--text-dim); }
   .pulse { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .5; } }
+
+  /* People manager */
+  .people-list { max-height: 60vh; overflow-y: auto; margin: 4px -4px; }
+  .people-row {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 10px; border-radius: 10px;
+    border: 1px solid var(--border); margin-bottom: 8px;
+    background: var(--card-2);
+  }
+  .people-row .pp-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--bg-3); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; overflow: hidden;
+  }
+  .people-row .pp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .people-row .pp-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .people-row .pp-meta input {
+    width: 100%; padding: 6px 9px; font-size: 13px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .people-row .pp-email { font-size: 11px; color: var(--text-faint); }
+  .people-row .pp-actions {
+    display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  }
+  .people-row .pp-actions button {
+    background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 10px; font-size: 11px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .people-row .pp-actions button:hover { color: var(--text); }
+  .people-row .pp-actions button.danger { color: var(--danger); border-color: rgba(239,68,68,.3); }
+  .people-search {
+    width: 100%; padding: 8px 11px; margin-bottom: 12px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
 </style>
 </head>
 <body data-theme="dark">
@@ -412,6 +456,7 @@ const state = {
   readOnly: false,   // true if current user can't write to the sheet
   saveState: "idle", // "idle" | "saving" | "saved" | "error"
   saveError: null,
+  users: {},         // lowercase email -> { photoUrl, displayName }
 };
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -733,6 +778,106 @@ async function saveConfig(cfg) {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   User profiles (headshots & display names) — stored in __plecto_users tab
+   schema: A=email, B=photoUrl (URL or data URL), C=displayName, D=updatedAt, E=updatedBy
+   ════════════════════════════════════════════════════════════════════════ */
+async function ensureUsersTab(sheetId) {
+  const has = state.tabs.some(t => t.title === CFG.USERS_TAB);
+  if (has) return;
+  try {
+    await api(`/${sheetId}:batchUpdate`, {
+      method: "POST",
+      body: JSON.stringify({
+        requests: [{
+          addSheet: {
+            properties: {
+              title: CFG.USERS_TAB,
+              hidden: true,
+              gridProperties: { rowCount: 1000, columnCount: 5 },
+            },
+          },
+        }],
+      }),
+    });
+    const meta = await fetchSheetMeta(sheetId);
+    state.tabs = meta.tabs;
+  } catch (e) {
+    if (String(e.message).includes("403")) { state.readOnly = true; return; }
+    throw e;
+  }
+}
+async function loadUsers() {
+  let rows;
+  try { rows = await fetchTabValues(state.sheetId, CFG.USERS_TAB); }
+  catch { return; }
+  state.users = {};
+  if (!rows || rows.length < 2) return;
+  for (let i = 1; i < rows.length; i++) {
+    const [email, photoUrl, displayName] = rows[i];
+    if (!email) continue;
+    state.users[String(email).toLowerCase().trim()] = {
+      photoUrl: photoUrl || "",
+      displayName: displayName || "",
+    };
+  }
+  console.log("[plecto] loaded", Object.keys(state.users).length, "user profiles");
+}
+async function saveUsers() {
+  const values = [["email","photoUrl","displayName","updatedAt","updatedBy"]];
+  for (const [email, prof] of Object.entries(state.users)) {
+    if (!prof.photoUrl && !prof.displayName) continue;
+    values.push([email, prof.photoUrl || "", prof.displayName || "", new Date().toISOString(), state.user?.email || ""]);
+  }
+  state.saveState = "saving"; renderTopbar();
+  try {
+    await writeTabValues(state.sheetId, CFG.USERS_TAB, values);
+    state.saveState = "saved"; renderTopbar();
+    setTimeout(() => { if (state.saveState === "saved") { state.saveState = "idle"; renderTopbar(); } }, 2500);
+  } catch (e) {
+    state.saveState = "error"; state.saveError = e.message; renderTopbar();
+    if (String(e.message).includes("403")) {
+      state.readOnly = true;
+      throw new Error("View-only access — ask the sheet owner for Editor access to save headshots.");
+    }
+    throw e;
+  }
+}
+
+/* Resize a File (image) to a square JPEG data URL of the given pixel size.
+   At 96px / quality 0.82 a typical face photo becomes ~5KB base64 — small
+   enough to fit comfortably in a single Sheets cell. */
+function resizeImageToDataUrl(file, size = 128, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width  - min) / 2;
+      const sy = (img.height - min) / 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image file")); };
+    img.src = url;
+  });
+}
+function userPhotoUrl(email) {
+  if (!email) return null;
+  const p = state.users[String(email).toLowerCase().trim()];
+  return p?.photoUrl || null;
+}
+function userDisplayName(email, fallback) {
+  if (!email) return fallback;
+  const p = state.users[String(email).toLowerCase().trim()];
+  return p?.displayName || fallback;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    Data load + parse
    ════════════════════════════════════════════════════════════════════════ */
 async function loadData() {
@@ -990,6 +1135,7 @@ function renderTopbar() {
       bar.append(el("span", { class: "chip", style: "background:rgba(245,158,11,.15);color:var(--warn);border-color:rgba(245,158,11,.3)" }, "View only"));
     } else {
       bar.append(el("button", { class: "icon-btn", onclick: () => openWidgetModal(null) }, "+ Widget"));
+      bar.append(el("button", { class: "icon-btn", onclick: openPeopleModal }, "👤 People"));
       bar.append(el("button", { class: "icon-btn", onclick: openSettingsModal }, "⚙ Settings"));
     }
     bar.append(el("button", { class: "icon-btn", onclick: copyShareLink, title: "Copy a link other users can open to see this exact dashboard" }, "🔗 Share"));
@@ -1232,12 +1378,16 @@ async function renderLeaderboard(node, w, rows) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
-  const list = Array.from(groups.entries()).map(([key, grows]) => ({
-    key,
-    name: nameCol ? (grows[0][nameCol] || key) : key,
-    email: state.config.columns.email ? grows[0][state.config.columns.email] : null,
-    value: aggregate(grows, w.agg, w.column),
-  })).sort((a,b) => (b.value||0) - (a.value||0));
+  const list = Array.from(groups.entries()).map(([key, grows]) => {
+    const email = state.config.columns.email ? grows[0][state.config.columns.email] : null;
+    const fallbackName = nameCol ? (grows[0][nameCol] || key) : key;
+    return {
+      key,
+      name: userDisplayName(email, fallbackName),
+      email,
+      value: aggregate(grows, w.agg, w.column),
+    };
+  }).sort((a,b) => (b.value||0) - (a.value||0));
   const top = list.slice(0, w.limit || 10);
   const wrap = el("div");
   if (!top.length) {
@@ -1263,7 +1413,12 @@ async function renderLeaderboard(node, w, rows) {
     const it = top[i];
     const row = el("div", { class: "lb-row" + (i<3 ? " r"+(i+1) : "") });
     const av = el("div", { class: "lb-avatar" }, initials(it.name || it.email));
-    if (it.email) {
+    // priority: custom uploaded photo → Gravatar → initials
+    const customPhoto = userPhotoUrl(it.email);
+    if (customPhoto) {
+      const im = new Image(); im.src = customPhoto;
+      im.onload = () => { av.innerHTML = ""; av.append(im); };
+    } else if (it.email) {
       gravatar(it.email).then(url => {
         if (!url) return;
         const im = new Image(); im.src = url;
@@ -1516,6 +1671,139 @@ async function deleteWidget(id) {
   } catch (e) { toast("Delete failed: " + e.message, "err"); }
 }
 
+function openPeopleModal() {
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal", style: "max-width:720px" });
+  m.append(
+    el("h3", {}, "👤 People"),
+    el("div", { class: "modal-sub" }, "Upload a headshot or paste an image URL for each person. Display name overrides the name shown in the leaderboard. Stored in a hidden __plecto_users tab in the sheet so all viewers see the same photos."),
+  );
+
+  const search = el("input", { class: "people-search", type: "text", placeholder: "Search by name or email…" });
+  m.append(search);
+
+  const listWrap = el("div", { class: "people-list" });
+  m.append(listWrap);
+
+  // gather all unique emails in current data, plus any existing in users store
+  const emailCol = state.config.columns.email;
+  const nameCol  = state.config.columns.name;
+  const seen = new Map(); // lowercased email -> { email, name }
+  if (emailCol) {
+    for (const r of state.rows) {
+      const e = r[emailCol]; if (!e) continue;
+      const k = String(e).toLowerCase().trim();
+      if (!seen.has(k)) seen.set(k, { email: String(e).trim(), name: nameCol ? (r[nameCol] || "") : "" });
+    }
+  }
+  // include any users that already have a profile but don't appear in current rows
+  for (const k of Object.keys(state.users)) {
+    if (!seen.has(k)) seen.set(k, { email: k, name: "" });
+  }
+
+  const people = Array.from(seen.values()).sort((a,b) => (a.name||a.email).localeCompare(b.name||b.email));
+
+  function makeRow(p) {
+    const k = p.email.toLowerCase();
+    const profile = state.users[k] || { photoUrl: "", displayName: "" };
+    const row = el("div", { class: "people-row" });
+
+    const av = el("div", { class: "pp-avatar" }, initials(profile.displayName || p.name || p.email));
+    if (profile.photoUrl) {
+      const im = new Image(); im.src = profile.photoUrl;
+      im.onload = () => { av.innerHTML = ""; av.append(im); };
+    } else if (p.email) {
+      gravatar(p.email).then(url => {
+        if (!url) return;
+        const im = new Image(); im.src = url;
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      });
+    }
+
+    const meta = el("div", { class: "pp-meta" });
+    const nameInput = el("input", { type: "text", value: profile.displayName || p.name || "", placeholder: "Display name" });
+    nameInput.addEventListener("input", () => {
+      state.users[k] = state.users[k] || { photoUrl: "", displayName: "" };
+      state.users[k].displayName = nameInput.value;
+    });
+    meta.append(nameInput, el("div", { class: "pp-email" }, p.email));
+
+    const actions = el("div", { class: "pp-actions" });
+
+    const fileInput = el("input", { type: "file", accept: "image/*", style: "display:none" });
+    fileInput.addEventListener("change", async () => {
+      const f = fileInput.files?.[0]; if (!f) return;
+      try {
+        const dataUrl = await resizeImageToDataUrl(f, 128, 0.82);
+        state.users[k] = state.users[k] || { displayName: "" };
+        state.users[k].photoUrl = dataUrl;
+        // refresh avatar
+        const im = new Image(); im.src = dataUrl;
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      } catch (e) { toast("Couldn't read image: " + e.message, "err"); }
+    });
+    const uploadBtn = el("button", { onclick: () => fileInput.click() }, "📤 Upload");
+    const urlBtn = el("button", { onclick: () => {
+      const url = prompt("Paste an image URL (must allow hotlinking):", profile.photoUrl || "");
+      if (url == null) return;
+      state.users[k] = state.users[k] || { displayName: "" };
+      state.users[k].photoUrl = url.trim();
+      if (url.trim()) {
+        const im = new Image(); im.src = url.trim();
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      } else {
+        av.innerHTML = ""; av.textContent = initials(profile.displayName || p.name || p.email);
+      }
+    } }, "🔗 URL");
+    const clearBtn = el("button", { class: "danger", onclick: () => {
+      if (state.users[k]) {
+        state.users[k].photoUrl = "";
+        av.innerHTML = ""; av.textContent = initials(profile.displayName || p.name || p.email);
+        // re-try Gravatar
+        gravatar(p.email).then(url => {
+          if (!url) return;
+          const im = new Image(); im.src = url;
+          im.onload = () => { av.innerHTML = ""; av.append(im); };
+        });
+      }
+    } }, "Clear");
+    actions.append(uploadBtn, urlBtn, clearBtn, fileInput);
+
+    row.append(av, meta, actions);
+    return row;
+  }
+
+  function renderList() {
+    listWrap.innerHTML = "";
+    const q = search.value.toLowerCase().trim();
+    const filtered = q ? people.filter(p => (p.email + " " + p.name + " " + (state.users[p.email.toLowerCase()]?.displayName || "")).toLowerCase().includes(q)) : people;
+    if (!filtered.length) {
+      listWrap.append(el("div", { class: "muted", style: "padding:20px;text-align:center" },
+        people.length ? "No matches." : "No people detected yet — load some sheet data first."));
+      return;
+    }
+    filtered.forEach(p => listWrap.append(makeRow(p)));
+  }
+  search.addEventListener("input", renderList);
+  renderList();
+
+  m.append(el("div", { class: "actions" },
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      try {
+        await ensureUsersTab(state.sheetId);
+        await saveUsers();
+        toast("People saved", "ok");
+        renderDashboard();
+        back.remove();
+      } catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "Save"),
+  ));
+
+  back.append(m);
+  document.body.append(back);
+}
+
 function openSettingsModal() {
   const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
   const m = el("div", { class: "modal" });
@@ -1644,6 +1932,8 @@ async function boot() {
         state.config = cfg;
         state.dataTab = cfg.dataTab;
       }
+      // Load user profiles in parallel with data — non-fatal if it fails
+      loadUsers().catch(e => console.warn("[plecto] loadUsers:", e.message));
       if (state.dataTab) {
         await loadData();
         startAutoRefresh();
