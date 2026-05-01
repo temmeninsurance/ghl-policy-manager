@@ -547,7 +547,8 @@ const state = {
   rows: [],          // array of row objects
   rawValues: [],     // raw 2-D values from Sheets
   config: null,      // { columns:{date,email,name?}, widgets:[...] }
-  timeFilter: { kind: "MTD", customStart: null, customEnd: null },
+  // "AUTO" = use each widget's own setting; anything else overrides every widget
+  timeFilter: { kind: "AUTO", customStart: null, customEnd: null },
   refreshTimer: null,
   loading: false,
   lastFetched: null,
@@ -1089,6 +1090,12 @@ function toNumber(v) {
 /* ════════════════════════════════════════════════════════════════════════
    Time-period filtering
    ════════════════════════════════════════════════════════════════════════ */
+const TIME_LABELS = {
+  TODAY: "Today", YESTERDAY: "Yesterday", WEEK: "This Week", LAST_WEEK: "Last Week",
+  MTD: "MTD", QTD: "QTD", YTD: "YTD", ALL: "All Time", CUSTOM: "Custom",
+};
+function timeFilterLabel(kind) { return TIME_LABELS[kind] || kind; }
+
 function timeRange(kind, custom) {
   const now = new Date();
   const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1433,12 +1440,25 @@ function defaultDashboard(name = "Main Dashboard") {
 
 function renderFilterbar() {
   const bar = el("div", { class: "filterbar" });
+
+  // Auto chip — widgets use their own time period
+  const autoChip = el("div", {
+    class: "chip" + (state.timeFilter.kind === "AUTO" ? " active" : ""),
+    title: "Each widget uses its own time period (set per widget in Edit)",
+  }, "Auto (per widget)");
+  autoChip.addEventListener("click", () => { state.timeFilter = { kind: "AUTO" }; renderDashboard(); render(); });
+  bar.append(autoChip);
+  bar.append(el("div", { class: "sep" }));
+
   const opts = [
     ["TODAY","Today"],["YESTERDAY","Yesterday"],["WEEK","This Week"],["LAST_WEEK","Last Week"],
     ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],["ALL","All Time"],
   ];
   opts.forEach(([k,l]) => {
-    const c = el("div", { class: "chip" + (state.timeFilter.kind === k ? " active" : "") }, l);
+    const c = el("div", {
+      class: "chip" + (state.timeFilter.kind === k ? " active" : ""),
+      title: state.timeFilter.kind === k ? "Overriding every widget's time period" : "Override all widgets to " + l,
+    }, l);
     c.addEventListener("click", () => { state.timeFilter = { kind: k }; renderDashboard(); render(); });
     bar.append(c);
   });
@@ -1455,6 +1475,12 @@ function renderFilterbar() {
     s.addEventListener("change", () => { state.timeFilter.customStart = s.value; renderDashboard(); });
     e.addEventListener("change", () => { state.timeFilter.customEnd = e.value; renderDashboard(); });
     bar.append(s, el("span", { class: "muted" }, "→"), e);
+  }
+
+  // small reminder of what mode we're in
+  if (state.timeFilter.kind !== "AUTO") {
+    bar.append(el("div", { class: "muted", style: "margin-left:auto;font-size:11px" },
+      "Overriding all widgets — click 'Auto (per widget)' to restore individual settings"));
   }
   return bar;
 }
@@ -1602,12 +1628,26 @@ function renderWidget(w) {
       el("button", { onclick: () => deleteWidget(w.id) }, "✕"),
     ));
   }
-  node.append(el("div", { class: "w-title" }, w.title || w.kind));
+
+  // Resolve effective time filter:
+  //   global AUTO -> use widget's own setting (default "MTD")
+  //   anything else -> global overrides
+  const effective = state.timeFilter.kind === "AUTO"
+    ? { kind: w.timeFilter || "MTD" }
+    : state.timeFilter;
+  const range = timeRange(effective.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd });
+
+  const titleRow = el("div", { class: "w-title", style: "display:flex;justify-content:space-between;align-items:center;gap:8px" });
+  titleRow.append(el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, w.title || w.kind));
+  titleRow.append(el("span", {
+    style: "font-size:10px;color:" + (state.timeFilter.kind === "AUTO" ? "var(--text-faint)" : "var(--accent)") + ";font-weight:600;letter-spacing:.4px;flex-shrink:0",
+    title: state.timeFilter.kind === "AUTO" ? "This widget's saved time period" : "Overridden by global filter",
+  }, timeFilterLabel(effective.kind)));
+  node.append(titleRow);
 
   const body = el("div", { class: "w-body" });
   node.append(body);
 
-  const range = timeRange(state.timeFilter.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd });
   const dateCol = state.config.columns.date;
   const inRange = rowsInTimeRange(state.rows, dateCol, range).filter(r => rowMatchesAll(r, w.filters));
 
@@ -1860,6 +1900,22 @@ function openWidgetModal(widgetId) {
         "💡 Drag the bottom-right corner of any widget to resize it after saving."));
       return w1;
     })());
+
+    // Per-widget time period
+    body.append(el("label", {}, "Time period"));
+    const timeSel = el("select");
+    [
+      ["TODAY","Today"],["YESTERDAY","Yesterday"],
+      ["WEEK","This Week"],["LAST_WEEK","Last Week"],
+      ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],
+      ["ALL","All Time"],
+    ].forEach(([v,l]) => {
+      timeSel.append(el("option", { value: v, selected: (w.timeFilter || "MTD") === v ? "selected" : null }, l));
+    });
+    timeSel.addEventListener("change", () => w.timeFilter = timeSel.value);
+    body.append(timeSel);
+    body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+      "💡 This applies when the top filter is set to 'Auto (per widget)'. Selecting Today/MTD/etc. up there overrides every widget."));
 
     // aggregation + column
     body.append(el("div", { class: "row2" },
