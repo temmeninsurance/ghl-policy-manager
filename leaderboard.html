@@ -554,6 +554,25 @@
     .app-body { flex-direction: column; }
   }
 
+  /* Big Save button in topbar — state-aware */
+  .save-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; font-size: 12px; font-weight: 700;
+    border-radius: 8px; cursor: pointer;
+    border: 1px solid; letter-spacing: .2px;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+  }
+  .save-btn.s-idle    { background: var(--bg-3);                color: var(--text-dim); border-color: var(--border); }
+  .save-btn.s-saving  { background: var(--card-2);              color: var(--accent);   border-color: var(--accent); }
+  .save-btn.s-saved   { background: rgba(34,197,94,.14);        color: var(--success);  border-color: rgba(34,197,94,.45); }
+  .save-btn.s-error   { background: rgba(239,68,68,.18);        color: #fff;            border-color: var(--danger);
+                        box-shadow: 0 0 0 0 rgba(239,68,68,.5); animation: saveAlert 1.4s ease-in-out infinite; }
+  @keyframes saveAlert {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(239,68,68,0);  }
+  }
+  .save-btn:hover { filter: brightness(1.1); }
+
   /* tiny helper */
   .row { display: flex; align-items: center; gap: 8px; }
   .muted { color: var(--text-dim); }
@@ -903,13 +922,39 @@ async function fetchTabValues(sheetId, tabName) {
   const data = await api(`/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
   return data.values || [];
 }
+/* Atomic "replace tab contents" via batchUpdate.
+   The clear and the new-write are queued in a single request, so a
+   network failure can't leave the tab cleared but un-rewritten (the
+   data-loss scenario from a separate clear-then-PUT pair). */
 async function writeTabValues(sheetId, tabName, values) {
-  const range = `'${tabName.replace(/'/g, "''")}'!A1`;
-  // clear first, then write
-  await api(`/${sheetId}/values/${encodeURIComponent("'" + tabName.replace(/'/g, "''") + "'")}:clear`, { method: "POST", body: "{}" });
-  await api(`/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, {
-    method: "PUT",
-    body: JSON.stringify({ values }),
+  const tabMeta = state.tabs.find(t => t.title === tabName);
+  if (!tabMeta || tabMeta.sheetId == null) {
+    throw new Error(`Tab "${tabName}" not found — call ensureConfigTab first`);
+  }
+  const tabSheetId = tabMeta.sheetId;
+  const rowsForUpdate = values.map(row => ({
+    values: row.map(v => ({
+      userEnteredValue: (v === null || v === undefined || v === "")
+        ? { stringValue: "" }
+        : (typeof v === "number" && isFinite(v))
+          ? { numberValue: v }
+          : { stringValue: String(v) }
+    }))
+  }));
+  await api(`/${sheetId}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [
+        // 1. Clear all existing cell values in this tab
+        { updateCells: { range: { sheetId: tabSheetId }, fields: "userEnteredValue" } },
+        // 2. Write the new content starting at A1
+        { updateCells: {
+            start: { sheetId: tabSheetId, rowIndex: 0, columnIndex: 0 },
+            rows: rowsForUpdate,
+            fields: "userEnteredValue",
+        }},
+      ],
+    }),
   });
 }
 async function ensureConfigTab(sheetId) {
@@ -1467,6 +1512,11 @@ function renderTopbar() {
     }
     bar.append(el("button", { class: "icon-btn", onclick: copyShareLink, title: "Copy a link other users can open to see this exact dashboard" }, "🔗 Share"));
   }
+  // Big Save button — always present, color-codes save state
+  if (state.config && !state.readOnly) {
+    bar.append(renderSaveButton());
+  }
+
   bar.append(
     el("button", { class: "icon-btn", onclick: toggleTheme, title: "Toggle theme" }, currentTheme() === "dark" ? "☀" : "☾"),
     el("button", { class: "icon-btn", onclick: () => loadData(), title: "Refresh" }, "↻"),
@@ -2509,8 +2559,13 @@ function openWidgetModal(widgetId) {
       catch (e) { toast("Save failed: " + e.message, "err"); }
     } }, "↺ Auto-position") : null,
     el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
-    el("button", { class: "icon-btn primary", onclick: async () => {
+    el("button", { class: "icon-btn primary", onclick: async (ev) => {
+      const saveBtn = ev.currentTarget;
+      const originalLabel = saveBtn.textContent;
+      saveBtn.textContent = "Saving…"; saveBtn.disabled = true;
       const d = currentDashboard();
+      // snapshot so we can roll back on failure
+      const before = JSON.parse(JSON.stringify(d.widgets));
       if (isNew) d.widgets.push(w);
       else {
         const idx = d.widgets.findIndex(x => x.id === w.id);
@@ -2521,7 +2576,14 @@ function openWidgetModal(widgetId) {
         toast("Saved", "ok");
         renderDashboard();
         back.remove();
-      } catch (e) { toast("Save failed: " + e.message, "err"); }
+      } catch (e) {
+        // keep modal open so the user can re-try without losing what they typed
+        d.widgets = before;
+        saveBtn.textContent = originalLabel; saveBtn.disabled = false;
+        const err = el("div", { style: "background:rgba(239,68,68,.15);color:var(--danger);border:1px solid var(--danger);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;line-height:1.5" },
+          "⚠ Save failed: " + e.message + " — your changes are kept on this screen. Click Save again to retry.");
+        m.append(err);
+      }
     } }, "Save"),
   ));
   back.append(m);
@@ -2769,6 +2831,45 @@ function openSettingsModal() {
   back.append(m);
   document.body.append(back);
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Manual Save button
+   ════════════════════════════════════════════════════════════════════════ */
+function renderSaveButton() {
+  const s = state.saveState;
+  let label, cls;
+  if (s === "saving") { label = "Saving…";          cls = "s-saving"; }
+  else if (s === "saved")  { label = "✓ Saved";    cls = "s-saved"; }
+  else if (s === "error")  { label = "⚠ Save failed — click to retry"; cls = "s-error"; }
+  else { label = "💾 Save"; cls = "s-idle"; }
+  const btn = el("button", {
+    class: "save-btn " + cls,
+    title: s === "error"
+      ? "Last save failed — your changes are kept locally. Click to retry writing to the sheet."
+      : "Force-save the dashboard to the Google Sheet right now.",
+  }, label);
+  btn.addEventListener("click", () => forceSave());
+  return btn;
+}
+async function forceSave() {
+  if (!state.config) return;
+  if (state.saveState === "saving") return;  // already in flight
+  try {
+    await saveConfig(state.config);
+    toast("Dashboard saved", "ok");
+  } catch (e) {
+    toast("Save failed: " + e.message, "err");
+  }
+}
+
+// Block tab close / refresh while a save is in flight or just failed
+window.addEventListener("beforeunload", e => {
+  if (state.saveState === "saving" || state.saveState === "error") {
+    e.preventDefault();
+    e.returnValue = "";
+    return "";
+  }
+});
 
 /* ════════════════════════════════════════════════════════════════════════
    Share link
