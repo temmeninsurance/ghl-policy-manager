@@ -1786,6 +1786,38 @@ async function deleteWidget(id) {
   } catch (e) { toast("Delete failed: " + e.message, "err"); }
 }
 
+function detectEmailsInRows() {
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const seen = new Map(); // lowercased email -> { email, name }
+  const emailCol = state.config?.columns?.email;
+  const nameCol  = state.config?.columns?.name;
+
+  // 1. Configured email column — primary source
+  if (emailCol) {
+    for (const r of state.rows) {
+      const e = r[emailCol]; if (!e) continue;
+      const s = String(e).trim();
+      if (!EMAIL_RE.test(s)) continue;
+      const k = s.toLowerCase();
+      if (!seen.has(k)) seen.set(k, { email: s, name: nameCol ? (r[nameCol] || "") : "" });
+    }
+  }
+  // 2. Fallback — scan EVERY cell of EVERY row for anything that looks like an email.
+  //    Catches cases where the email column was never configured in Settings.
+  if (!seen.size) {
+    for (const r of state.rows) {
+      for (const col of state.columns) {
+        const v = r[col]; if (!v) continue;
+        const s = String(v).trim();
+        if (!EMAIL_RE.test(s)) continue;
+        const k = s.toLowerCase();
+        if (!seen.has(k)) seen.set(k, { email: s, name: nameCol ? (r[nameCol] || "") : "" });
+      }
+    }
+  }
+  return seen;
+}
+
 function openPeopleModal() {
   const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
   const m = el("div", { class: "modal", style: "max-width:720px" });
@@ -1794,29 +1826,39 @@ function openPeopleModal() {
     el("div", { class: "modal-sub" }, "Upload a headshot or paste an image URL for each person. Display name overrides the name shown in the leaderboard. Stored in a hidden __plecto_users tab in the sheet so all viewers see the same photos."),
   );
 
+  // Add-person inline form (always available, even if detection fails)
+  const addBox = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px" });
+  addBox.append(el("div", { style: "font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px" }, "Add a person"));
+  const emailIn = el("input", { type: "email", placeholder: "alton@temmeninsurance.com", style: "width:100%;padding:7px 10px;background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:6px" });
+  const nameIn  = el("input", { type: "text",  placeholder: "Display name (optional)",  style: "width:100%;padding:7px 10px;background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:6px" });
+  const addBtn = el("button", { class: "icon-btn primary", style: "padding:7px 14px", onclick: () => {
+    const e = (emailIn.value || "").trim().toLowerCase();
+    if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { toast("Enter a valid email address", "err"); return; }
+    state.users[e] = state.users[e] || { photoUrl: "", displayName: "" };
+    if (nameIn.value.trim()) state.users[e].displayName = nameIn.value.trim();
+    emailIn.value = ""; nameIn.value = "";
+    refreshList();
+    toast("Added — set a headshot below, then click Save", "ok");
+  } }, "+ Add");
+  addBox.append(emailIn, nameIn, addBtn);
+  m.append(addBox);
+
   const search = el("input", { class: "people-search", type: "text", placeholder: "Search by name or email…" });
   m.append(search);
 
   const listWrap = el("div", { class: "people-list" });
   m.append(listWrap);
 
-  // gather all unique emails in current data, plus any existing in users store
-  const emailCol = state.config.columns.email;
-  const nameCol  = state.config.columns.name;
-  const seen = new Map(); // lowercased email -> { email, name }
-  if (emailCol) {
-    for (const r of state.rows) {
-      const e = r[emailCol]; if (!e) continue;
-      const k = String(e).toLowerCase().trim();
-      if (!seen.has(k)) seen.set(k, { email: String(e).trim(), name: nameCol ? (r[nameCol] || "") : "" });
+  // detected from data + already-saved profiles
+  let people = [];
+  function rebuildPeople() {
+    const seen = detectEmailsInRows();
+    for (const k of Object.keys(state.users)) {
+      if (!seen.has(k)) seen.set(k, { email: k, name: state.users[k].displayName || "" });
     }
+    people = Array.from(seen.values()).sort((a,b) => (a.name||a.email).localeCompare(b.name||b.email));
   }
-  // include any users that already have a profile but don't appear in current rows
-  for (const k of Object.keys(state.users)) {
-    if (!seen.has(k)) seen.set(k, { email: k, name: "" });
-  }
-
-  const people = Array.from(seen.values()).sort((a,b) => (a.name||a.email).localeCompare(b.name||b.email));
+  rebuildPeople();
 
   function makeRow(p) {
     const k = p.email.toLowerCase();
@@ -1888,19 +1930,24 @@ function openPeopleModal() {
     return row;
   }
 
-  function renderList() {
+  function refreshList() {
+    rebuildPeople();
     listWrap.innerHTML = "";
     const q = search.value.toLowerCase().trim();
     const filtered = q ? people.filter(p => (p.email + " " + p.name + " " + (state.users[p.email.toLowerCase()]?.displayName || "")).toLowerCase().includes(q)) : people;
     if (!filtered.length) {
-      listWrap.append(el("div", { class: "muted", style: "padding:20px;text-align:center" },
-        people.length ? "No matches." : "No people detected yet — load some sheet data first."));
+      const msg = people.length
+        ? "No matches."
+        : (state.rows.length
+            ? `No emails detected in your sheet's data (scanned ${state.rows.length} rows). Use the "Add a person" box above to add people manually, or check that your Email column is set in Settings → Email column.`
+            : "Sheet data hasn't loaded yet. Use the Add a person box above to add people manually.");
+      listWrap.append(el("div", { class: "muted", style: "padding:20px;text-align:center;line-height:1.6" }, msg));
       return;
     }
     filtered.forEach(p => listWrap.append(makeRow(p)));
   }
-  search.addEventListener("input", renderList);
-  renderList();
+  search.addEventListener("input", refreshList);
+  refreshList();
 
   m.append(el("div", { class: "actions" },
     el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
