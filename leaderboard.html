@@ -241,6 +241,36 @@
   /* KPI tile */
   .kpi-value { font-size: 44px; font-weight: 700; letter-spacing: -.5px; }
   .kpi-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Threshold-tinted widgets (value-vs-target coloring) */
+  .widget.tier-green  { background: #16a34a; border-color: #15803d; }
+  .widget.tier-yellow { background: #f59e0b; border-color: #d97706; }
+  .widget.tier-red    { background: #dc2626; border-color: #b91c1c; }
+  .widget.tier-green, .widget.tier-yellow, .widget.tier-red { color: #0a0a0a; }
+  .widget.tier-green  .w-title,
+  .widget.tier-yellow .w-title,
+  .widget.tier-red    .w-title { color: rgba(0,0,0,.7); }
+  .widget.tier-green  .kpi-value,
+  .widget.tier-yellow .kpi-value,
+  .widget.tier-red    .kpi-value { color: #0a0a0a; }
+  .widget.tier-green  .kpi-sub,
+  .widget.tier-yellow .kpi-sub,
+  .widget.tier-red    .kpi-sub { color: rgba(0,0,0,.65); }
+  .widget.tier-green  .goal-bar,
+  .widget.tier-yellow .goal-bar,
+  .widget.tier-red    .goal-bar { background: rgba(0,0,0,.18); }
+  .widget.tier-green  .goal-bar > div,
+  .widget.tier-yellow .goal-bar > div,
+  .widget.tier-red    .goal-bar > div { background: rgba(0,0,0,.7); }
+  .widget.tier-green  .goal-meta,
+  .widget.tier-yellow .goal-meta,
+  .widget.tier-red    .goal-meta { color: rgba(0,0,0,.65); }
+  .widget.tier-green  .goal-meta .goal-pct,
+  .widget.tier-yellow .goal-meta .goal-pct,
+  .widget.tier-red    .goal-meta .goal-pct { color: #0a0a0a; }
+  .widget.tier-green  .w-actions button,
+  .widget.tier-yellow .w-actions button,
+  .widget.tier-red    .w-actions button { background: rgba(0,0,0,.15); color: rgba(0,0,0,.8); border-color: rgba(0,0,0,.2); }
   .kpi-delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
   .kpi-delta.up { color: var(--success); }
   .kpi-delta.down { color: var(--danger); }
@@ -1602,6 +1632,26 @@ function renderDashboard() {
   stage.append(grid);
 }
 
+/* Compute color tier for a numeric value against widget thresholds.
+   direction: "higher" = bigger is better (sales, calls answered)
+              "lower"  = smaller is better (missed calls, abandon rate)
+   Returns "green" | "yellow" | "red" | null if no thresholds configured. */
+function widgetColorTier(w, value) {
+  if (value == null || isNaN(value)) return null;
+  const good = w.thresholdGood, warn = w.thresholdWarn;
+  if (good == null && warn == null) return null;
+  const dir = w.direction || "higher";
+  if (dir === "higher") {
+    if (good != null && value >= good) return "green";
+    if (warn != null && value >= warn) return "yellow";
+    return "red";
+  } else {
+    if (good != null && value <= good) return "green";
+    if (warn != null && value <= warn) return "yellow";
+    return "red";
+  }
+}
+
 /* default widget dimensions (grid cols × rows of 72px) */
 function defaultSpan(kind) {
   switch (kind) {
@@ -1657,6 +1707,13 @@ function renderWidget(w) {
 
   const dateCol = state.config.columns.date;
   const inRange = rowsInTimeRange(state.rows, dateCol, range).filter(r => rowMatchesAll(r, w.filters));
+
+  // Apply threshold-based color tier on KPI / goal widgets
+  if (w.kind === "kpi" || w.kind === "goal") {
+    const value = aggregate(inRange, w.agg, w.column);
+    const tier = widgetColorTier(w, value);
+    if (tier) node.classList.add("tier-" + tier);
+  }
 
   try {
     if (w.kind === "kpi")         renderKpi(body, w, inRange);
@@ -1960,6 +2017,40 @@ function openWidgetModal(widgetId) {
       const t = el("input", { type: "number", value: w.target ?? "" });
       t.addEventListener("input", () => w.target = parseFloat(t.value));
       body.append(t);
+    }
+
+    // Color thresholds — KPI and goal widgets get a green/yellow/red tint
+    if (w.kind === "kpi" || w.kind === "goal") {
+      body.append(el("label", {}, "Color thresholds (optional)"));
+      const dirRow = el("div", { class: "row2" });
+      const dirCell = el("div");
+      dirCell.append(el("label", { style: "margin-top:0" }, "Direction"));
+      const dirSel = el("select");
+      [["higher","Higher is better (sales, calls)"], ["lower","Lower is better (missed, errors)"]].forEach(([v,l]) => {
+        dirSel.append(el("option", { value: v, selected: (w.direction || "higher") === v ? "selected" : null }, l));
+      });
+      dirSel.addEventListener("change", () => w.direction = dirSel.value);
+      dirCell.append(dirSel);
+      dirRow.append(dirCell);
+      // empty cell to balance the grid
+      dirRow.append(el("div"));
+      body.append(dirRow);
+
+      const tRow = el("div", { class: "row2" });
+      const goodCell = el("div");
+      goodCell.append(el("label", { style: "margin-top:0" }, "🟢 Green at/beyond"));
+      const goodIn = el("input", { type: "number", step: "any", placeholder: "e.g. 10", value: w.thresholdGood ?? "" });
+      goodIn.addEventListener("input", () => w.thresholdGood = goodIn.value === "" ? null : parseFloat(goodIn.value));
+      goodCell.append(goodIn);
+      const warnCell = el("div");
+      warnCell.append(el("label", { style: "margin-top:0" }, "🟡 Yellow at/beyond"));
+      const warnIn = el("input", { type: "number", step: "any", placeholder: "e.g. 5", value: w.thresholdWarn ?? "" });
+      warnIn.addEventListener("input", () => w.thresholdWarn = warnIn.value === "" ? null : parseFloat(warnIn.value));
+      warnCell.append(warnIn);
+      tRow.append(goodCell, warnCell);
+      body.append(tRow);
+      body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "Below the yellow threshold = 🔴 red. Leave both blank to disable color thresholds."));
     }
     if (w.kind === "leaderboard") {
       body.append(el("div", { class: "row2" },
