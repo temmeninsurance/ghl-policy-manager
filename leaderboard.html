@@ -661,8 +661,9 @@ const state = {
   tabs: [],          // [{title, sheetId}]
   dataTab: null,     // current data tab name
   columns: [],       // header row
-  rows: [],          // array of row objects
-  rawValues: [],     // raw 2-D values from Sheets
+  rows: [],          // array of row objects (from the dashboard's default tab — back-compat)
+  rawValues: [],     // raw 2-D values from Sheets (default tab)
+  tabsData: {},      // tabName -> { columns, rows, dateCol, emailCol, nameCol, lastFetched }
   config: null,      // { columns:{date,email,name?}, widgets:[...] }
   // "AUTO" = use each widget's own setting; anything else overrides every widget
   timeFilter: { kind: "AUTO", customStart: null, customEnd: null },
@@ -1164,17 +1165,18 @@ async function loadData() {
   state.loading = true;
   renderTopbar();
   try {
-    const values = await fetchTabValues(state.sheetId, state.dataTab);
-    state.rawValues = values;
-    _uniqueValuesCache = null; // data changed; invalidate filter-value suggestions
-    if (!values.length) { state.columns = []; state.rows = []; }
-    else {
-      state.columns = values[0].map(c => String(c ?? "").trim());
-      state.rows = values.slice(1).map(r => {
-        const obj = {};
-        for (let i = 0; i < state.columns.length; i++) obj[state.columns[i]] = r[i];
-        return obj;
-      });
+    _uniqueValuesCache = null;             // any tab refresh invalidates the suggestion cache
+    // Always load the dashboard default tab first
+    await ensureTabLoaded(state.dataTab, true);
+    // Then any tab referenced by widgets in any dashboard (so switching views is instant)
+    const referenced = new Set();
+    for (const d of (state.config?.dashboards || [])) {
+      for (const w of (d.widgets || [])) {
+        if (w.dataTab && w.dataTab !== state.dataTab) referenced.add(w.dataTab);
+      }
+    }
+    if (referenced.size) {
+      await Promise.all(Array.from(referenced).map(t => ensureTabLoaded(t, true).catch(() => null)));
     }
     state.lastFetched = new Date();
   } catch (e) {
@@ -1186,21 +1188,74 @@ async function loadData() {
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   Per-tab data loading. Each widget can pull from any tab in the sheet;
+   data and column inference is cached in state.tabsData[tabName].
+   ════════════════════════════════════════════════════════════════════════ */
+function autoDetectColumns(columns) {
+  const guess = re => columns.find(c => re.test(c));
+  return {
+    dateCol:  guess(/^date$|created|timestamp|^time$/i) || guess(/date|time/i) || null,
+    emailCol: guess(/email|mail/i) || null,
+    nameCol:  guess(/^name$|agent|rep|owner|user/i) || null,
+  };
+}
+async function ensureTabLoaded(tabName, force = false) {
+  if (!tabName) return null;
+  if (!force && state.tabsData[tabName]) return state.tabsData[tabName];
+  try {
+    const values = await fetchTabValues(state.sheetId, tabName);
+    const columns = (values[0] || []).map(c => String(c ?? "").trim());
+    const rows = values.slice(1).map(r => {
+      const obj = {};
+      for (let i = 0; i < columns.length; i++) obj[columns[i]] = r[i];
+      return obj;
+    });
+    const auto = autoDetectColumns(columns);
+    // For the dashboard's default tab, the explicitly-configured columns win
+    const isDefault = tabName === state.dataTab;
+    const dateCol  = isDefault ? (state.config?.columns?.date  || auto.dateCol)  : auto.dateCol;
+    const emailCol = isDefault ? (state.config?.columns?.email || auto.emailCol) : auto.emailCol;
+    const nameCol  = isDefault ? (state.config?.columns?.name  || auto.nameCol)  : auto.nameCol;
+    state.tabsData[tabName] = { columns, rows, dateCol, emailCol, nameCol, lastFetched: new Date() };
+    if (isDefault) {                       // back-compat aliases
+      state.columns  = columns;
+      state.rows     = rows;
+      state.rawValues = values;
+    }
+    return state.tabsData[tabName];
+  } catch (e) {
+    console.warn("[plecto] failed to load tab", tabName, e.message);
+    return null;
+  }
+}
+function getWidgetTab(w) {
+  const name = w.dataTab || state.dataTab;
+  return state.tabsData[name] || null;
+}
+function getColumnsForWidget(w) {
+  return getWidgetTab(w)?.columns || state.columns || [];
+}
+
 /* Unique values for a column, cached. Powers the searchable filter dropdown. */
 let _uniqueValuesCache = null;
-function uniqueValuesForColumn(col) {
+function uniqueValuesForColumn(col, tabName = null) {
   if (!col) return [];
+  const tab = tabName || state.dataTab;
   if (!_uniqueValuesCache) _uniqueValuesCache = new Map();
-  if (_uniqueValuesCache.has(col)) return _uniqueValuesCache.get(col);
+  const cacheKey = tab + "\x00" + col;
+  if (_uniqueValuesCache.has(cacheKey)) return _uniqueValuesCache.get(cacheKey);
+  const td = state.tabsData[tab];
+  const rows = td?.rows || (tab === state.dataTab ? state.rows : []);
   const set = new Set();
-  for (const r of state.rows) {
+  for (const r of rows) {
     const v = r[col];
     if (v == null || v === "") continue;
     set.add(String(v).trim());
   }
   const arr = Array.from(set).filter(Boolean).sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
-  _uniqueValuesCache.set(col, arr);
+  _uniqueValuesCache.set(cacheKey, arr);
   return arr;
 }
 
@@ -1901,9 +1956,18 @@ function renderWidget(w) {
   const body = el("div", { class: "w-body" });
   node.append(body);
 
-  const dateCol = state.config.columns.date;
+  const tab = getWidgetTab(w);
+  const widgetRows = tab?.rows || [];
+  const dateCol = tab?.dateCol || state.config.columns.date;
+  // If widget references a tab we haven't loaded yet, kick off a load and bail
+  if (w.dataTab && !state.tabsData[w.dataTab]) {
+    body.append(el("div", { class: "muted", style: "padding:18px" }, `Loading "${w.dataTab}"…`));
+    ensureTabLoaded(w.dataTab).then(() => renderDashboard());
+    return node;
+  }
+
   const inRange = !isPacing
-    ? rowsInTimeRange(state.rows, dateCol, range).filter(r => rowMatchesAll(r, w.filters))
+    ? rowsInTimeRange(widgetRows, dateCol, range).filter(r => rowMatchesAll(r, w.filters))
     : [];
 
   // Apply threshold-based color tier
@@ -1915,7 +1979,7 @@ function renderWidget(w) {
     // Pacing tier reflects the PROJECTED value vs thresholds
     const today = new Date();
     const m = pacingMetrics(w, today);
-    const periodRows = rowsInTimeRange(state.rows, dateCol, [m.periodStart, today])
+    const periodRows = rowsInTimeRange(widgetRows, dateCol, [m.periodStart, today])
       .filter(r => rowMatchesAll(r, w.filters));
     const current = aggregate(periodRows, w.agg, w.column);
     const projected = m.elapsedDays > 0 ? current * (m.totalDays / m.elapsedDays) : 0;
@@ -2090,9 +2154,10 @@ function renderGoal(node, w, rows) {
 function renderPacing(body, w) {
   const today = new Date();
   const m = pacingMetrics(w, today);
-  const dateCol = state.config.columns.date;
+  const tab = getWidgetTab(w);
+  const dateCol = tab?.dateCol || state.config.columns.date;
   // Pacing always reads its own period (ignores global time-filter chips)
-  const periodRows = rowsInTimeRange(state.rows, dateCol, [m.periodStart, today])
+  const periodRows = rowsInTimeRange(tab?.rows || [], dateCol, [m.periodStart, today])
     .filter(r => rowMatchesAll(r, w.filters));
   const current = aggregate(periodRows, w.agg, w.column);
   const projected = m.elapsedDays > 0 ? current * (m.totalDays / m.elapsedDays) : 0;
@@ -2120,16 +2185,18 @@ function renderPacing(body, w) {
 }
 
 async function renderLeaderboard(node, w, rows) {
-  const groupCol = w.groupBy || state.config.columns.email;
-  const nameCol  = state.config.columns.name;
+  const tab = getWidgetTab(w);
+  const groupCol = w.groupBy || tab?.emailCol || state.config.columns.email;
+  const nameCol  = tab?.nameCol || state.config.columns.name;
   const groups = new Map();
   for (const r of rows) {
     const key = r[groupCol]; if (key == null || key === "") continue;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
+  const emailCol = tab?.emailCol || state.config.columns.email;
   const list = Array.from(groups.entries()).map(([key, grows]) => {
-    const email = state.config.columns.email ? grows[0][state.config.columns.email] : null;
+    const email = emailCol ? grows[0][emailCol] : null;
     const fallbackName = nameCol ? (grows[0][nameCol] || key) : key;
     return {
       key,
@@ -2191,8 +2258,9 @@ function renderChart(node, w, rows, range) {
   const wrap = el("div", { class: "chart-wrap" });
   const cv = el("canvas");
   wrap.append(cv); node.append(wrap);
-  const dateCol = state.config.columns.date;
-  if (!dateCol) { node.append(el("div", { class: "muted" }, "No date column configured.")); return; }
+  const tab = getWidgetTab(w);
+  const dateCol = tab?.dateCol || state.config.columns.date;
+  if (!dateCol) { node.append(el("div", { class: "muted" }, "No date column found in this tab.")); return; }
   // bucket by day (or by month if range > 90 days)
   const days = (range[1] - range[0]) / 86400000;
   const bucketKind = days > 90 ? "month" : "day";
@@ -2231,7 +2299,7 @@ function renderChart(node, w, rows, range) {
 
 /* Searchable value combobox for filter rows. Suggestions = the unique
    values in the selected column, narrowed by what the user has typed. */
-function makeSearchableValueInput(filter, getColumn) {
+function makeSearchableValueInput(filter, getColumn, getTabName) {
   const wrap = el("div", { class: "value-combo" });
   const input = el("input", { type: "text", placeholder: "value", autocomplete: "off", value: filter.value ?? "" });
   const dropdown = el("div", { class: "value-dropdown", style: "display:none" });
@@ -2239,6 +2307,7 @@ function makeSearchableValueInput(filter, getColumn) {
 
   function renderMatches() {
     const col = getColumn();
+    const tabName = getTabName ? getTabName() : null;
     dropdown.innerHTML = "";
     activeIdx = -1;
     if (!col) {
@@ -2246,7 +2315,7 @@ function makeSearchableValueInput(filter, getColumn) {
       dropdown.style.display = "block";
       return;
     }
-    const all = uniqueValuesForColumn(col);
+    const all = uniqueValuesForColumn(col, tabName);
     if (!all.length) {
       dropdown.append(el("div", { class: "vd-empty" }, "No values found in this column yet."));
       dropdown.style.display = "block";
@@ -2356,6 +2425,33 @@ function openWidgetModal(widgetId) {
       return w1;
     })());
 
+    // Data source tab — defaults to dashboard's main data tab
+    body.append(el("label", {}, "Data tab (which sheet tab this widget pulls from)"));
+    const tabSel = el("select");
+    tabSel.append(el("option", { value: "" }, `(dashboard default — ${state.dataTab || "none"})`));
+    state.tabs
+      .filter(t => t.title !== CFG.CONFIG_TAB && t.title !== CFG.USERS_TAB)
+      .forEach(t => tabSel.append(el("option", { value: t.title, selected: w.dataTab === t.title ? "selected" : null }, t.title)));
+    tabSel.addEventListener("change", async () => {
+      w.dataTab = tabSel.value || null;
+      if (w.dataTab && !state.tabsData[w.dataTab]) {
+        // fetch the new tab's columns so the column dropdowns below populate
+        const tip = el("div", { class: "muted", style: "font-size:11px;margin-top:6px" }, `Loading columns from "${w.dataTab}"…`);
+        body.append(tip);
+        await ensureTabLoaded(w.dataTab);
+        tip.remove();
+      }
+      // reset column choices that may not exist on the new tab
+      const cols = getColumnsForWidget(w);
+      if (w.column && !cols.includes(w.column)) w.column = "";
+      if (w.groupBy && !cols.includes(w.groupBy)) w.groupBy = "";
+      (w.filters || []).forEach(f => { if (f.column && !cols.includes(f.column)) f.column = ""; });
+      renderBody();
+    });
+    body.append(tabSel);
+    body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+      "Pick a different tab to read this widget's data from a separate sheet — e.g. one widget on Sales Data, another on Call Logs."));
+
     // Per-widget time period (not shown for pacing — pacing has its own period)
     if (w.kind !== "pacing") {
       body.append(el("label", {}, "Time period"));
@@ -2389,7 +2485,7 @@ function openWidgetModal(widgetId) {
         c.append(el("label", {}, "Column" + (w.kind === "leaderboard" || w.kind === "kpi" || w.kind==="goal" || w.kind==="chart" ? " (numeric for SUM/AVG/MIN/MAX)" : "")));
         const a = el("select");
         a.append(el("option", { value: "" }, "(none)"));
-        state.columns.forEach(c2 => a.append(el("option", { value: c2, selected: w.column === c2 ? "selected" : null }, c2)));
+        getColumnsForWidget(w).forEach(c2 => a.append(el("option", { value: c2, selected: w.column === c2 ? "selected" : null }, c2)));
         a.addEventListener("change", () => w.column = a.value);
         c.append(a); return c;
       })(),
@@ -2477,7 +2573,7 @@ function openWidgetModal(widgetId) {
           c.append(el("label", {}, "Group by (default = email)"));
           const a = el("select");
           a.append(el("option", { value: "" }, "(default: email column)"));
-          state.columns.forEach(c2 => a.append(el("option", { value: c2, selected: w.groupBy===c2 ? "selected" : null }, c2)));
+          getColumnsForWidget(w).forEach(c2 => a.append(el("option", { value: c2, selected: w.groupBy===c2 ? "selected" : null }, c2)));
           a.addEventListener("change", () => w.groupBy = a.value);
           c.append(a); return c;
         })(),
@@ -2522,14 +2618,14 @@ function openWidgetModal(widgetId) {
 
         const cs = el("select");
         cs.append(el("option", { value: "" }, "(column)"));
-        state.columns.forEach(c2 => cs.append(el("option", { value: c2, selected: f.column === c2 ? "selected" : null }, c2)));
+        getColumnsForWidget(w).forEach(c2 => cs.append(el("option", { value: c2, selected: f.column === c2 ? "selected" : null }, c2)));
         cs.addEventListener("change", () => { f.column = cs.value; });
         const os = el("select");
         OPERATORS.forEach(o => os.append(el("option", { value: o, selected: f.op === o ? "selected" : null }, o.replace(/_/g," "))));
         os.addEventListener("change", () => { f.op = os.value; renderFilters(); });
 
-        // Searchable value input — pulls unique values from the selected column
-        const valueBox = makeSearchableValueInput(f, () => f.column);
+        // Searchable value input — pulls unique values from the widget's tab + selected column
+        const valueBox = makeSearchableValueInput(f, () => f.column, () => w.dataTab || state.dataTab);
         if (["is_empty","not_empty"].includes(f.op)) valueBox.wrap.style.visibility = "hidden";
 
         const rm = el("button", { onclick: () => { w.filters.splice(idx,1); renderFilters(); } }, "✕");
