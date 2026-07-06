@@ -573,6 +573,37 @@
   }
   .save-btn:hover { filter: brightness(1.1); }
 
+  /* TV / fullscreen mode — maximize widget canvas, hide all edit chrome,
+     auto-scale the whole grid to fill the viewport with no scroll */
+  .app-shell.tv-mode { height: 100vh; overflow: hidden; }
+  .app-shell.tv-mode .sidebar,
+  .app-shell.tv-mode .filterbar { display: none; }
+  .app-shell.tv-mode .w-actions,
+  .app-shell.tv-mode .resize-handle { display: none !important; }
+  .app-shell.tv-mode .widget { cursor: default; }
+  .app-shell.tv-mode .topbar {
+    background: transparent; border-bottom: 1px solid var(--border);
+    padding: 6px 18px; min-height: 44px;
+  }
+  .app-shell.tv-mode .topbar .save-btn,
+  .app-shell.tv-mode .topbar .meta { display: none; }
+  .app-shell.tv-mode .app-body { min-height: 0; }
+  .app-shell.tv-mode .main { overflow: hidden; }
+  .app-shell.tv-mode .stage {
+    padding: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .app-shell.tv-mode .grid {
+    transform-origin: top left;
+    will-change: transform;
+  }
+  .tv-clock {
+    font-family: -apple-system, "SF Mono", Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim); font-size: 13px; letter-spacing: .5px;
+  }
+  .app-shell.tv-mode .tv-clock { font-size: 18px; color: var(--text); }
+  .app-shell.tv-mode .brand { font-size: 18px; }
+
   /* tiny helper */
   .row { display: flex; align-items: center; gap: 8px; }
   .muted { color: var(--text-dim); }
@@ -677,6 +708,8 @@ const state = {
   users: {},         // lowercase email -> { photoUrl, displayName }
   activeDashboardId: null, // per-user, persisted in localStorage
   sidebarCollapsed: false,
+  tvMode: false,
+  tvClockTimer: null,
 };
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -1499,6 +1532,7 @@ function render() {
     state.activeDashboardId = state.config.dashboards[0].id;
   }
 
+  if (state.tvMode) shell.classList.add("tv-mode");
   shell.append(renderTopbar());
   const body = el("div", { class: "app-body" });
   body.append(renderSidebar());
@@ -1510,6 +1544,7 @@ function render() {
   shell.append(body);
 
   renderDashboard();
+  if (state.tvMode) requestAnimationFrame(fitTvGrid);
 }
 
 function renderLogin() {
@@ -1572,7 +1607,15 @@ function renderTopbar() {
     bar.append(renderSaveButton());
   }
 
+  if (state.tvMode) {
+    bar.append(el("span", { class: "tv-clock" }, new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })));
+  }
   bar.append(
+    el("button", {
+      class: "icon-btn" + (state.tvMode ? " primary" : ""),
+      onclick: toggleTvMode,
+      title: state.tvMode ? "Exit TV mode (Esc)" : "TV mode — fullscreen dashboard for the sales floor",
+    }, state.tvMode ? "✕ Exit TV" : "📺 TV"),
     el("button", { class: "icon-btn", onclick: toggleTheme, title: "Toggle theme" }, currentTheme() === "dark" ? "☀" : "☾"),
     el("button", { class: "icon-btn", onclick: () => loadData(), title: "Refresh" }, "↻"),
     el("button", { class: "icon-btn danger", onclick: signOut }, "Sign out"),
@@ -1870,6 +1913,7 @@ function renderDashboard() {
   const grid = el("div", { class: "grid" });
   dash.widgets.forEach(w => grid.append(renderWidget(w)));
   stage.append(grid);
+  if (state.tvMode) requestAnimationFrame(fitTvGrid);
 }
 
 /* Compute color tier for a numeric value against widget thresholds.
@@ -2993,6 +3037,60 @@ function toggleTheme() {
   setTheme(currentTheme() === "dark" ? "light" : "dark");
   renderDashboard(); // re-render charts so they pick up new colors
   renderTopbar();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TV mode — fullscreen, hide chrome, scale grid to fit viewport
+   ════════════════════════════════════════════════════════════════════════ */
+async function toggleTvMode() {
+  state.tvMode = !state.tvMode;
+  if (state.tvMode) {
+    try { await document.documentElement.requestFullscreen(); }
+    catch (e) { /* browser blocked — still show TV layout even without native fullscreen */ }
+    startTvClock();
+  } else {
+    if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch {} }
+    stopTvClock();
+  }
+  render();
+  requestAnimationFrame(fitTvGrid);
+}
+function fitTvGrid() {
+  if (!state.tvMode) return;
+  const grid  = document.querySelector(".app-shell.tv-mode .grid");
+  const stage = document.querySelector(".app-shell.tv-mode .stage");
+  if (!grid || !stage) return;
+  // Reset before measuring so we get the natural size
+  grid.style.transform = "";
+  grid.style.width = "";
+  const naturalW = grid.scrollWidth  || 1;
+  const naturalH = grid.scrollHeight || 1;
+  const availW = stage.clientWidth  - 4;
+  const availH = stage.clientHeight - 4;
+  const scale = Math.min(availW / naturalW, availH / naturalH);
+  grid.style.transform = `scale(${scale})`;
+  // Compensate width so the scaled element still occupies its box's flex slot cleanly
+  grid.style.width = (100 / scale) + "%";
+}
+window.addEventListener("resize", () => { if (state.tvMode) fitTvGrid(); });
+document.addEventListener("fullscreenchange", () => {
+  // If the user pressed Esc, browser drops fullscreen — mirror that to state
+  if (!document.fullscreenElement && state.tvMode) {
+    state.tvMode = false;
+    stopTvClock();
+    render();
+  }
+});
+function startTvClock() {
+  stopTvClock();
+  state.tvClockTimer = setInterval(() => {
+    const c = document.querySelector(".tv-clock");
+    if (c) c.textContent = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }, 15000);
+}
+function stopTvClock() {
+  clearInterval(state.tvClockTimer);
+  state.tvClockTimer = null;
 }
 
 /* ════════════════════════════════════════════════════════════════════════
