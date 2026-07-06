@@ -3049,48 +3049,62 @@ function toggleTheme() {
    ════════════════════════════════════════════════════════════════════════ */
 function openCastModal() {
   const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
-  const m = el("div", { class: "modal", style: "max-width:640px" });
+  const m = el("div", { class: "modal", style: "max-width:680px" });
   const url = `${location.origin}${location.pathname}?sheet=${state.sheetId || ""}${state.activeDashboardId ? "&dashboard=" + state.activeDashboardId : ""}`;
 
   m.append(
     el("h3", {}, "📡 Cast to LG TV"),
-    el("div", { class: "modal-sub" }, "Three ways to get this dashboard on your LG WebOS TV from a Windows PC. Try #1 first — it's built-in on both sides, no dongle."),
+    el("div", { class: "modal-sub" },
+      "Chrome's ‘Cast tab' shows LG WebOS TVs as ",
+      el("i", {}, "'Available for specific video sites'"),
+      " because LG uses its own protocol (Miracast) instead of Google Cast — Chrome physically cannot push arbitrary web pages to them. That's a Google + LG platform decision, not something this app can override. But every LG WebOS TV supports Miracast, and Windows has a built-in Miracast sender — that's the 30-second setup below."),
   );
 
-  // ─── Option 1: Miracast (best for LG WebOS) ───────────────────
-  const opt1 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
+  // ─── PRIMARY: Miracast on Windows → LG WebOS ────────────────────
+  const opt1 = el("div", { style: "background:linear-gradient(135deg, rgba(56,225,194,.15), rgba(91,141,239,.10));border:2px solid var(--accent);border-radius:12px;padding:18px;margin-bottom:14px" });
   opt1.append(
-    el("div", { style: "font-weight:700;color:var(--accent);margin-bottom:8px" }, "1. Screen Share (Miracast) — RECOMMENDED"),
-    el("ol", { style: "padding-left:20px;margin:0;line-height:1.7;font-size:13px;color:var(--text-dim)" },
-      el("li", {}, "On the LG remote, press Home → open the ", el("b", {}, "Screen Share"), " app (also called ", el("i", {}, "Device Connector → Screen Share"), " on some models)"),
-      el("li", {}, "The TV shows a 'Ready to connect' screen — leave it there"),
-      el("li", {}, "On this PC, press ", el("b", {}, "Win + K"), " (or click the network icon → Cast)"),
-      el("li", {}, "Pick your LG TV from the list, confirm the pairing prompt on the TV"),
-      el("li", {}, "Once the PC screen appears on the TV, come back here and click ", el("b", {}, "📺 TV"), " — the dashboard fills the whole TV"),
+    el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:12px" },
+      el("span", { style: "font-size:22px" }, "✅"),
+      el("div", { style: "font-weight:700;font-size:15px;color:var(--accent)" }, "Screen Share (Miracast) — DOES WORK, USE THIS"),
+    ),
+    el("div", { style: "font-size:12px;color:var(--text-dim);margin-bottom:10px" },
+      "Windows 10/11 sends. LG WebOS receives. No dongle. No sign-in on the TV. Nothing to install."),
+    el("ol", { style: "padding-left:20px;margin:0;line-height:1.9;font-size:13px" },
+      el("li", {}, el("b", {}, "On the LG remote:"), " press Home → find the ", el("b", { style: "color:var(--accent)" }, "Screen Share"), " app. (On some models it's under ", el("i", {}, "Device Connector → PC → Screen Share"), ".) Leave the 'Ready to connect' screen up on the TV."),
+      el("li", {}, el("b", {}, "On this PC:"), " press ", el("kbd", { style: "background:var(--bg-3);padding:2px 7px;border-radius:4px;border:1px solid var(--border);font-family:monospace;font-size:12px" }, "Win + K"),
+        " — Windows opens the ‘Cast' panel."),
+      el("li", {}, "Pick ", el("b", {}, "[LG] webOS TV UQ9000PUD"), " from the list. Approve the pairing prompt on the TV with the remote."),
+      el("li", {}, "Windows now mirrors the whole PC screen to the TV. Come back to this browser and click ", el("b", { style: "color:var(--accent)" }, "📺 TV"), " — the dashboard fills the whole screen, no scrollbars."),
+      el("li", {}, "To stop: press ", el("kbd", { style: "background:var(--bg-3);padding:2px 7px;border-radius:4px;border:1px solid var(--border);font-family:monospace;font-size:12px" }, "Win + K"), " again → Disconnect."),
+    ),
+    el("div", { style: "margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" },
+      el("button", { class: "icon-btn primary", onclick: () => {
+        try { window.location.href = "ms-actioncenter:"; } catch {}
+        toast("If nothing opened, press Win + K on your keyboard", "");
+      } }, "🎯 Try to open Windows Cast"),
+      el("span", { class: "muted", style: "font-size:11px" }, "…or just press Win + K"),
     ),
   );
   m.append(opt1);
 
-  // ─── Option 2: Chromecast (if the user has a dongle / built-in) ───
+  // ─── Fallback: Chromecast dongle ────────────────────────────────
   const opt2 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
-  opt2.append(el("div", { style: "font-weight:700;margin-bottom:8px" }, "2. Chromecast (dongle or built-in)"));
-  const opt2Body = el("ol", { style: "padding-left:20px;margin:0;line-height:1.7;font-size:13px;color:var(--text-dim)" });
-  opt2Body.append(
-    el("li", {}, "Plug a Chromecast into the TV's HDMI (or use the ChromeCast-built-in feature on newer LGs)"),
-    el("li", {}, "In this Chrome tab, click the button below OR ⋮ menu → Cast → pick the Chromecast → Cast tab"),
+  opt2.append(
+    el("div", { style: "font-weight:700;margin-bottom:6px" }, "Alt · Chromecast dongle plugged into the TV"),
+    el("div", { style: "font-size:12px;color:var(--text-dim);margin-bottom:10px" },
+      "If you plug a Chromecast into the LG's HDMI, or you have a TV with Chromecast Built-In (most LG WebOS TVs don't — that's why yours showed as ‘specific video sites'), Chrome tab-cast works fully."),
   );
-  opt2.append(opt2Body);
-  const chromecastBtn = el("button", { class: "icon-btn primary", style: "margin-top:10px" }, "🔷 Open Chrome Cast picker");
+  const chromecastBtn = el("button", { class: "icon-btn primary" }, "🔷 Open Chrome Cast picker");
   chromecastBtn.addEventListener("click", startChromecast);
   opt2.append(chromecastBtn);
   m.append(opt2);
 
-  // ─── Option 3: Direct on TV's browser ─────────────────────────
+  // ─── Fallback: TV's own browser ─────────────────────────────────
   const opt3 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
   opt3.append(
-    el("div", { style: "font-weight:700;margin-bottom:8px" }, "3. Open on the TV's Web Browser"),
-    el("div", { style: "font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:10px" },
-      "LG WebOS has a Web Browser app (Home → Web Browser). Type this URL, sign in with a Google account that has sheet access, then tap 📺 TV. The URL is remembered on the TV — future launches skip the sign-in if the token is still valid."),
+    el("div", { style: "font-weight:700;margin-bottom:6px" }, "Alt · Open on the TV's own Web Browser"),
+    el("div", { style: "font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:10px" },
+      "Home → Web Browser on the LG. Type this URL and sign in with a Google account that has sheet access. Awkward with a remote, but useful for a permanent installation once you bookmark it on the TV."),
     (() => {
       const urlBox = el("div", { style: "display:flex;gap:8px" });
       const inp = el("input", { type: "text", value: url, readonly: "readonly",
