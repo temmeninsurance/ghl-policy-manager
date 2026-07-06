@@ -1612,6 +1612,11 @@ function renderTopbar() {
   }
   bar.append(
     el("button", {
+      class: "icon-btn",
+      onclick: openCastModal,
+      title: "Cast this dashboard to an LG TV",
+    }, "📡 Cast"),
+    el("button", {
       class: "icon-btn" + (state.tvMode ? " primary" : ""),
       onclick: toggleTvMode,
       title: state.tvMode ? "Exit TV mode (Esc)" : "TV mode — fullscreen dashboard for the sales floor",
@@ -3037,6 +3042,97 @@ function toggleTheme() {
   setTheme(currentTheme() === "dark" ? "light" : "dark");
   renderDashboard(); // re-render charts so they pick up new colors
   renderTopbar();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Cast to TV (LG WebOS optimized — Miracast, Chromecast, TV browser)
+   ════════════════════════════════════════════════════════════════════════ */
+function openCastModal() {
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal", style: "max-width:640px" });
+  const url = `${location.origin}${location.pathname}?sheet=${state.sheetId || ""}${state.activeDashboardId ? "&dashboard=" + state.activeDashboardId : ""}`;
+
+  m.append(
+    el("h3", {}, "📡 Cast to LG TV"),
+    el("div", { class: "modal-sub" }, "Three ways to get this dashboard on your LG WebOS TV from a Windows PC. Try #1 first — it's built-in on both sides, no dongle."),
+  );
+
+  // ─── Option 1: Miracast (best for LG WebOS) ───────────────────
+  const opt1 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
+  opt1.append(
+    el("div", { style: "font-weight:700;color:var(--accent);margin-bottom:8px" }, "1. Screen Share (Miracast) — RECOMMENDED"),
+    el("ol", { style: "padding-left:20px;margin:0;line-height:1.7;font-size:13px;color:var(--text-dim)" },
+      el("li", {}, "On the LG remote, press Home → open the ", el("b", {}, "Screen Share"), " app (also called ", el("i", {}, "Device Connector → Screen Share"), " on some models)"),
+      el("li", {}, "The TV shows a 'Ready to connect' screen — leave it there"),
+      el("li", {}, "On this PC, press ", el("b", {}, "Win + K"), " (or click the network icon → Cast)"),
+      el("li", {}, "Pick your LG TV from the list, confirm the pairing prompt on the TV"),
+      el("li", {}, "Once the PC screen appears on the TV, come back here and click ", el("b", {}, "📺 TV"), " — the dashboard fills the whole TV"),
+    ),
+  );
+  m.append(opt1);
+
+  // ─── Option 2: Chromecast (if the user has a dongle / built-in) ───
+  const opt2 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
+  opt2.append(el("div", { style: "font-weight:700;margin-bottom:8px" }, "2. Chromecast (dongle or built-in)"));
+  const opt2Body = el("ol", { style: "padding-left:20px;margin:0;line-height:1.7;font-size:13px;color:var(--text-dim)" });
+  opt2Body.append(
+    el("li", {}, "Plug a Chromecast into the TV's HDMI (or use the ChromeCast-built-in feature on newer LGs)"),
+    el("li", {}, "In this Chrome tab, click the button below OR ⋮ menu → Cast → pick the Chromecast → Cast tab"),
+  );
+  opt2.append(opt2Body);
+  const chromecastBtn = el("button", { class: "icon-btn primary", style: "margin-top:10px" }, "🔷 Open Chrome Cast picker");
+  chromecastBtn.addEventListener("click", startChromecast);
+  opt2.append(chromecastBtn);
+  m.append(opt2);
+
+  // ─── Option 3: Direct on TV's browser ─────────────────────────
+  const opt3 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
+  opt3.append(
+    el("div", { style: "font-weight:700;margin-bottom:8px" }, "3. Open on the TV's Web Browser"),
+    el("div", { style: "font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:10px" },
+      "LG WebOS has a Web Browser app (Home → Web Browser). Type this URL, sign in with a Google account that has sheet access, then tap 📺 TV. The URL is remembered on the TV — future launches skip the sign-in if the token is still valid."),
+    (() => {
+      const urlBox = el("div", { style: "display:flex;gap:8px" });
+      const inp = el("input", { type: "text", value: url, readonly: "readonly",
+        style: "flex:1;padding:8px 10px;font-family:'SF Mono',Menlo,monospace;font-size:11px;background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:6px" });
+      inp.addEventListener("focus", () => inp.select());
+      const copyBtn = el("button", { class: "icon-btn", onclick: () => {
+        navigator.clipboard.writeText(url).then(() => toast("URL copied", "ok"));
+      } }, "Copy");
+      urlBox.append(inp, copyBtn);
+      return urlBox;
+    })(),
+  );
+  m.append(opt3);
+
+  m.append(el("div", { class: "actions" },
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Close"),
+  ));
+
+  back.append(m);
+  document.body.append(back);
+}
+
+async function startChromecast() {
+  if (!("PresentationRequest" in window)) {
+    toast("Chrome Cast isn't available in this browser. Use Chrome or Edge, or fall back to Screen Share (option 1).", "err");
+    return;
+  }
+  const url = `${location.origin}${location.pathname}?sheet=${state.sheetId || ""}${state.activeDashboardId ? "&dashboard=" + state.activeDashboardId : ""}`;
+  const req = new PresentationRequest([url]);
+  try {
+    const conn = await req.start();
+    toast("Casting started — the TV will need to sign in with Google. Consider Miracast instead for zero-config.", "ok");
+    conn.addEventListener("close", () => toast("Cast ended", ""));
+  } catch (e) {
+    if (e.name === "NotFoundError") {
+      toast("No Chromecast device found on this network. Try Screen Share (option 1).", "err");
+    } else if (e.name === "NotAllowedError") {
+      /* user closed the picker — silent */
+    } else {
+      toast("Cast failed: " + e.message, "err");
+    }
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
