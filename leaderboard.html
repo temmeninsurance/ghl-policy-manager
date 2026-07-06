@@ -604,6 +604,41 @@
   .app-shell.tv-mode .tv-clock { font-size: 18px; color: var(--text); }
   .app-shell.tv-mode .brand { font-size: 18px; }
 
+  /* TV mode — pump up numbers so they're readable from across the room.
+     Container-query units scale the value based on the widget's natural
+     pixel size; the CSS transform then scales the whole grid to fill the
+     TV. Bumping the multipliers means bigger widget → bigger number. */
+  .app-shell.tv-mode .widget.kind-kpi    .kpi-value,
+  .app-shell.tv-mode .widget.kind-pacing .kpi-value {
+    font-size: clamp(48px, min(50cqh, 28cqw), 280px);
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+  .app-shell.tv-mode .widget.kind-kpi    .kpi-sub,
+  .app-shell.tv-mode .widget.kind-pacing .kpi-sub {
+    font-size: clamp(14px, min(8cqh, 4cqw), 32px);
+    margin-top: 10px;
+  }
+  .app-shell.tv-mode .widget.kind-goal .goal-pct {
+    font-size: clamp(28px, min(14cqh, 8cqw), 96px);
+  }
+  .app-shell.tv-mode .widget.kind-goal .goal-meta { font-size: clamp(12px, 4cqh, 22px); }
+  .app-shell.tv-mode .widget.kind-goal .goal-bar  { height: 22px; }
+  .app-shell.tv-mode .w-title {
+    font-size: clamp(11px, 3cqh, 18px);
+    letter-spacing: 1.2px; margin-bottom: 14px;
+  }
+  /* Leaderboard rows on TV — big enough to read from ~15ft */
+  .app-shell.tv-mode .lb-row {
+    grid-template-columns: 64px 64px 1fr auto;
+    padding: 18px 10px; gap: 20px;
+  }
+  .app-shell.tv-mode .lb-rank   { font-size: 30px; }
+  .app-shell.tv-mode .lb-avatar { width: 60px; height: 60px; font-size: 22px; }
+  .app-shell.tv-mode .lb-name   { font-size: 26px; }
+  .app-shell.tv-mode .lb-value  { font-size: 30px; }
+  .app-shell.tv-mode .widget    { padding: 20px; }
+
   /* tiny helper */
   .row { display: flex; align-items: center; gap: 8px; }
   .muted { color: var(--text-dim); }
