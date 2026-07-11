@@ -1,0 +1,3347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Leaderboard Dashboard</title>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════════╗
+  ║                  PLECTO-STYLE LEADERBOARD DASHBOARD                          ║
+  ╠══════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                              ║
+  ║  ONE-TIME SETUP                                                              ║
+  ║                                                                              ║
+  ║  1. Create an OAuth 2.0 Client ID in Google Cloud Console:                   ║
+  ║       https://console.cloud.google.com/apis/credentials                      ║
+  ║       • Application type: Web application                                    ║
+  ║       • Authorized JavaScript origins:                                       ║
+  ║           https://<your-user>.github.io                                      ║
+  ║           http://localhost:8000   (for local testing)                        ║
+  ║       • Authorized redirect URIs:    (none needed for token flow)            ║
+  ║                                                                              ║
+  ║  2. Enable the Google Sheets API for the same project:                       ║
+  ║       https://console.cloud.google.com/apis/library/sheets.googleapis.com    ║
+  ║                                                                              ║
+  ║  3. Paste the Client ID into OAUTH_CLIENT_ID below, commit, push.            ║
+  ║                                                                              ║
+  ║  4. Open https://<your-user>.github.io/<repo>/leaderboard.html               ║
+  ║       • Sign in with Google                                                  ║
+  ║       • Paste the Google Sheet URL, pick the data tab                        ║
+  ║       • Configure date / email / numeric columns                             ║
+  ║       • Add KPI / leaderboard / goal / chart widgets                         ║
+  ║                                                                              ║
+  ║  Dashboard config is stored in a hidden tab '__plecto_config' inside the     ║
+  ║  same Google Sheet, so every viewer sees the same widgets.                   ║
+  ║                                                                              ║
+  ╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+
+<script>
+  /* ════════════════════════════════════════════════════════════════════════
+     CONFIG — edit this block
+     ════════════════════════════════════════════════════════════════════════ */
+  window.PLECTO_CONFIG = {
+    // Paste your Google OAuth 2.0 Web Client ID here
+    OAUTH_CLIENT_ID: "757517778504-p193m141rl19g42qfcppv5jeoh60eump.apps.googleusercontent.com",
+
+    // Scopes — needs read+write because dashboard config is stored in the sheet
+    SCOPES: "https://www.googleapis.com/auth/spreadsheets",
+
+    // How often to re-pull sheet data (ms)
+    REFRESH_MS: 60_000,
+
+    // Tab name used to store dashboard config inside the sheet
+    CONFIG_TAB: "__plecto_config",
+
+    // Tab name for per-user headshots / display names
+    USERS_TAB: "__plecto_users",
+  };
+</script>
+
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-2: #121a31;
+    --bg-3: #1a2542;
+    --card: #131c36;
+    --card-2: #182347;
+    --border: #243056;
+    --text: #e6ecff;
+    --text-dim: #93a0c8;
+    --text-faint: #5d6a93;
+    --accent: #38e1c2;
+    --accent-2: #5b8def;
+    --gold: #fbbf24;
+    --silver: #cbd5e1;
+    --bronze: #d97706;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --shadow: 0 1px 0 rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.35);
+    --radius: 14px;
+  }
+  [data-theme="light"] {
+    --bg: #f1f5f9;
+    --bg-2: #e2e8f0;
+    --bg-3: #cbd5e1;
+    --card: #ffffff;
+    --card-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-dim: #475569;
+    --text-faint: #94a3b8;
+    --accent: #0d9488;
+    --accent-2: #2563eb;
+    --shadow: 0 1px 0 rgba(0,0,0,.02), 0 8px 24px rgba(15,23,42,.08);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+  input, select { font-family: inherit; }
+
+  /* ─── Top bar ──────────────────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px; background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar .brand {
+    font-weight: 700; font-size: 15px; letter-spacing: .2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar .brand-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 12px var(--accent);
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .meta { color: var(--text-dim); font-size: 12px; }
+  .topbar .meta b { color: var(--text); font-weight: 600; }
+  .icon-btn {
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .icon-btn.primary {
+    background: var(--accent); color: #001b15; border-color: var(--accent);
+    font-weight: 600;
+  }
+  .icon-btn.primary:hover { filter: brightness(1.1); }
+  .icon-btn.danger { color: var(--danger); border-color: rgba(239,68,68,.4); }
+
+  /* ─── Filter bar ──────────────────────────────────────────── */
+  .filterbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 18px; background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .chip {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px;
+    background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid transparent; cursor: pointer; user-select: none;
+    transition: color .15s, background .15s, border-color .15s;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    background: rgba(56,225,194,.12); color: var(--accent);
+    border-color: rgba(56,225,194,.3);
+  }
+  .filterbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .filterbar input[type="date"] {
+    background: var(--bg-3); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 8px; font-size: 12px;
+  }
+
+  /* ─── Dashboard grid ──────────────────────────────────────── */
+  .stage { padding: 16px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: 72px;          /* base row height; widgets span N rows */
+    grid-auto-flow: dense;          /* unplaced widgets backfill gaps */
+    gap: 14px;
+  }
+  .widget {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+    cursor: grab;
+  }
+  .widget:active { cursor: grabbing; }
+  .widget.dragging {
+    opacity: .35; cursor: grabbing;
+    transform: scale(.98); transition: transform .12s, opacity .12s;
+  }
+  .drop-preview {
+    background: rgba(56,225,194,.10);
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    pointer-events: none;
+    transition: grid-row .08s, grid-column .08s;
+  }
+  .widget button, .widget input, .widget select, .widget a { cursor: pointer; }
+  .widget .resize-handle { cursor: nwse-resize; }
+  .widget.resizing {
+    outline: 2px dashed var(--accent); outline-offset: -2px;
+    z-index: 10;
+  }
+  .widget .w-actions {
+    position: absolute; top: 8px; right: 8px;
+    display: none; gap: 4px; z-index: 2;
+  }
+  .widget:hover .w-actions { display: flex; }
+  .w-actions button {
+    background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 3px 7px; font-size: 11px; cursor: pointer;
+  }
+  .w-actions button:hover { color: var(--text); }
+  .w-title {
+    font-size: 12px; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: .8px; font-weight: 600; margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+  .w-body {
+    flex: 1; min-height: 0; min-width: 0;
+    display: flex; flex-direction: column;
+  }
+  /* Resize handle in bottom-right corner */
+  .resize-handle {
+    position: absolute; bottom: 0; right: 0;
+    width: 22px; height: 22px;
+    cursor: nwse-resize; opacity: 0;
+    transition: opacity .15s; z-index: 3;
+  }
+  .widget:hover .resize-handle { opacity: 1; }
+  .resize-handle::before {
+    content: ''; position: absolute; bottom: 4px; right: 4px;
+    width: 10px; height: 10px;
+    border-right: 2px solid var(--text-faint);
+    border-bottom: 2px solid var(--text-faint);
+  }
+  .resize-handle:hover::before { border-color: var(--accent); }
+  .resize-handle::after {
+    content: ''; position: absolute; bottom: 7px; right: 7px;
+    width: 4px; height: 4px;
+    border-right: 2px solid var(--text-faint);
+    border-bottom: 2px solid var(--text-faint);
+  }
+  .resize-handle:hover::after { border-color: var(--accent); }
+  /* live size preview while resizing */
+  .resize-preview {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: var(--accent); color: #001b15;
+    font-size: 11px; font-weight: 700;
+    padding: 4px 8px; border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  }
+  @media (max-width: 700px) {
+    /* on phones, force every widget to full width but keep custom row heights */
+    .widget { grid-column: 1 / -1 !important; }
+  }
+
+  /* KPI tile */
+  .kpi-value { font-size: 44px; font-weight: 700; letter-spacing: -.5px; line-height: 1.05; }
+  .kpi-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Center & auto-scale content for KPI / pacing / goal tiles so they
+     look right at any widget size. Container query units (cqh/cqw) let
+     the value font scale with the widget bounds. */
+  .widget.kind-kpi    .w-body,
+  .widget.kind-pacing .w-body,
+  .widget.kind-goal   .w-body {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    container-type: size;
+  }
+  .widget.kind-kpi    .kpi-value,
+  .widget.kind-pacing .kpi-value {
+    font-size: clamp(28px, min(28cqh, 16cqw), 130px);
+    width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .widget.kind-kpi    .kpi-sub,
+  .widget.kind-pacing .kpi-sub {
+    font-size: clamp(11px, min(5cqh, 2.4cqw), 18px);
+    margin-top: 6px;
+  }
+  .widget.kind-goal .goal-meta { width: 100%; }
+  .widget.kind-goal .goal-bar  { width: 100%; }
+  .widget.kind-goal .goal-pct  { font-size: clamp(16px, min(8cqh, 5cqw), 36px); }
+  /* in pacing tiles the goal-bar shows up only when target is set —
+     stretch it across the full width */
+  .widget.kind-pacing .goal-meta,
+  .widget.kind-pacing .goal-bar { width: 100%; }
+
+  /* Threshold-tinted widgets (value-vs-target coloring) */
+  .widget.tier-green  { background: #16a34a; border-color: #15803d; }
+  .widget.tier-yellow { background: #f59e0b; border-color: #d97706; }
+  .widget.tier-red    { background: #dc2626; border-color: #b91c1c; }
+  .widget.tier-green, .widget.tier-yellow, .widget.tier-red { color: #0a0a0a; }
+  .widget.tier-green  .w-title,
+  .widget.tier-yellow .w-title,
+  .widget.tier-red    .w-title { color: rgba(0,0,0,.7); }
+  .widget.tier-green  .kpi-value,
+  .widget.tier-yellow .kpi-value,
+  .widget.tier-red    .kpi-value { color: #0a0a0a; }
+  .widget.tier-green  .kpi-sub,
+  .widget.tier-yellow .kpi-sub,
+  .widget.tier-red    .kpi-sub { color: rgba(0,0,0,.65); }
+  .widget.tier-green  .goal-bar,
+  .widget.tier-yellow .goal-bar,
+  .widget.tier-red    .goal-bar { background: rgba(0,0,0,.18); }
+  .widget.tier-green  .goal-bar > div,
+  .widget.tier-yellow .goal-bar > div,
+  .widget.tier-red    .goal-bar > div { background: rgba(0,0,0,.7); }
+  .widget.tier-green  .goal-meta,
+  .widget.tier-yellow .goal-meta,
+  .widget.tier-red    .goal-meta { color: rgba(0,0,0,.65); }
+  .widget.tier-green  .goal-meta .goal-pct,
+  .widget.tier-yellow .goal-meta .goal-pct,
+  .widget.tier-red    .goal-meta .goal-pct { color: #0a0a0a; }
+  .widget.tier-green  .w-actions button,
+  .widget.tier-yellow .w-actions button,
+  .widget.tier-red    .w-actions button { background: rgba(0,0,0,.15); color: rgba(0,0,0,.8); border-color: rgba(0,0,0,.2); }
+  .kpi-delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+  .kpi-delta.up { color: var(--success); }
+  .kpi-delta.down { color: var(--danger); }
+
+  /* Goal */
+  .goal-bar {
+    height: 14px; background: var(--bg-3); border-radius: 999px;
+    overflow: hidden; margin: 14px 0 8px;
+  }
+  .goal-bar > div {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .6s ease;
+  }
+  .goal-meta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .goal-meta .goal-pct { color: var(--text); font-weight: 700; font-size: 16px; }
+
+  /* Leaderboard */
+  .w-body > div:not(.chart-wrap) { overflow-y: auto; }
+  .lb-row {
+    display: grid;
+    grid-template-columns: 44px 44px 1fr auto;
+    align-items: center; gap: 13px;
+    padding: 13px 8px; border-bottom: 1px solid var(--border);
+    transition: background .2s;
+  }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row:hover { background: var(--card-2); }
+  .lb-rank {
+    font-size: 20px; font-weight: 700; color: var(--text-dim);
+    text-align: center;
+  }
+  .lb-row.r1 .lb-rank { color: var(--gold); }
+  .lb-row.r2 .lb-rank { color: var(--silver); }
+  .lb-row.r3 .lb-rank { color: var(--bronze); }
+  .lb-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--bg-3); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; overflow: hidden;
+    border: 2px solid transparent;
+  }
+  .lb-row.r1 .lb-avatar { border-color: var(--gold); }
+  .lb-row.r2 .lb-avatar { border-color: var(--silver); }
+  .lb-row.r3 .lb-avatar { border-color: var(--bronze); }
+  .lb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .lb-name { font-weight: 600; font-size: 18px; }
+  .lb-value { font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
+
+  /* Chart */
+  .chart-wrap { position: relative; flex: 1; min-height: 120px; }
+
+  /* ─── Empty / login screens ───────────────────────────────── */
+  .center-screen {
+    min-height: calc(100vh - 64px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; max-width: 480px; width: 100%;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 { margin: 0 0 6px; font-size: 20px; }
+  .panel p { color: var(--text-dim); margin: 0 0 18px; }
+  .panel label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 6px; }
+  .panel input, .panel select {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+  }
+  .panel .row { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+
+  /* ─── Modal ───────────────────────────────────────────────── */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(2,6,23,.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .modal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px;
+    width: 100%; max-width: 640px; max-height: 88vh; overflow: auto;
+    box-shadow: var(--shadow);
+  }
+  .modal h3 { margin: 0 0 4px; font-size: 17px; }
+  .modal .modal-sub { color: var(--text-dim); font-size: 12px; margin-bottom: 18px; }
+  .modal label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 6px; font-weight: 600; }
+  .modal input, .modal select {
+    width: 100%; padding: 9px 11px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+  .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 22px; }
+  .filter-row {
+    display: grid; grid-template-columns: 80px 1fr 1fr 1fr 32px;
+    gap: 8px; align-items: center; margin-bottom: 8px;
+  }
+  .filter-row .combinator-cell {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    color: var(--text-faint); text-transform: uppercase;
+  }
+  .filter-row .combinator-cell select {
+    width: 100%; padding: 6px 4px; text-align: center;
+    background: var(--bg-3); color: var(--accent);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 11px; font-weight: 700;
+  }
+  /* Searchable value combobox inside filter rows */
+  .value-combo { position: relative; }
+  .value-combo input { width: 100%; }
+  .value-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; max-height: 240px; overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .vd-item {
+    padding: 7px 11px; font-size: 12px; cursor: pointer;
+    color: var(--text); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .vd-item:hover, .vd-item.active {
+    background: rgba(56,225,194,.12); color: var(--accent);
+  }
+  .vd-item .vd-hint {
+    color: var(--text-faint); font-size: 10px; margin-left: 6px;
+  }
+  .vd-empty { padding: 10px 11px; font-size: 12px; color: var(--text-faint); }
+  .filter-row button {
+    background: transparent; color: var(--text-faint);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; height: 36px;
+  }
+  .filter-row button:hover { color: var(--danger); border-color: var(--danger); }
+  .add-filter-btn {
+    background: transparent; color: var(--accent); border: 1px dashed var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+    margin-top: 6px;
+  }
+  .add-filter-btn:hover { border-color: var(--accent); }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 16px; font-size: 13px; z-index: 200;
+    box-shadow: var(--shadow);
+    animation: toast-in .2s ease;
+  }
+  .toast.err { border-color: var(--danger); color: var(--danger); }
+  .toast.ok  { border-color: var(--success); }
+  @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--text-dim);
+  }
+  .empty h3 { color: var(--text); margin: 0 0 6px; }
+
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+    display: inline-block; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* App shell with sidebar */
+  .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+  .app-body { flex: 1; display: flex; min-height: 0; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .main .stage { flex: 1; overflow: auto; padding: 16px; }
+
+  .sidebar {
+    width: 230px; flex-shrink: 0;
+    background: var(--bg-2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+  }
+  .sidebar-hdr {
+    padding: 14px 14px 8px;
+    font-size: 11px; font-weight: 700; color: var(--text-faint);
+    letter-spacing: .8px; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .sidebar-hdr .toggle-btn {
+    background: transparent; color: var(--text-faint); border: none;
+    cursor: pointer; padding: 2px 6px; border-radius: 4px;
+  }
+  .sidebar-hdr .toggle-btn:hover { color: var(--text); background: var(--bg-3); }
+  .sidebar-list { flex: 1; overflow-y: auto; padding: 4px; }
+  .sb-item {
+    padding: 9px 10px; margin: 2px 4px; border-radius: 8px;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; color: var(--text-dim);
+    font-size: 13px; transition: background .15s, color .15s;
+    user-select: none;
+  }
+  .sb-item:hover { background: var(--card-2); color: var(--text); }
+  .sb-item.active {
+    background: rgba(56,225,194,.12); color: var(--accent);
+    font-weight: 600;
+  }
+  .sb-icon { font-size: 14px; flex-shrink: 0; }
+  .sb-name {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sb-actions { display: none; flex-shrink: 0; gap: 0; }
+  .sb-item:hover .sb-actions, .sb-item.active .sb-actions { display: flex; }
+  .sb-actions button {
+    background: none; border: none; color: var(--text-faint);
+    cursor: pointer; padding: 3px 5px; font-size: 11px; border-radius: 4px;
+  }
+  .sb-actions button:hover { color: var(--text); background: var(--bg-3); }
+  .sb-new {
+    padding: 9px 12px; margin: 8px;
+    background: transparent; color: var(--accent);
+    border: 1px dashed var(--border); border-radius: 8px;
+    cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .sb-new:hover { border-color: var(--accent); background: rgba(56,225,194,.06); }
+  /* collapsed sidebar */
+  .sidebar.collapsed { width: 48px; }
+  .sidebar.collapsed .sidebar-hdr span { display: none; }
+  .sidebar.collapsed .sb-name, .sidebar.collapsed .sb-actions, .sidebar.collapsed .sb-new { display: none; }
+  .sidebar.collapsed .sb-item { justify-content: center; padding: 9px 4px; }
+
+  @media (max-width: 700px) {
+    .sidebar { width: 100%; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+    .app-body { flex-direction: column; }
+  }
+
+  /* Big Save button in topbar — state-aware */
+  .save-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; font-size: 12px; font-weight: 700;
+    border-radius: 8px; cursor: pointer;
+    border: 1px solid; letter-spacing: .2px;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+  }
+  .save-btn.s-idle    { background: var(--bg-3);                color: var(--text-dim); border-color: var(--border); }
+  .save-btn.s-saving  { background: var(--card-2);              color: var(--accent);   border-color: var(--accent); }
+  .save-btn.s-saved   { background: rgba(34,197,94,.14);        color: var(--success);  border-color: rgba(34,197,94,.45); }
+  .save-btn.s-error   { background: rgba(239,68,68,.18);        color: #fff;            border-color: var(--danger);
+                        box-shadow: 0 0 0 0 rgba(239,68,68,.5); animation: saveAlert 1.4s ease-in-out infinite; }
+  @keyframes saveAlert {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(239,68,68,0);  }
+  }
+  .save-btn:hover { filter: brightness(1.1); }
+
+  /* TV / fullscreen mode — maximize widget canvas, hide all edit chrome,
+     auto-scale the whole grid to fill the viewport with no scroll */
+  .app-shell.tv-mode { height: 100vh; overflow: hidden; }
+  .app-shell.tv-mode .sidebar,
+  .app-shell.tv-mode .filterbar { display: none; }
+  .app-shell.tv-mode .w-actions,
+  .app-shell.tv-mode .resize-handle { display: none !important; }
+  .app-shell.tv-mode .widget { cursor: default; }
+  .app-shell.tv-mode .topbar {
+    background: transparent; border-bottom: 1px solid var(--border);
+    padding: 6px 18px; min-height: 44px;
+  }
+  .app-shell.tv-mode .topbar .save-btn,
+  .app-shell.tv-mode .topbar .meta { display: none; }
+  .app-shell.tv-mode .app-body { min-height: 0; }
+  .app-shell.tv-mode .main { overflow: hidden; }
+  .app-shell.tv-mode .stage {
+    padding: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .app-shell.tv-mode .grid {
+    transform-origin: top left;
+    will-change: transform;
+  }
+  .tv-clock {
+    font-family: -apple-system, "SF Mono", Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim); font-size: 13px; letter-spacing: .5px;
+  }
+  .app-shell.tv-mode .tv-clock { font-size: 18px; color: var(--text); }
+  .app-shell.tv-mode .brand { font-size: 18px; }
+
+  /* TV mode — pump up numbers so they're readable from across the room.
+     Container-query units scale the value based on the widget's natural
+     pixel size; the CSS transform then scales the whole grid to fill the
+     TV. Bumping the multipliers means bigger widget → bigger number. */
+  .app-shell.tv-mode .widget.kind-kpi    .kpi-value,
+  .app-shell.tv-mode .widget.kind-pacing .kpi-value {
+    font-size: clamp(48px, min(50cqh, 28cqw), 280px);
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+  .app-shell.tv-mode .widget.kind-kpi    .kpi-sub,
+  .app-shell.tv-mode .widget.kind-pacing .kpi-sub {
+    font-size: clamp(14px, min(8cqh, 4cqw), 32px);
+    margin-top: 10px;
+  }
+  .app-shell.tv-mode .widget.kind-goal .goal-pct {
+    font-size: clamp(28px, min(14cqh, 8cqw), 96px);
+  }
+  .app-shell.tv-mode .widget.kind-goal .goal-meta { font-size: clamp(12px, 4cqh, 22px); }
+  .app-shell.tv-mode .widget.kind-goal .goal-bar  { height: 22px; }
+  .app-shell.tv-mode .w-title {
+    font-size: clamp(11px, 3cqh, 18px);
+    letter-spacing: 1.2px; margin-bottom: 14px;
+  }
+  /* Leaderboard rows on TV — big enough to read from ~15ft */
+  .app-shell.tv-mode .lb-row {
+    grid-template-columns: 64px 64px 1fr auto;
+    padding: 18px 10px; gap: 20px;
+  }
+  .app-shell.tv-mode .lb-rank   { font-size: 30px; }
+  .app-shell.tv-mode .lb-avatar { width: 60px; height: 60px; font-size: 22px; }
+  .app-shell.tv-mode .lb-name   { font-size: 26px; }
+  .app-shell.tv-mode .lb-value  { font-size: 30px; }
+  .app-shell.tv-mode .lb-total  { font-size: 24px !important; }
+  .app-shell.tv-mode .widget    { padding: 20px; }
+
+  /* tiny helper */
+  .row { display: flex; align-items: center; gap: 8px; }
+  .muted { color: var(--text-dim); }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .5; } }
+
+  /* People manager */
+  .people-list { max-height: 60vh; overflow-y: auto; margin: 4px -4px; }
+  .people-row {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 10px; border-radius: 10px;
+    border: 1px solid var(--border); margin-bottom: 8px;
+    background: var(--card-2);
+  }
+  .people-row .pp-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--bg-3); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; overflow: hidden;
+  }
+  .people-row .pp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .people-row .pp-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .people-row .pp-meta input {
+    width: 100%; padding: 6px 9px; font-size: 13px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .people-row .pp-email { font-size: 11px; color: var(--text-faint); }
+  .people-row .pp-actions {
+    display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  }
+  .people-row .pp-actions button {
+    background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 10px; font-size: 11px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .people-row .pp-actions button:hover { color: var(--text); }
+  .people-row .pp-actions button.danger { color: var(--danger); border-color: rgba(239,68,68,.3); }
+  .people-search {
+    width: 100%; padding: 8px 11px; margin-bottom: 12px;
+    background: var(--bg-3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+</style>
+</head>
+<body data-theme="dark">
+
+<div id="app"></div>
+
+<!-- Google Identity Services (OAuth) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Chart.js for time-series widget -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   App state
+   ════════════════════════════════════════════════════════════════════════ */
+const CFG = window.PLECTO_CONFIG;
+const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
+const LS = {
+  TOKEN:    "plecto.token",
+  TOKEN_EXP:"plecto.token_exp",
+  SHEET_ID: "plecto.sheet_id",
+  TAB:      "plecto.tab",
+  THEME:    "plecto.theme",
+  USER:     "plecto.user_email",
+  // local mirror of dashboard config, keyed by sheet ID — survives logout & token expiry
+  CONFIG_CACHE: (sheetId) => `plecto.config.${sheetId}`,
+  // which dashboard the current user last had open (per sheet, per browser)
+  ACTIVE_DASH: (sheetId) => `plecto.activeDashboard.${sheetId}`,
+  // sidebar collapsed state
+  SIDEBAR: "plecto.sidebarCollapsed",
+};
+
+const state = {
+  token: null,
+  tokenExp: 0,
+  tokenClient: null,
+  user: null,        // { email }
+  sheetId: null,
+  sheetTitle: null,
+  tabs: [],          // [{title, sheetId}]
+  dataTab: null,     // current data tab name
+  columns: [],       // header row
+  rows: [],          // array of row objects (from the dashboard's default tab — back-compat)
+  rawValues: [],     // raw 2-D values from Sheets (default tab)
+  tabsData: {},      // tabName -> { columns, rows, dateCol, emailCol, nameCol, lastFetched }
+  config: null,      // { columns:{date,email,name?}, widgets:[...] }
+  // "AUTO" = use each widget's own setting; anything else overrides every widget
+  timeFilter: { kind: "AUTO", customStart: null, customEnd: null },
+  refreshTimer: null,
+  loading: false,
+  lastFetched: null,
+  charts: new Map(), // widgetId -> Chart instance
+  readOnly: false,   // true if current user can't write to the sheet
+  saveState: "idle", // "idle" | "saving" | "saved" | "error"
+  saveError: null,
+  users: {},         // lowercase email -> { photoUrl, displayName }
+  activeDashboardId: null, // per-user, persisted in localStorage
+  sidebarCollapsed: false,
+  tvMode: false,
+  tvClockTimer: null,
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   Multi-dashboard helpers
+   ════════════════════════════════════════════════════════════════════════ */
+function migrateConfig(cfg) {
+  if (!cfg) return cfg;
+  // legacy single-dashboard shape: { dataTab, columns, widgets } → wrap into a dashboards array
+  if (Array.isArray(cfg.widgets) && !Array.isArray(cfg.dashboards)) {
+    cfg.dashboards = [{ id: uid(), name: "Main Dashboard", icon: "📊", widgets: cfg.widgets }];
+    delete cfg.widgets;
+  }
+  if (!Array.isArray(cfg.dashboards) || !cfg.dashboards.length) {
+    cfg.dashboards = [{ id: uid(), name: "Main Dashboard", icon: "📊", widgets: [] }];
+  }
+  // ensure every dashboard has the required fields
+  for (const d of cfg.dashboards) {
+    if (!d.id) d.id = uid();
+    if (!d.name) d.name = "Untitled";
+    if (!d.icon) d.icon = "📊";
+    if (!Array.isArray(d.widgets)) d.widgets = [];
+  }
+  return cfg;
+}
+function currentDashboard() {
+  if (!state.config?.dashboards?.length) return null;
+  const id = state.activeDashboardId;
+  return state.config.dashboards.find(d => d.id === id) || state.config.dashboards[0];
+}
+function setActiveDashboard(id) {
+  state.activeDashboardId = id;
+  if (state.sheetId) localStorage.setItem(LS.ACTIVE_DASH(state.sheetId), id);
+  render();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Utilities
+   ════════════════════════════════════════════════════════════════════════ */
+const $  = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+const el = (tag, attrs={}, ...children) => {
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k === "html") n.innerHTML = v;
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (c == null || c === false) continue;
+    n.append(c.nodeType ? c : document.createTextNode(c));
+  }
+  return n;
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtNum = n => {
+  if (n == null || isNaN(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n/1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return (n/1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return (n/1e3).toFixed(1) + "K";
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+};
+const fmtMoney = n => "$" + fmtNum(n);
+const initials = s => (s||"").split(/\s+|@/).filter(Boolean).slice(0,2).map(x => x[0]?.toUpperCase()).join("") || "?";
+async function md5Hex(str) {
+  // simple MD5 for Gravatar — small inline implementation
+  function rh(n){let j,s='';for(j=0;j<=3;j++)s+=((n>>(j*8+4))&0x0F).toString(16)+((n>>(j*8))&0x0F).toString(16);return s;}
+  function ad(x,y){const l=(x&0xFFFF)+(y&0xFFFF);return (((x>>16)+(y>>16)+(l>>16))<<16)|(l&0xFFFF);}
+  function rl(n,c){return (n<<c)|(n>>>(32-c));}
+  function cm(q,a,b,x,s,t){return ad(rl(ad(ad(a,q),ad(x,t)),s),b);}
+  function ff(a,b,c,d,x,s,t){return cm((b&c)|((~b)&d),a,b,x,s,t);}
+  function gg(a,b,c,d,x,s,t){return cm((b&d)|(c&(~d)),a,b,x,s,t);}
+  function hh(a,b,c,d,x,s,t){return cm(b^c^d,a,b,x,s,t);}
+  function ii(a,b,c,d,x,s,t){return cm(c^(b|(~d)),a,b,x,s,t);}
+  function cb(s){const n=s.length,b=[];for(let i=0;i<n*8;i+=8)b[i>>5]|=(s.charCodeAt(i/8)&0xFF)<<(i%32);return b;}
+  let x=cb(str.toLowerCase().trim()),len=str.length*8;
+  x[len>>5]|=0x80<<(len%32);x[(((len+64)>>>9)<<4)+14]=len;
+  let a=1732584193,b=-271733879,c=-1732584194,d=271733878;
+  for(let i=0;i<x.length;i+=16){
+    const oa=a,ob=b,oc=c,od=d;
+    a=ff(a,b,c,d,x[i+0]||0,7,-680876936);d=ff(d,a,b,c,x[i+1]||0,12,-389564586);c=ff(c,d,a,b,x[i+2]||0,17,606105819);b=ff(b,c,d,a,x[i+3]||0,22,-1044525330);
+    a=ff(a,b,c,d,x[i+4]||0,7,-176418897);d=ff(d,a,b,c,x[i+5]||0,12,1200080426);c=ff(c,d,a,b,x[i+6]||0,17,-1473231341);b=ff(b,c,d,a,x[i+7]||0,22,-45705983);
+    a=ff(a,b,c,d,x[i+8]||0,7,1770035416);d=ff(d,a,b,c,x[i+9]||0,12,-1958414417);c=ff(c,d,a,b,x[i+10]||0,17,-42063);b=ff(b,c,d,a,x[i+11]||0,22,-1990404162);
+    a=ff(a,b,c,d,x[i+12]||0,7,1804603682);d=ff(d,a,b,c,x[i+13]||0,12,-40341101);c=ff(c,d,a,b,x[i+14]||0,17,-1502002290);b=ff(b,c,d,a,x[i+15]||0,22,1236535329);
+    a=gg(a,b,c,d,x[i+1]||0,5,-165796510);d=gg(d,a,b,c,x[i+6]||0,9,-1069501632);c=gg(c,d,a,b,x[i+11]||0,14,643717713);b=gg(b,c,d,a,x[i+0]||0,20,-373897302);
+    a=gg(a,b,c,d,x[i+5]||0,5,-701558691);d=gg(d,a,b,c,x[i+10]||0,9,38016083);c=gg(c,d,a,b,x[i+15]||0,14,-660478335);b=gg(b,c,d,a,x[i+4]||0,20,-405537848);
+    a=gg(a,b,c,d,x[i+9]||0,5,568446438);d=gg(d,a,b,c,x[i+14]||0,9,-1019803690);c=gg(c,d,a,b,x[i+3]||0,14,-187363961);b=gg(b,c,d,a,x[i+8]||0,20,1163531501);
+    a=gg(a,b,c,d,x[i+13]||0,5,-1444681467);d=gg(d,a,b,c,x[i+2]||0,9,-51403784);c=gg(c,d,a,b,x[i+7]||0,14,1735328473);b=gg(b,c,d,a,x[i+12]||0,20,-1926607734);
+    a=hh(a,b,c,d,x[i+5]||0,4,-378558);d=hh(d,a,b,c,x[i+8]||0,11,-2022574463);c=hh(c,d,a,b,x[i+11]||0,16,1839030562);b=hh(b,c,d,a,x[i+14]||0,23,-35309556);
+    a=hh(a,b,c,d,x[i+1]||0,4,-1530992060);d=hh(d,a,b,c,x[i+4]||0,11,1272893353);c=hh(c,d,a,b,x[i+7]||0,16,-155497632);b=hh(b,c,d,a,x[i+10]||0,23,-1094730640);
+    a=hh(a,b,c,d,x[i+13]||0,4,681279174);d=hh(d,a,b,c,x[i+0]||0,11,-358537222);c=hh(c,d,a,b,x[i+3]||0,16,-722521979);b=hh(b,c,d,a,x[i+6]||0,23,76029189);
+    a=hh(a,b,c,d,x[i+9]||0,4,-640364487);d=hh(d,a,b,c,x[i+12]||0,11,-421815835);c=hh(c,d,a,b,x[i+15]||0,16,530742520);b=hh(b,c,d,a,x[i+2]||0,23,-995338651);
+    a=ii(a,b,c,d,x[i+0]||0,6,-198630844);d=ii(d,a,b,c,x[i+7]||0,10,1126891415);c=ii(c,d,a,b,x[i+14]||0,15,-1416354905);b=ii(b,c,d,a,x[i+5]||0,21,-57434055);
+    a=ii(a,b,c,d,x[i+12]||0,6,1700485571);d=ii(d,a,b,c,x[i+3]||0,10,-1894986606);c=ii(c,d,a,b,x[i+10]||0,15,-1051523);b=ii(b,c,d,a,x[i+1]||0,21,-2054922799);
+    a=ii(a,b,c,d,x[i+8]||0,6,1873313359);d=ii(d,a,b,c,x[i+15]||0,10,-30611744);c=ii(c,d,a,b,x[i+6]||0,15,-1560198380);b=ii(b,c,d,a,x[i+13]||0,21,1309151649);
+    a=ii(a,b,c,d,x[i+4]||0,6,-145523070);d=ii(d,a,b,c,x[i+11]||0,10,-1120210379);c=ii(c,d,a,b,x[i+2]||0,15,718787259);b=ii(b,c,d,a,x[i+9]||0,21,-343485551);
+    a=ad(a,oa);b=ad(b,ob);c=ad(c,oc);d=ad(d,od);
+  }
+  return rh(a)+rh(b)+rh(c)+rh(d);
+}
+const gravatar = async email => {
+  if (!email) return null;
+  const h = await md5Hex(String(email).trim());
+  return `https://www.gravatar.com/avatar/${h}?d=404&s=80`;
+};
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+let toastTimer;
+function toast(msg, kind="") {
+  clearTimeout(toastTimer);
+  $$(".toast").forEach(n => n.remove());
+  const t = el("div", { class: "toast " + kind }, msg);
+  document.body.append(t);
+  toastTimer = setTimeout(() => t.remove(), 3200);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Auth (Google Identity Services)
+   ════════════════════════════════════════════════════════════════════════ */
+function initTokenClient() {
+  if (state.tokenClient) return;
+  if (!window.google?.accounts?.oauth2) return;
+  state.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CFG.OAUTH_CLIENT_ID,
+    scope: CFG.SCOPES,
+    callback: (resp) => {
+      if (resp.error) {
+        toast("Sign-in failed: " + resp.error, "err");
+        return;
+      }
+      state.token = resp.access_token;
+      state.tokenExp = Date.now() + (resp.expires_in - 60) * 1000;
+      localStorage.setItem(LS.TOKEN, state.token);
+      localStorage.setItem(LS.TOKEN_EXP, String(state.tokenExp));
+      // try to get email via userinfo
+      fetchUserEmail().then(() => boot());
+    },
+  });
+}
+async function fetchUserEmail() {
+  try {
+    const r = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: "Bearer " + state.token }
+    });
+    if (r.ok) {
+      const d = await r.json();
+      state.user = { email: d.email };
+      localStorage.setItem(LS.USER, d.email || "");
+    }
+  } catch {}
+}
+function signIn() {
+  if (CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) {
+    toast("Set OAUTH_CLIENT_ID in the CONFIG block first", "err");
+    return;
+  }
+  initTokenClient();
+  if (!state.tokenClient) {
+    toast("Google Identity script not loaded yet — try again in a second", "err");
+    return;
+  }
+  state.tokenClient.requestAccessToken({ prompt: "select_account" });
+}
+function switchAccount() {
+  // sign out locally then re-prompt with account chooser
+  state.token = null; state.tokenExp = 0; state.user = null;
+  localStorage.removeItem(LS.TOKEN);
+  localStorage.removeItem(LS.TOKEN_EXP);
+  localStorage.removeItem(LS.USER);
+  signIn();
+}
+function signOut() {
+  if (state.token && window.google?.accounts?.oauth2) {
+    google.accounts.oauth2.revoke(state.token, () => {});
+  }
+  state.token = null; state.tokenExp = 0; state.user = null;
+  localStorage.removeItem(LS.TOKEN);
+  localStorage.removeItem(LS.TOKEN_EXP);
+  localStorage.removeItem(LS.USER);
+  clearInterval(state.refreshTimer);
+  render();
+}
+function tokenValid() {
+  return state.token && Date.now() < state.tokenExp;
+}
+function loadStoredAuth() {
+  const tok = localStorage.getItem(LS.TOKEN);
+  const exp = parseInt(localStorage.getItem(LS.TOKEN_EXP) || "0", 10);
+  if (tok && Date.now() < exp) {
+    state.token = tok;
+    state.tokenExp = exp;
+    state.user = { email: localStorage.getItem(LS.USER) || "" };
+    return true;
+  }
+  return false;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sheets API
+   ════════════════════════════════════════════════════════════════════════ */
+async function api(path, opts={}) {
+  if (!tokenValid()) {
+    toast("Session expired — sign in again", "err");
+    signOut();
+    throw new Error("token expired");
+  }
+  const r = await fetch(SHEETS_API + path, {
+    ...opts,
+    headers: {
+      "Authorization": "Bearer " + state.token,
+      "Content-Type": "application/json",
+      ...(opts.headers || {}),
+    },
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`Sheets API ${r.status}: ${txt.slice(0, 200)}`);
+  }
+  return r.status === 204 ? null : r.json();
+}
+function parseSheetId(input) {
+  if (!input) return null;
+  const s = input.trim();
+  const m = s.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (m) return m[1];
+  if (/^[a-zA-Z0-9-_]{20,}$/.test(s)) return s;
+  return null;
+}
+async function fetchSheetMeta(id) {
+  const meta = await api(`/${id}?fields=properties(title),sheets(properties(sheetId,title,index))`);
+  return {
+    title: meta.properties.title,
+    tabs: meta.sheets.map(s => ({
+      title: s.properties.title,
+      sheetId: s.properties.sheetId,
+      index: s.properties.index,
+    })).sort((a,b) => a.index - b.index),
+  };
+}
+async function fetchTabValues(sheetId, tabName) {
+  const range = `'${tabName.replace(/'/g, "''")}'`;
+  const data = await api(`/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
+  return data.values || [];
+}
+/* Atomic "replace tab contents" via batchUpdate.
+   The clear and the new-write are queued in a single request, so a
+   network failure can't leave the tab cleared but un-rewritten (the
+   data-loss scenario from a separate clear-then-PUT pair). */
+async function writeTabValues(sheetId, tabName, values) {
+  const tabMeta = state.tabs.find(t => t.title === tabName);
+  if (!tabMeta || tabMeta.sheetId == null) {
+    throw new Error(`Tab "${tabName}" not found — call ensureConfigTab first`);
+  }
+  const tabSheetId = tabMeta.sheetId;
+  const rowsForUpdate = values.map(row => ({
+    values: row.map(v => ({
+      userEnteredValue: (v === null || v === undefined || v === "")
+        ? { stringValue: "" }
+        : (typeof v === "number" && isFinite(v))
+          ? { numberValue: v }
+          : { stringValue: String(v) }
+    }))
+  }));
+  await api(`/${sheetId}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [
+        // 1. Clear all existing cell values in this tab
+        { updateCells: { range: { sheetId: tabSheetId }, fields: "userEnteredValue" } },
+        // 2. Write the new content starting at A1
+        { updateCells: {
+            start: { sheetId: tabSheetId, rowIndex: 0, columnIndex: 0 },
+            rows: rowsForUpdate,
+            fields: "userEnteredValue",
+        }},
+      ],
+    }),
+  });
+}
+async function ensureConfigTab(sheetId) {
+  const has = state.tabs.some(t => t.title === CFG.CONFIG_TAB);
+  if (has) return;
+  try {
+    await api(`/${sheetId}:batchUpdate`, {
+      method: "POST",
+      body: JSON.stringify({
+        requests: [{
+          addSheet: {
+            properties: {
+              title: CFG.CONFIG_TAB,
+              hidden: true,
+              gridProperties: { rowCount: 200, columnCount: 4 },
+            },
+          },
+        }],
+      }),
+    });
+    const meta = await fetchSheetMeta(sheetId);
+    state.tabs = meta.tabs;
+  } catch (e) {
+    // 403 → user has view-only access; continue, they'll just see existing dashboard
+    if (String(e.message).includes("403")) { state.readOnly = true; return; }
+    throw e;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Config persistence (config tab inside the sheet)
+   schema: A=key, B=value(json), C=updatedAt, D=updatedBy
+   ════════════════════════════════════════════════════════════════════════ */
+function readCachedConfig(sheetId) {
+  try {
+    const raw = localStorage.getItem(LS.CONFIG_CACHE(sheetId));
+    const parsed = raw ? migrateConfig(JSON.parse(raw)) : null;
+    if (parsed) console.log("[plecto] loaded config from local cache:", parsed.dashboards?.length, "dashboards");
+    return parsed;
+  } catch { return null; }
+}
+function writeCachedConfig(sheetId, cfg) {
+  try {
+    localStorage.setItem(LS.CONFIG_CACHE(sheetId), JSON.stringify(cfg));
+    console.log("[plecto] cached config locally:", cfg.widgets?.length, "widgets");
+  } catch (e) { console.warn("[plecto] localStorage write failed:", e.message); }
+}
+function readCachedSheetTitle(sheetId) {
+  return localStorage.getItem("plecto.sheetTitle." + sheetId) || null;
+}
+function writeCachedSheetTitle(sheetId, title) {
+  try { localStorage.setItem("plecto.sheetTitle." + sheetId, title); } catch {}
+}
+async function loadConfig() {
+  let rows;
+  try {
+    rows = await fetchTabValues(state.sheetId, CFG.CONFIG_TAB);
+  } catch (e) {
+    // fall back to local cache if the sheet read fails (network blip, transient 403, etc.)
+    return readCachedConfig(state.sheetId);
+  }
+  if (!rows || rows.length < 2) return readCachedConfig(state.sheetId);
+  const map = {};
+  for (let i = 1; i < rows.length; i++) {
+    const [k, v] = rows[i];
+    if (!k) continue;
+    try { map[k] = JSON.parse(v); } catch { map[k] = v; }
+  }
+  if (!map.dashboard) return readCachedConfig(state.sheetId);
+  const migrated = migrateConfig(map.dashboard);
+  // mirror to local cache so subsequent boots are instant + survive offline / read failures
+  writeCachedConfig(state.sheetId, migrated);
+  return migrated;
+}
+async function saveConfig(cfg) {
+  // mirror locally FIRST so config survives even if the sheet write fails
+  state.config = cfg;
+  writeCachedConfig(state.sheetId, cfg);
+  state.saveState = "saving"; state.saveError = null; renderTopbar();
+  const values = [
+    ["key", "value", "updatedAt", "updatedBy"],
+    ["dashboard", JSON.stringify(cfg), new Date().toISOString(), state.user?.email || ""],
+    ["dataTab", JSON.stringify(state.dataTab), new Date().toISOString(), state.user?.email || ""],
+  ];
+  try {
+    await writeTabValues(state.sheetId, CFG.CONFIG_TAB, values);
+    state.readOnly = false;
+    state.saveState = "saved"; renderTopbar();
+    setTimeout(() => { if (state.saveState === "saved") { state.saveState = "idle"; renderTopbar(); } }, 2500);
+  } catch (e) {
+    state.saveState = "error";
+    state.saveError = e.message;
+    renderTopbar();
+    if (String(e.message).includes("403")) {
+      state.readOnly = true;
+      throw new Error("You have view-only access to this sheet — ask the owner to give you Editor access to change widgets.");
+    }
+    throw e;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   User profiles (headshots & display names) — stored in __plecto_users tab
+   schema: A=email, B=photoUrl (URL or data URL), C=displayName, D=updatedAt, E=updatedBy
+   ════════════════════════════════════════════════════════════════════════ */
+async function ensureUsersTab(sheetId) {
+  const has = state.tabs.some(t => t.title === CFG.USERS_TAB);
+  if (has) return;
+  try {
+    await api(`/${sheetId}:batchUpdate`, {
+      method: "POST",
+      body: JSON.stringify({
+        requests: [{
+          addSheet: {
+            properties: {
+              title: CFG.USERS_TAB,
+              hidden: true,
+              gridProperties: { rowCount: 1000, columnCount: 5 },
+            },
+          },
+        }],
+      }),
+    });
+    const meta = await fetchSheetMeta(sheetId);
+    state.tabs = meta.tabs;
+  } catch (e) {
+    if (String(e.message).includes("403")) { state.readOnly = true; return; }
+    throw e;
+  }
+}
+async function loadUsers() {
+  let rows;
+  try { rows = await fetchTabValues(state.sheetId, CFG.USERS_TAB); }
+  catch { return; }
+  state.users = {};
+  if (!rows || rows.length < 2) return;
+  for (let i = 1; i < rows.length; i++) {
+    const [email, photoUrl, displayName] = rows[i];
+    if (!email) continue;
+    state.users[String(email).toLowerCase().trim()] = {
+      photoUrl: photoUrl || "",
+      displayName: displayName || "",
+    };
+  }
+  console.log("[plecto] loaded", Object.keys(state.users).length, "user profiles");
+}
+async function saveUsers() {
+  const values = [["email","photoUrl","displayName","updatedAt","updatedBy"]];
+  for (const [email, prof] of Object.entries(state.users)) {
+    if (!prof.photoUrl && !prof.displayName) continue;
+    values.push([email, prof.photoUrl || "", prof.displayName || "", new Date().toISOString(), state.user?.email || ""]);
+  }
+  state.saveState = "saving"; renderTopbar();
+  try {
+    await writeTabValues(state.sheetId, CFG.USERS_TAB, values);
+    state.saveState = "saved"; renderTopbar();
+    setTimeout(() => { if (state.saveState === "saved") { state.saveState = "idle"; renderTopbar(); } }, 2500);
+  } catch (e) {
+    state.saveState = "error"; state.saveError = e.message; renderTopbar();
+    if (String(e.message).includes("403")) {
+      state.readOnly = true;
+      throw new Error("View-only access — ask the sheet owner for Editor access to save headshots.");
+    }
+    throw e;
+  }
+}
+
+/* Resize a File (image) to a square JPEG data URL of the given pixel size.
+   At 96px / quality 0.82 a typical face photo becomes ~5KB base64 — small
+   enough to fit comfortably in a single Sheets cell. */
+function resizeImageToDataUrl(file, size = 128, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width  - min) / 2;
+      const sy = (img.height - min) / 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image file")); };
+    img.src = url;
+  });
+}
+function userPhotoUrl(email) {
+  if (!email) return null;
+  const p = state.users[String(email).toLowerCase().trim()];
+  return p?.photoUrl || null;
+}
+function userDisplayName(email, fallback) {
+  if (!email) return fallback;
+  const p = state.users[String(email).toLowerCase().trim()];
+  return p?.displayName || fallback;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Data load + parse
+   ════════════════════════════════════════════════════════════════════════ */
+async function loadData() {
+  if (!state.sheetId || !state.dataTab) return;
+  state.loading = true;
+  renderTopbar();
+  try {
+    _uniqueValuesCache = null;             // any tab refresh invalidates the suggestion cache
+    // Always load the dashboard default tab first
+    await ensureTabLoaded(state.dataTab, true);
+    // Then any tab referenced by widgets in any dashboard (so switching views is instant)
+    const referenced = new Set();
+    for (const d of (state.config?.dashboards || [])) {
+      for (const w of (d.widgets || [])) {
+        if (w.dataTab && w.dataTab !== state.dataTab) referenced.add(w.dataTab);
+      }
+    }
+    if (referenced.size) {
+      await Promise.all(Array.from(referenced).map(t => ensureTabLoaded(t, true).catch(() => null)));
+    }
+    state.lastFetched = new Date();
+  } catch (e) {
+    toast("Failed to load sheet: " + e.message, "err");
+  } finally {
+    state.loading = false;
+    renderTopbar();
+    renderDashboard();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Per-tab data loading. Each widget can pull from any tab in the sheet;
+   data and column inference is cached in state.tabsData[tabName].
+   ════════════════════════════════════════════════════════════════════════ */
+function autoDetectColumns(columns) {
+  const guess = re => columns.find(c => re.test(c));
+  return {
+    dateCol:  guess(/^date$|created|timestamp|^time$/i) || guess(/date|time/i) || null,
+    emailCol: guess(/email|mail/i) || null,
+    nameCol:  guess(/^name$|agent|rep|owner|user/i) || null,
+  };
+}
+async function ensureTabLoaded(tabName, force = false) {
+  if (!tabName) return null;
+  if (!force && state.tabsData[tabName]) return state.tabsData[tabName];
+  try {
+    const values = await fetchTabValues(state.sheetId, tabName);
+    const columns = (values[0] || []).map(c => String(c ?? "").trim());
+    const rows = values.slice(1).map(r => {
+      const obj = {};
+      for (let i = 0; i < columns.length; i++) obj[columns[i]] = r[i];
+      return obj;
+    });
+    const auto = autoDetectColumns(columns);
+    // For the dashboard's default tab, the explicitly-configured columns win
+    const isDefault = tabName === state.dataTab;
+    const dateCol  = isDefault ? (state.config?.columns?.date  || auto.dateCol)  : auto.dateCol;
+    const emailCol = isDefault ? (state.config?.columns?.email || auto.emailCol) : auto.emailCol;
+    const nameCol  = isDefault ? (state.config?.columns?.name  || auto.nameCol)  : auto.nameCol;
+    state.tabsData[tabName] = { columns, rows, dateCol, emailCol, nameCol, lastFetched: new Date() };
+    if (isDefault) {                       // back-compat aliases
+      state.columns  = columns;
+      state.rows     = rows;
+      state.rawValues = values;
+    }
+    return state.tabsData[tabName];
+  } catch (e) {
+    console.warn("[plecto] failed to load tab", tabName, e.message);
+    return null;
+  }
+}
+function getWidgetTab(w) {
+  const name = w.dataTab || state.dataTab;
+  return state.tabsData[name] || null;
+}
+function getColumnsForWidget(w) {
+  return getWidgetTab(w)?.columns || state.columns || [];
+}
+
+/* Unique values for a column, cached. Powers the searchable filter dropdown. */
+let _uniqueValuesCache = null;
+function uniqueValuesForColumn(col, tabName = null) {
+  if (!col) return [];
+  const tab = tabName || state.dataTab;
+  if (!_uniqueValuesCache) _uniqueValuesCache = new Map();
+  const cacheKey = tab + "\x00" + col;
+  if (_uniqueValuesCache.has(cacheKey)) return _uniqueValuesCache.get(cacheKey);
+  const td = state.tabsData[tab];
+  const rows = td?.rows || (tab === state.dataTab ? state.rows : []);
+  const set = new Set();
+  for (const r of rows) {
+    const v = r[col];
+    if (v == null || v === "") continue;
+    set.add(String(v).trim());
+  }
+  const arr = Array.from(set).filter(Boolean).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+  _uniqueValuesCache.set(cacheKey, arr);
+  return arr;
+}
+
+/* Convert a sheet cell to a JS Date that represents the same wall-clock day
+   in the user's local timezone. Sheets stores dates as serial numbers
+   (days since 1899-12-30) and they should be interpreted as local time —
+   not UTC — otherwise a sale on May 1 CDT looks like Apr 30 in UTC and
+   falls out of MTD/Today filters. */
+function toDate(v) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) return v;
+  if (typeof v === "number") {
+    const dayPart = Math.floor(v);
+    const timePart = v - dayPart;
+    // Build the calendar date at UTC midnight, then re-anchor to the SAME
+    // Y/M/D at LOCAL midnight so the date isn't shifted by the user's TZ.
+    const utcMs = (dayPart - 25569) * 86400000;
+    const u = new Date(utcMs);
+    const d = new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
+    if (timePart > 0) {
+      const dayMs = Math.round(timePart * 86400000);
+      d.setHours(0, 0, 0, 0);
+      d.setTime(d.getTime() + dayMs);
+    }
+    return isNaN(d) ? null : d;
+  }
+  if (typeof v === "string") {
+    const s = v.trim();
+    // Bare ISO date like "2026-05-01" — force local midnight, not UTC
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, day] = s.split("-").map(Number);
+      return new Date(y, m - 1, day);
+    }
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+  return null;
+}
+function toNumber(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return v;
+  const cleaned = String(v).replace(/[$,\s]/g, "").replace(/[()]/g, "");
+  const neg = String(v).includes("(");
+  const n = parseFloat(cleaned);
+  if (isNaN(n)) return null;
+  return neg ? -n : n;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Time-period filtering
+   ════════════════════════════════════════════════════════════════════════ */
+const TIME_LABELS = {
+  TODAY: "Today", YESTERDAY: "Yesterday", WEEK: "This Week", LAST_WEEK: "Last Week",
+  MTD: "MTD", QTD: "QTD", YTD: "YTD", ALL: "All Time", CUSTOM: "Custom",
+};
+function timeFilterLabel(kind) { return TIME_LABELS[kind] || kind; }
+
+function timeRange(kind, custom) {
+  const now = new Date();
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
+  const today = startOfDay(now);
+  switch (kind) {
+    case "TODAY":     return [today, endOfDay(now)];
+    case "YESTERDAY": { const y = new Date(today); y.setDate(y.getDate()-1); return [y, endOfDay(y)]; }
+    case "WEEK": {
+      const s = new Date(today); s.setDate(s.getDate() - 6);
+      return [s, endOfDay(now)];
+    }
+    case "LAST_WEEK": {
+      const s = new Date(today); s.setDate(s.getDate() - 13);
+      const e = new Date(today); e.setDate(e.getDate() - 7);
+      return [s, endOfDay(e)];
+    }
+    case "MTD":  return [new Date(now.getFullYear(), now.getMonth(), 1), endOfDay(now)];
+    case "QTD": {
+      const q = Math.floor(now.getMonth()/3)*3;
+      return [new Date(now.getFullYear(), q, 1), endOfDay(now)];
+    }
+    case "YTD":  return [new Date(now.getFullYear(), 0, 1), endOfDay(now)];
+    case "ALL":  return [new Date(0), endOfDay(now)];
+    case "CUSTOM": {
+      const s = custom?.start ? new Date(custom.start) : new Date(0);
+      const e = custom?.end   ? endOfDay(new Date(custom.end)) : endOfDay(now);
+      return [s, e];
+    }
+    default: return [new Date(0), endOfDay(now)];
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Formula engine
+   ────────────────────────────────────────────────────────────────────────
+   filterRow:    operators on a single column
+   aggregateRows: SUM | COUNT | COUNT_DISTINCT | AVG | MIN | MAX
+   evalWidget:   applies time filter + widget filters + groupBy as needed
+   ════════════════════════════════════════════════════════════════════════ */
+const OPERATORS = ["equals","not_equals","contains","not_contains","gt","lt","gte","lte","between","is_empty","not_empty"];
+
+function applyFilter(value, op, target, target2) {
+  switch (op) {
+    case "equals":       return String(value ?? "") === String(target ?? "");
+    case "not_equals":   return String(value ?? "") !== String(target ?? "");
+    case "contains":     return String(value ?? "").toLowerCase().includes(String(target ?? "").toLowerCase());
+    case "not_contains": return !String(value ?? "").toLowerCase().includes(String(target ?? "").toLowerCase());
+    case "gt":           return toNumber(value) >  toNumber(target);
+    case "lt":           return toNumber(value) <  toNumber(target);
+    case "gte":          return toNumber(value) >= toNumber(target);
+    case "lte":          return toNumber(value) <= toNumber(target);
+    case "between": {
+      const n = toNumber(value);
+      return n != null && n >= toNumber(target) && n <= toNumber(target2);
+    }
+    case "is_empty":     return value == null || String(value).trim() === "";
+    case "not_empty":    return value != null && String(value).trim() !== "";
+    default: return true;
+  }
+}
+/* Evaluate filters with AND/OR. Each filter (except the first) has a
+   combinator: "AND" | "OR". AND binds tighter than OR (standard logic).
+     A AND B OR C AND D  =>  (A AND B) OR (C AND D)
+     A OR B              =>  A OR B
+     A AND B AND C       =>  all required
+   First filter's combinator is ignored. Filters with no `combinator`
+   field default to AND (back-compat with the old all-must-match shape). */
+function rowMatchesFilters(row, filters) {
+  if (!filters || !filters.length) return true;
+  const groups = [[filters[0]]];
+  for (let i = 1; i < filters.length; i++) {
+    const f = filters[i];
+    if ((f.combinator || "AND") === "OR") groups.push([f]);
+    else groups[groups.length - 1].push(f);
+  }
+  return groups.some(g => g.every(f => applyFilter(row[f.column], f.op, f.value, f.value2)));
+}
+// keep old name as alias so existing call sites don't break
+const rowMatchesAll = rowMatchesFilters;
+function rowsInTimeRange(rows, dateCol, range) {
+  if (!dateCol) return rows;
+  const [start, end] = range;
+  return rows.filter(r => {
+    const d = toDate(r[dateCol]);
+    return d && d >= start && d <= end;
+  });
+}
+/* ════════════════════════════════════════════════════════════════════════
+   Business-day helpers + pacing math
+   ════════════════════════════════════════════════════════════════════════ */
+function isBusinessDay(d) {
+  const day = d.getDay();        // 0 = Sunday, 6 = Saturday
+  return day !== 0 && day !== 6;
+}
+function businessDaysBetween(start, end) {
+  if (end < start) return 0;
+  let count = 0;
+  const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const stop = new Date(end.getFullYear(),  end.getMonth(),  end.getDate());
+  while (cur <= stop) {
+    if (isBusinessDay(cur)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+function pacingPeriodRange(period, today) {
+  switch (period) {
+    case "WTD": {
+      const day = today.getDay();
+      const offset = day === 0 ? 6 : day - 1; // week starts Monday
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+      const end   = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
+      return [start, end];
+    }
+    case "QTD": {
+      const q = Math.floor(today.getMonth() / 3) * 3;
+      return [new Date(today.getFullYear(), q, 1), new Date(today.getFullYear(), q + 3, 0, 23, 59, 59, 999)];
+    }
+    case "YTD":
+      return [new Date(today.getFullYear(), 0, 1), new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999)];
+    case "MTD":
+    default:
+      return [new Date(today.getFullYear(), today.getMonth(), 1),
+              new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)];
+  }
+}
+function pacingMetrics(w, today = new Date()) {
+  const [periodStart, periodEnd] = pacingPeriodRange(w.period || "MTD", today);
+  const elapsedEnd = today < periodEnd ? today : periodEnd;
+  const businessOnly = w.businessDaysOnly !== false; // default true
+  const totalDays   = businessOnly ? businessDaysBetween(periodStart, periodEnd)   : Math.round((periodEnd   - periodStart) / 86400000) + 1;
+  const elapsedDays = businessOnly ? businessDaysBetween(periodStart, elapsedEnd)  : Math.round((elapsedEnd  - periodStart) / 86400000) + 1;
+  return { periodStart, periodEnd, elapsedEnd, totalDays, elapsedDays, businessOnly };
+}
+
+function aggregate(rows, agg, column) {
+  if (agg === "COUNT") return rows.length;
+  if (agg === "COUNT_DISTINCT") {
+    const s = new Set();
+    rows.forEach(r => { const v = r[column]; if (v != null && v !== "") s.add(String(v)); });
+    return s.size;
+  }
+  const nums = rows.map(r => toNumber(r[column])).filter(v => v != null);
+  if (!nums.length) return 0;
+  switch (agg) {
+    case "SUM": return nums.reduce((a,b) => a+b, 0);
+    case "AVG": return nums.reduce((a,b) => a+b, 0) / nums.length;
+    case "MIN": return Math.min(...nums);
+    case "MAX": return Math.max(...nums);
+    default:    return 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Rendering
+   ════════════════════════════════════════════════════════════════════════ */
+function render() {
+  const app = $("#app");
+  app.innerHTML = "";
+
+  if (!tokenValid()) {
+    app.append(renderLogin());
+    return;
+  }
+  const shell = el("div", { class: "app-shell" });
+  app.append(shell);
+
+  if (!state.sheetId) {
+    shell.append(renderTopbar(), renderSheetPicker());
+    return;
+  }
+  if (!state.dataTab || !state.config) {
+    shell.append(renderTopbar(), renderDataTabPicker());
+    return;
+  }
+
+  // ensure activeDashboardId is set (per-user)
+  if (!state.activeDashboardId) {
+    const stored = localStorage.getItem(LS.ACTIVE_DASH(state.sheetId));
+    state.activeDashboardId = (stored && state.config.dashboards.some(d => d.id === stored))
+      ? stored : state.config.dashboards[0].id;
+  } else if (!state.config.dashboards.some(d => d.id === state.activeDashboardId)) {
+    state.activeDashboardId = state.config.dashboards[0].id;
+  }
+
+  if (state.tvMode) shell.classList.add("tv-mode");
+  shell.append(renderTopbar());
+  const body = el("div", { class: "app-body" });
+  body.append(renderSidebar());
+  const main = el("div", { class: "main" });
+  main.append(renderFilterbar());
+  const stage = el("div", { class: "stage", id: "stage" });
+  main.append(stage);
+  body.append(main);
+  shell.append(body);
+
+  renderDashboard();
+  if (state.tvMode) requestAnimationFrame(fitTvGrid);
+}
+
+function renderLogin() {
+  const cs = el("div", { class: "center-screen" });
+  const p = el("div", { class: "panel" });
+  p.append(
+    el("h2", {}, "Leaderboard Dashboard"),
+    el("p", {}, "Sign in with Google to read your spreadsheet."),
+    el("div", { class: "row", style: "justify-content:space-between;align-items:center" },
+      el("a", { href: "https://accounts.google.com/AddSession", target: "_blank", rel: "noopener",
+                style: "color:var(--text-dim);font-size:12px;text-decoration:underline" },
+         "Add a different Google account in Chrome"),
+      el("button", { class: "icon-btn primary", onclick: signIn }, "Sign in with Google"),
+    ),
+  );
+  if (CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) {
+    p.append(el("p", { class: "muted", style: "margin-top:18px;font-size:12px" },
+      "⚠ OAUTH_CLIENT_ID is not configured. See the comment at the top of leaderboard.html."));
+  }
+  cs.append(p);
+  return cs;
+}
+
+function renderTopbar() {
+  // re-render in place if it already exists (so loading state updates without flicker)
+  const existing = $(".topbar");
+  if (existing) existing.remove();
+  const bar = el("div", { class: "topbar" });
+  bar.append(
+    el("div", { class: "brand" },
+      el("span", { class: "brand-dot" }),
+      "Leaderboard",
+    ),
+    el("div", { class: "spacer" }),
+  );
+  if (state.sheetTitle) {
+    const meta = el("div", { class: "meta" });
+    let saveLabel = "";
+    if (state.saveState === "saving") saveLabel = ` · <span class="pulse" style="color:var(--accent)">saving…</span>`;
+    else if (state.saveState === "saved") saveLabel = ` · <span style="color:var(--success)">✓ saved</span>`;
+    else if (state.saveState === "error") saveLabel = ` · <span style="color:var(--danger)" title="${esc(state.saveError||'')}">⚠ save failed — changes kept locally</span>`;
+    meta.innerHTML = `Sheet: <b>${esc(state.sheetTitle)}</b>${state.dataTab ? ` · <b>${esc(state.dataTab)}</b>` : ""}` +
+      (state.loading ? ` · <span class="pulse">refreshing…</span>` :
+        state.lastFetched ? ` · <span class="muted">${state.lastFetched.toLocaleTimeString()}</span>` : "") +
+      saveLabel;
+    bar.append(meta);
+  }
+  if (state.config) {
+    if (state.readOnly) {
+      bar.append(el("span", { class: "chip", style: "background:rgba(245,158,11,.15);color:var(--warn);border-color:rgba(245,158,11,.3)" }, "View only"));
+    } else {
+      bar.append(el("button", { class: "icon-btn", onclick: () => openWidgetModal(null) }, "+ Widget"));
+      bar.append(el("button", { class: "icon-btn", onclick: openPeopleModal }, "👤 People"));
+      bar.append(el("button", { class: "icon-btn", onclick: openSettingsModal }, "⚙ Settings"));
+    }
+    bar.append(el("button", { class: "icon-btn", onclick: copyShareLink, title: "Copy a link other users can open to see this exact dashboard" }, "🔗 Share"));
+  }
+  // Big Save button — always present, color-codes save state
+  if (state.config && !state.readOnly) {
+    bar.append(renderSaveButton());
+  }
+
+  if (state.tvMode) {
+    bar.append(el("span", { class: "tv-clock" }, new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })));
+  }
+  bar.append(
+    el("button", {
+      class: "icon-btn",
+      onclick: openCastModal,
+      title: "Cast this dashboard to an LG TV",
+    }, "📡 Cast"),
+    el("button", {
+      class: "icon-btn" + (state.tvMode ? " primary" : ""),
+      onclick: toggleTvMode,
+      title: state.tvMode ? "Exit TV mode (Esc)" : "TV mode — fullscreen dashboard for the sales floor",
+    }, state.tvMode ? "✕ Exit TV" : "📺 TV"),
+    el("button", { class: "icon-btn", onclick: toggleTheme, title: "Toggle theme" }, currentTheme() === "dark" ? "☀" : "☾"),
+    el("button", { class: "icon-btn", onclick: () => loadData(), title: "Refresh" }, "↻"),
+    el("button", { class: "icon-btn danger", onclick: signOut }, "Sign out"),
+  );
+  // attach at top of the app shell (or fallback to #app)
+  const shell = $(".app-shell");
+  if (shell) shell.prepend(bar);
+  else $("#app").prepend(bar);
+  return bar;
+}
+
+function renderSheetPicker() {
+  const cs = el("div", { class: "center-screen" });
+  const p = el("div", { class: "panel" });
+  p.append(
+    el("h2", {}, "Connect a Google Sheet"),
+    el("p", {}, "Paste the URL of the Google Sheet you want to read. The dashboard will read data from a tab you select, and store its config in a hidden tab in the same sheet."),
+    el("label", {}, "Google Sheet URL or ID"),
+  );
+  const input = el("input", { type: "text", placeholder: "https://docs.google.com/spreadsheets/d/..." });
+  p.append(input);
+  const errEl = el("p", { class: "muted", style: "color:var(--danger);display:none;margin-top:8px;font-size:12px" });
+  p.append(errEl);
+  p.append(el("div", { class: "row" },
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      const id = parseSheetId(input.value);
+      if (!id) { errEl.textContent = "Couldn't read a sheet ID from that URL."; errEl.style.display = "block"; return; }
+      errEl.style.display = "none";
+      try {
+        const meta = await fetchSheetMeta(id);
+        state.sheetId = id; state.sheetTitle = meta.title; state.tabs = meta.tabs;
+        localStorage.setItem(LS.SHEET_ID, id);
+        await ensureConfigTab(id);
+        // if config already exists, jump straight in
+        const existing = await loadConfig();
+        if (existing) {
+          state.config = existing;
+          state.dataTab = existing.dataTab;
+          if (state.dataTab) {
+            await loadData();
+            startAutoRefresh();
+            render();
+            return;
+          }
+        }
+        render();
+      } catch (e) {
+        errEl.textContent = "Failed: " + e.message;
+        errEl.style.display = "block";
+      }
+    } }, "Connect"),
+  ));
+  cs.append(p);
+  return cs;
+}
+
+function renderDataTabPicker() {
+  const cs = el("div", { class: "center-screen" });
+  const p = el("div", { class: "panel" });
+  p.append(
+    el("h2", {}, "Choose data tab & columns"),
+    el("p", {}, "Pick the tab containing one row per event/transaction, then identify the date and email columns."),
+  );
+  p.append(el("label", {}, "Data tab"));
+  const tabSel = el("select");
+  state.tabs.filter(t => t.title !== CFG.CONFIG_TAB).forEach(t => {
+    tabSel.append(el("option", { value: t.title }, t.title));
+  });
+  p.append(tabSel);
+
+  const dateLabel = el("label", {}, "Date column");
+  const dateSel = el("select");
+  const emailLabel = el("label", {}, "Email column (for avatars)");
+  const emailSel = el("select");
+  const nameLabel = el("label", {}, "Name column (optional, for display)");
+  const nameSel = el("select");
+  p.append(dateLabel, dateSel, emailLabel, emailSel, nameLabel, nameSel);
+
+  async function loadCols() {
+    dateSel.innerHTML = ""; emailSel.innerHTML = ""; nameSel.innerHTML = "";
+    nameSel.append(el("option", { value: "" }, "(none)"));
+    try {
+      const values = await fetchTabValues(state.sheetId, tabSel.value);
+      const cols = (values[0] || []).map(c => String(c ?? "").trim());
+      cols.forEach(c => {
+        dateSel.append(el("option", { value: c }, c));
+        emailSel.append(el("option", { value: c }, c));
+        nameSel.append(el("option", { value: c }, c));
+      });
+      // best-effort defaults
+      const guess = (re) => cols.find(c => re.test(c));
+      const gd = guess(/date|created|timestamp|time/i); if (gd) dateSel.value = gd;
+      const ge = guess(/email|mail/i); if (ge) emailSel.value = ge;
+      const gn = guess(/^name$|agent|rep|owner|user/i); if (gn) nameSel.value = gn;
+    } catch (e) {
+      toast("Failed to read tab: " + e.message, "err");
+    }
+  }
+  tabSel.addEventListener("change", loadCols);
+  loadCols();
+
+  p.append(el("div", { class: "row", style: "margin-top:18px;justify-content:flex-end" },
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      state.dataTab = tabSel.value;
+      // preserve any existing dashboards — only seed defaults on first connect
+      const existingDashboards = state.config?.dashboards?.length ? state.config.dashboards : [defaultDashboard()];
+      const cfg = {
+        dataTab: tabSel.value,
+        columns: { date: dateSel.value, email: emailSel.value, name: nameSel.value || null },
+        dashboards: existingDashboards,
+      };
+      if (!state.activeDashboardId) state.activeDashboardId = existingDashboards[0].id;
+      try {
+        await saveConfig(cfg);
+        await loadData();
+        startAutoRefresh();
+        render();
+      } catch (e) {
+        toast("Failed to save config: " + e.message, "err");
+      }
+    } }, "Save & build dashboard"),
+  ));
+  cs.append(p);
+  return cs;
+}
+
+function defaultWidgets() {
+  return [
+    { id: uid(), kind: "leaderboard", title: "Leaderboard", cols: 6, rows: 6, agg: "COUNT", column: "", filters: [], limit: 10 },
+  ];
+}
+function defaultDashboard(name = "Main Dashboard") {
+  return { id: uid(), name, icon: "📊", widgets: defaultWidgets() };
+}
+
+function renderFilterbar() {
+  const bar = el("div", { class: "filterbar" });
+
+  // Auto chip — widgets use their own time period
+  const autoChip = el("div", {
+    class: "chip" + (state.timeFilter.kind === "AUTO" ? " active" : ""),
+    title: "Each widget uses its own time period (set per widget in Edit)",
+  }, "Auto (per widget)");
+  autoChip.addEventListener("click", () => { state.timeFilter = { kind: "AUTO" }; renderDashboard(); render(); });
+  bar.append(autoChip);
+  bar.append(el("div", { class: "sep" }));
+
+  const opts = [
+    ["TODAY","Today"],["YESTERDAY","Yesterday"],["WEEK","This Week"],["LAST_WEEK","Last Week"],
+    ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],["ALL","All Time"],
+  ];
+  opts.forEach(([k,l]) => {
+    const c = el("div", {
+      class: "chip" + (state.timeFilter.kind === k ? " active" : ""),
+      title: state.timeFilter.kind === k ? "Overriding every widget's time period" : "Override all widgets to " + l,
+    }, l);
+    c.addEventListener("click", () => { state.timeFilter = { kind: k }; renderDashboard(); render(); });
+    bar.append(c);
+  });
+  bar.append(el("div", { class: "sep" }));
+  const customChip = el("div", { class: "chip" + (state.timeFilter.kind === "CUSTOM" ? " active" : "") }, "Custom");
+  customChip.addEventListener("click", () => {
+    state.timeFilter = { kind: "CUSTOM", customStart: state.timeFilter.customStart, customEnd: state.timeFilter.customEnd };
+    render();
+  });
+  bar.append(customChip);
+  if (state.timeFilter.kind === "CUSTOM") {
+    const s = el("input", { type: "date", value: state.timeFilter.customStart || "" });
+    const e = el("input", { type: "date", value: state.timeFilter.customEnd || "" });
+    s.addEventListener("change", () => { state.timeFilter.customStart = s.value; renderDashboard(); });
+    e.addEventListener("change", () => { state.timeFilter.customEnd = e.value; renderDashboard(); });
+    bar.append(s, el("span", { class: "muted" }, "→"), e);
+  }
+
+  // small reminder of what mode we're in
+  if (state.timeFilter.kind !== "AUTO") {
+    bar.append(el("div", { class: "muted", style: "margin-left:auto;font-size:11px" },
+      "Overriding all widgets — click 'Auto (per widget)' to restore individual settings"));
+  }
+  return bar;
+}
+
+function renderSidebar() {
+  const collapsed = state.sidebarCollapsed;
+  const sb = el("aside", { class: "sidebar" + (collapsed ? " collapsed" : "") });
+  const hdr = el("div", { class: "sidebar-hdr" });
+  hdr.append(el("span", {}, "Dashboards"));
+  const hdrActions = el("div", { style: "display:flex;gap:2px" });
+  if (!state.readOnly) {
+    const addBtn = el("button", { class: "toggle-btn", title: "New dashboard", style: "color:var(--accent);font-size:14px;font-weight:700",
+      onclick: addDashboard }, "+");
+    hdrActions.append(addBtn);
+  }
+  const toggle = el("button", { class: "toggle-btn", title: collapsed ? "Expand" : "Collapse" }, collapsed ? "›" : "‹");
+  toggle.addEventListener("click", () => {
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    localStorage.setItem(LS.SIDEBAR, state.sidebarCollapsed ? "1" : "0");
+    render();
+  });
+  hdrActions.append(toggle);
+  hdr.append(hdrActions);
+  sb.append(hdr);
+
+  const list = el("div", { class: "sidebar-list" });
+  for (const d of state.config.dashboards) {
+    const isActive = d.id === state.activeDashboardId;
+    const item = el("div", { class: "sb-item" + (isActive ? " active" : ""), title: d.name });
+    item.addEventListener("click", e => {
+      // ignore clicks on the action buttons
+      if (e.target.closest(".sb-actions")) return;
+      setActiveDashboard(d.id);
+    });
+    item.append(
+      el("span", { class: "sb-icon" }, d.icon || "📊"),
+      el("span", { class: "sb-name" }, d.name),
+    );
+    if (!state.readOnly) {
+      const actions = el("div", { class: "sb-actions" });
+      const editBtn = el("button", { title: "Rename / change icon", onclick: ev => { ev.stopPropagation(); renameDashboard(d.id); } }, "✎");
+      const delBtn  = el("button", { title: "Delete dashboard",       onclick: ev => { ev.stopPropagation(); deleteDashboard(d.id); } }, "✕");
+      actions.append(editBtn, delBtn);
+      item.append(actions);
+    }
+    list.append(item);
+  }
+  sb.append(list);
+
+  if (!state.readOnly) {
+    const newBtn = el("button", { class: "sb-new", onclick: addDashboard }, "+ New dashboard");
+    sb.append(newBtn);
+  }
+  return sb;
+}
+
+async function addDashboard() {
+  const name = prompt("Dashboard name:", "New Dashboard");
+  if (!name) return;
+  const d = { id: uid(), name: name.trim(), icon: "📊", widgets: [] };
+  state.config.dashboards.push(d);
+  state.activeDashboardId = d.id;
+  if (state.sheetId) localStorage.setItem(LS.ACTIVE_DASH(state.sheetId), d.id);
+  try {
+    await saveConfig(state.config);
+    render();
+  } catch (e) { toast("Save failed: " + e.message, "err"); }
+}
+async function renameDashboard(id) {
+  const d = state.config.dashboards.find(x => x.id === id);
+  if (!d) return;
+  const name = prompt("Rename dashboard:", d.name);
+  if (name == null) return;
+  d.name = name.trim() || d.name;
+  const icon = prompt("Icon (single emoji, optional):", d.icon || "📊");
+  if (icon != null && icon.trim()) d.icon = icon.trim();
+  try {
+    await saveConfig(state.config);
+    render();
+  } catch (e) { toast("Save failed: " + e.message, "err"); }
+}
+async function deleteDashboard(id) {
+  if (state.config.dashboards.length <= 1) {
+    toast("Can't delete the only dashboard — add another first", "err");
+    return;
+  }
+  const d = state.config.dashboards.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm(`Delete "${d.name}"? Its widgets will be lost.`)) return;
+  state.config.dashboards = state.config.dashboards.filter(x => x.id !== id);
+  if (state.activeDashboardId === id) {
+    state.activeDashboardId = state.config.dashboards[0].id;
+    if (state.sheetId) localStorage.setItem(LS.ACTIVE_DASH(state.sheetId), state.activeDashboardId);
+  }
+  try {
+    await saveConfig(state.config);
+    render();
+  } catch (e) { toast("Save failed: " + e.message, "err"); }
+}
+
+function renderDashboard() {
+  // destroy old charts
+  state.charts.forEach(c => c.destroy());
+  state.charts.clear();
+
+  const stage = $("#stage");
+  if (!stage) return;
+  stage.innerHTML = "";
+  const dash = currentDashboard();
+  if (!dash || !dash.widgets || !dash.widgets.length) {
+    stage.append(el("div", { class: "empty" },
+      el("h3", {}, "No widgets yet"),
+      el("p", {}, "Click + Widget in the top bar to add your first KPI, leaderboard, goal, or chart."),
+    ));
+    return;
+  }
+  const grid = el("div", { class: "grid" });
+  dash.widgets.forEach(w => grid.append(renderWidget(w)));
+  stage.append(grid);
+  if (state.tvMode) requestAnimationFrame(fitTvGrid);
+}
+
+/* Compute color tier for a numeric value against widget thresholds.
+   direction: "higher" = bigger is better (sales, calls answered)
+              "lower"  = smaller is better (missed calls, abandon rate)
+   Returns "green" | "yellow" | "red" | null if no thresholds configured. */
+function widgetColorTier(w, value) {
+  if (value == null || isNaN(value)) return null;
+  const good = w.thresholdGood, warn = w.thresholdWarn;
+  if (good == null && warn == null) return null;
+  const dir = w.direction || "higher";
+  if (dir === "higher") {
+    if (good != null && value >= good) return "green";
+    if (warn != null && value >= warn) return "yellow";
+    return "red";
+  } else {
+    if (good != null && value <= good) return "green";
+    if (warn != null && value <= warn) return "yellow";
+    return "red";
+  }
+}
+
+/* default widget dimensions (grid cols × rows of 72px) */
+function defaultSpan(kind) {
+  switch (kind) {
+    case "leaderboard": return { cols: 6, rows: 6 };
+    case "chart":       return { cols: 8, rows: 4 };
+    case "goal":        return { cols: 4, rows: 3 };
+    case "pacing":      return { cols: 4, rows: 3 };
+    case "kpi":         return { cols: 3, rows: 2 };
+    default:            return { cols: 4, rows: 3 };
+  }
+}
+/* migration: translate legacy `size` (1..5) to new cols/rows if needed */
+function widgetSpan(w) {
+  if (w.cols && w.rows) return { cols: w.cols, rows: w.rows };
+  if (w.size) {
+    const cols = ({1:3, 2:4, 3:6, 4:8, 5:12}[w.size]) || 4;
+    const def = defaultSpan(w.kind);
+    return { cols, rows: def.rows };
+  }
+  return defaultSpan(w.kind);
+}
+
+function renderWidget(w) {
+  const span = widgetSpan(w);
+  const node = el("div", { class: "widget kind-" + w.kind });
+  // Explicit cell if dragged; otherwise auto-flow
+  node.style.gridColumn = w.col ? `${w.col} / span ${span.cols}` : `span ${span.cols}`;
+  node.style.gridRow    = w.row ? `${w.row} / span ${span.rows}` : `span ${span.rows}`;
+
+  if (!state.readOnly) {
+    node.append(el("div", { class: "w-actions" },
+      el("button", { onclick: () => openWidgetModal(w.id) }, "Edit"),
+      el("button", { onclick: () => deleteWidget(w.id) }, "✕"),
+    ));
+  }
+
+  // Resolve effective time filter:
+  //   pacing       -> always uses its own period (the whole point of the kind)
+  //   global AUTO  -> widget's own setting (default "MTD")
+  //   anything else -> global overrides
+  const isPacing = w.kind === "pacing";
+  const effective = isPacing
+    ? { kind: (w.period || "MTD") + "*PACING" }   // marker, never used by timeRange
+    : state.timeFilter.kind === "AUTO"
+      ? { kind: w.timeFilter || "MTD" }
+      : state.timeFilter;
+  const range = !isPacing
+    ? timeRange(effective.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd })
+    : null;
+
+  // Resolve tab + filtered rows FIRST so leaderboard widgets can show a
+  // total-of-filter in the title bar.
+  const tab = getWidgetTab(w);
+  const widgetRows = tab?.rows || [];
+  const dateCol = tab?.dateCol || state.config.columns.date;
+
+  // If widget references a tab we haven't loaded yet, show a stub and bail
+  if (w.dataTab && !state.tabsData[w.dataTab]) {
+    node.append(el("div", { class: "w-title" }, w.title || w.kind));
+    const body = el("div", { class: "w-body" });
+    body.append(el("div", { class: "muted", style: "padding:18px" }, `Loading "${w.dataTab}"…`));
+    node.append(body);
+    ensureTabLoaded(w.dataTab).then(() => renderDashboard());
+    return node;
+  }
+
+  const inRange = !isPacing
+    ? rowsInTimeRange(widgetRows, dateCol, range).filter(r => rowMatchesAll(r, w.filters))
+    : [];
+
+  const titleRow = el("div", { class: "w-title", style: "display:flex;justify-content:space-between;align-items:center;gap:10px" });
+  titleRow.append(el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, w.title || w.kind));
+  const periodLabel = isPacing
+    ? "Pacing · " + timeFilterLabel(w.period || "MTD") + (w.businessDaysOnly !== false ? " (business days)" : "")
+    : timeFilterLabel(effective.kind);
+
+  const rightSide = el("div", { style: "display:flex;align-items:center;gap:10px;flex-shrink:0" });
+  // Leaderboards: show the aggregate total of the filtered rows in the corner
+  if (w.kind === "leaderboard") {
+    const total = aggregate(inRange, w.agg, w.column);
+    const totalLabel = w.format === "money" ? fmtMoney(total) : fmtNum(total);
+    rightSide.append(el("span", {
+      class: "lb-total",
+      style: "font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.2px",
+      title: `Total of the filter across ${inRange.length} row${inRange.length === 1 ? "" : "s"} (${w.agg || "COUNT"}${w.column ? " of " + w.column : ""})`,
+    }, totalLabel));
+  }
+  rightSide.append(el("span", {
+    style: "font-size:10px;color:" + (isPacing ? "var(--accent-2)" : (state.timeFilter.kind === "AUTO" ? "var(--text-faint)" : "var(--accent)")) + ";font-weight:600;letter-spacing:.4px",
+    title: isPacing ? "Projects end-of-period based on current pace" : (state.timeFilter.kind === "AUTO" ? "This widget's saved time period" : "Overridden by global filter"),
+  }, periodLabel));
+  titleRow.append(rightSide);
+  node.append(titleRow);
+
+  const body = el("div", { class: "w-body" });
+  node.append(body);
+
+  // Apply threshold-based color tier
+  if (w.kind === "kpi" || w.kind === "goal") {
+    const value = aggregate(inRange, w.agg, w.column);
+    const tier = widgetColorTier(w, value);
+    if (tier) node.classList.add("tier-" + tier);
+  } else if (isPacing) {
+    // Pacing tier reflects the PROJECTED value vs thresholds
+    const today = new Date();
+    const m = pacingMetrics(w, today);
+    const periodRows = rowsInTimeRange(widgetRows, dateCol, [m.periodStart, today])
+      .filter(r => rowMatchesAll(r, w.filters));
+    const current = aggregate(periodRows, w.agg, w.column);
+    const projected = m.elapsedDays > 0 ? current * (m.totalDays / m.elapsedDays) : 0;
+    const tier = widgetColorTier(w, projected);
+    if (tier) node.classList.add("tier-" + tier);
+  }
+
+  try {
+    if (w.kind === "kpi")         renderKpi(body, w, inRange);
+    else if (w.kind === "goal")   renderGoal(body, w, inRange);
+    else if (w.kind === "pacing") renderPacing(body, w);
+    else if (w.kind === "leaderboard") renderLeaderboard(body, w, inRange);
+    else if (w.kind === "chart")  renderChart(body, w, inRange, range);
+  } catch (e) {
+    console.error(e);
+    body.append(el("div", { class: "muted" }, "Error: " + e.message));
+  }
+
+  // Drag-to-resize + drag-to-move (admins only)
+  if (!state.readOnly) {
+    const handle = el("div", { class: "resize-handle", title: "Drag to resize" });
+    handle.addEventListener("mousedown", e => { e.stopPropagation(); startResize(e, node, w); });
+    handle.addEventListener("touchstart", e => { e.stopPropagation(); startResize(e.touches[0], node, w, true); }, { passive: false });
+    node.append(handle);
+
+    node.addEventListener("mousedown", e => startMove(e, node, w));
+  }
+  return node;
+}
+
+/* Free drag-to-position. Sets w.col / w.row to an explicit grid cell.
+   Threshold of 6px before treating it as a drag, so single clicks still
+   feel responsive and don't accidentally reflow the layout. */
+function startMove(e, widgetNode, w) {
+  if (e.button !== 0) return;
+  // Don't drag when interacting with buttons, inputs, the resize handle, etc.
+  if (e.target.closest("button, input, select, a, .resize-handle, .w-actions")) return;
+
+  const grid = widgetNode.parentElement;
+  const span = widgetSpan(w);
+  const startX = e.clientX, startY = e.clientY;
+  const widgetRect = widgetNode.getBoundingClientRect();
+  const offsetX = startX - widgetRect.left;
+  const offsetY = startY - widgetRect.top;
+  let dragMoved = false;
+  let placeholder = null;
+  let targetCol = w.col, targetRow = w.row;
+
+  function gridMetrics() {
+    const r = grid.getBoundingClientRect();
+    const styles = getComputedStyle(grid);
+    const gap = parseFloat(styles.rowGap) || parseFloat(styles.gap) || 14;
+    const rowH = parseFloat(styles.gridAutoRows) || 72;
+    const colW = (r.width - gap * 11) / 12;
+    return { rect: r, gap, rowH, colW };
+  }
+
+  function onMove(ev) {
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    if (!dragMoved && Math.hypot(dx, dy) > 6) {
+      dragMoved = true;
+      widgetNode.classList.add("dragging");
+      placeholder = el("div", { class: "drop-preview" });
+      placeholder.style.gridColumn = `${w.col || 1} / span ${span.cols}`;
+      placeholder.style.gridRow    = `${w.row || 1} / span ${span.rows}`;
+      grid.append(placeholder);
+    }
+    if (!dragMoved) return;
+    ev.preventDefault();
+    const { rect, gap, rowH, colW } = gridMetrics();
+    // mouse position relative to grid, anchored at where the user grabbed
+    const localX = ev.clientX - rect.left - offsetX;
+    const localY = ev.clientY - rect.top  - offsetY;
+    targetCol = Math.max(1, Math.min(13 - span.cols, Math.round(localX / (colW + gap)) + 1));
+    targetRow = Math.max(1, Math.round(localY / (rowH + gap)) + 1);
+    placeholder.style.gridColumn = `${targetCol} / span ${span.cols}`;
+    placeholder.style.gridRow    = `${targetRow} / span ${span.rows}`;
+  }
+  function onUp() {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    if (!dragMoved) return;
+    widgetNode.classList.remove("dragging");
+    placeholder?.remove();
+    if (targetCol === w.col && targetRow === w.row) return;
+    w.col = targetCol; w.row = targetRow;
+    saveConfig(state.config).catch(e => toast("Save failed: " + e.message, "err"));
+    renderDashboard();
+  }
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
+let _resizeState = null;
+function startResize(e, widgetNode, w, isTouch) {
+  e.preventDefault?.();
+  const grid = widgetNode.parentElement;
+  const gridStyles = getComputedStyle(grid);
+  const cols = 12;
+  const gap = parseFloat(gridStyles.rowGap) || parseFloat(gridStyles.gap) || 14;
+  const rowH = parseFloat(gridStyles.gridAutoRows) || 72;
+  const colW = (grid.clientWidth - gap * (cols - 1)) / cols;
+  const startSpan = widgetSpan(w);
+  const startX = e.clientX, startY = e.clientY;
+  widgetNode.classList.add("resizing");
+
+  const preview = el("div", { class: "resize-preview" }, `${startSpan.cols}×${startSpan.rows}`);
+  document.body.append(preview);
+  function positionPreview(ev) {
+    preview.style.left = (ev.clientX + 14) + "px";
+    preview.style.top  = (ev.clientY + 14) + "px";
+  }
+  positionPreview(e);
+
+  function getPoint(ev) {
+    if (ev.touches?.[0]) return ev.touches[0];
+    return ev;
+  }
+  function onMove(ev) {
+    const pt = getPoint(ev);
+    const dx = pt.clientX - startX;
+    const dy = pt.clientY - startY;
+    const newCols = Math.max(2, Math.min(12, Math.round(startSpan.cols + dx / (colW + gap))));
+    const newRows = Math.max(2, Math.round(startSpan.rows + dy / (rowH + gap)));
+    widgetNode.style.gridColumn = `span ${newCols}`;
+    widgetNode.style.gridRow    = `span ${newRows}`;
+    w.cols = newCols; w.rows = newRows;
+    delete w.size; // legacy field — superseded by cols/rows
+    preview.textContent = `${newCols}×${newRows}`;
+    positionPreview(pt);
+  }
+  function onUp() {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+    widgetNode.classList.remove("resizing");
+    preview.remove();
+    saveConfig(state.config).catch(e => toast("Save failed: " + e.message, "err"));
+    renderDashboard(); // re-render so chart canvases pick up the new size
+  }
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+  document.addEventListener("touchmove", onMove, { passive: false });
+  document.addEventListener("touchend", onUp);
+}
+
+function renderKpi(node, w, rows) {
+  const v = aggregate(rows, w.agg, w.column);
+  const pretty = w.format === "money" ? fmtMoney(v) : fmtNum(v);
+  node.append(el("div", { class: "kpi-value" }, pretty));
+  if (w.subtitle) node.append(el("div", { class: "kpi-sub" }, w.subtitle));
+}
+
+function renderGoal(node, w, rows) {
+  const v = aggregate(rows, w.agg, w.column);
+  const target = Number(w.target) || 0;
+  const pct = target > 0 ? Math.min(100, (v / target) * 100) : 0;
+  const meta = el("div", { class: "goal-meta" });
+  meta.append(
+    el("div", {}, el("div", { class: "goal-pct" }, pct.toFixed(0) + "%")),
+    el("div", {}, (w.format === "money" ? fmtMoney(v) : fmtNum(v)) + " / " + (w.format === "money" ? fmtMoney(target) : fmtNum(target))),
+  );
+  node.append(meta);
+  const bar = el("div", { class: "goal-bar" });
+  const fill = el("div"); fill.style.width = pct + "%";
+  bar.append(fill);
+  node.append(bar);
+}
+
+function renderPacing(body, w) {
+  const today = new Date();
+  const m = pacingMetrics(w, today);
+  const tab = getWidgetTab(w);
+  const dateCol = tab?.dateCol || state.config.columns.date;
+  // Pacing always reads its own period (ignores global time-filter chips)
+  const periodRows = rowsInTimeRange(tab?.rows || [], dateCol, [m.periodStart, today])
+    .filter(r => rowMatchesAll(r, w.filters));
+  const current = aggregate(periodRows, w.agg, w.column);
+  const projected = m.elapsedDays > 0 ? current * (m.totalDays / m.elapsedDays) : 0;
+  const fmt = v => w.format === "money" ? fmtMoney(v) : fmtNum(v);
+
+  const projLabel = el("div", { class: "kpi-value" }, fmt(projected));
+  body.append(projLabel);
+
+  // explanatory subtitle
+  body.append(el("div", { class: "kpi-sub" },
+    `Currently ${fmt(current)} · day ${m.elapsedDays} of ${m.totalDays}${m.businessOnly ? " business" : ""}`));
+
+  // optional target line + progress bar
+  if (w.target) {
+    const pct = (projected / w.target) * 100;
+    body.append(el("div", { class: "goal-meta", style: "margin-top:14px" },
+      el("div", {}, el("div", { class: "goal-pct" }, pct.toFixed(0) + "%")),
+      el("div", {}, fmt(projected) + " / " + fmt(w.target) + " target"),
+    ));
+    const bar = el("div", { class: "goal-bar" });
+    const fill = el("div"); fill.style.width = Math.min(100, pct) + "%";
+    bar.append(fill);
+    body.append(bar);
+  }
+}
+
+async function renderLeaderboard(node, w, rows) {
+  const tab = getWidgetTab(w);
+  const groupCol = w.groupBy || tab?.emailCol || state.config.columns.email;
+  const nameCol  = tab?.nameCol || state.config.columns.name;
+  const groups = new Map();
+  for (const r of rows) {
+    const key = r[groupCol]; if (key == null || key === "") continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const emailCol = tab?.emailCol || state.config.columns.email;
+  const list = Array.from(groups.entries()).map(([key, grows]) => {
+    const email = emailCol ? grows[0][emailCol] : null;
+    const fallbackName = nameCol ? (grows[0][nameCol] || key) : key;
+    return {
+      key,
+      name: userDisplayName(email, fallbackName),
+      email,
+      value: aggregate(grows, w.agg, w.column),
+    };
+  }).sort((a,b) => (b.value||0) - (a.value||0));
+  const top = list.slice(0, w.limit || 10);
+  const wrap = el("div");
+  if (!top.length) {
+    // diagnostic empty state — help the user figure out what's filtered out
+    const totalRows = state.rows.length;
+    const groupColLabel = groupCol || "(unset — set 'Email column' in Settings)";
+    const dateCol = state.config.columns.date;
+    const datesInRange = dateCol ? rowsInTimeRange(state.rows, dateCol, timeRange(state.timeFilter.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd })).length : totalRows;
+    wrap.append(
+      el("div", { class: "muted", style: "font-size:12px;line-height:1.7" },
+        el("div", {}, `No matching rows.`),
+        el("div", {}, `Sheet rows total: ${totalRows}`),
+        el("div", {}, `Rows in time range: ${datesInRange} (date column: ${dateCol || "(unset)"})`),
+        el("div", {}, `Group-by column: ${groupColLabel}`),
+        totalRows > 0 && datesInRange === 0
+          ? el("div", { style: "color:var(--warn);margin-top:6px" }, "→ All rows fell outside the time range. Check that the Date column in Settings points to the actual date column.")
+          : null,
+      ),
+    );
+    node.append(wrap); return;
+  }
+  for (let i = 0; i < top.length; i++) {
+    const it = top[i];
+    const row = el("div", { class: "lb-row" + (i<3 ? " r"+(i+1) : "") });
+    const av = el("div", { class: "lb-avatar" }, initials(it.name || it.email));
+    // priority: custom uploaded photo → Gravatar → initials
+    const customPhoto = userPhotoUrl(it.email);
+    if (customPhoto) {
+      const im = new Image(); im.src = customPhoto;
+      im.onload = () => { av.innerHTML = ""; av.append(im); };
+    } else if (it.email) {
+      gravatar(it.email).then(url => {
+        if (!url) return;
+        const im = new Image(); im.src = url;
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      });
+    }
+    const valLabel = w.format === "money" ? fmtMoney(it.value) : fmtNum(it.value);
+    row.append(
+      el("div", { class: "lb-rank" }, "#" + (i+1)),
+      av,
+      el("div", { class: "lb-name" }, it.name),
+      el("div", { class: "lb-value" }, valLabel),
+    );
+    wrap.append(row);
+  }
+  node.append(wrap);
+}
+
+function renderChart(node, w, rows, range) {
+  const wrap = el("div", { class: "chart-wrap" });
+  const cv = el("canvas");
+  wrap.append(cv); node.append(wrap);
+  const tab = getWidgetTab(w);
+  const dateCol = tab?.dateCol || state.config.columns.date;
+  if (!dateCol) { node.append(el("div", { class: "muted" }, "No date column found in this tab.")); return; }
+  // bucket by day (or by month if range > 90 days)
+  const days = (range[1] - range[0]) / 86400000;
+  const bucketKind = days > 90 ? "month" : "day";
+  const buckets = new Map();
+  for (const r of rows) {
+    const d = toDate(r[dateCol]); if (!d) continue;
+    const key = bucketKind === "month"
+      ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(r);
+  }
+  const labels = Array.from(buckets.keys()).sort();
+  const data = labels.map(k => aggregate(buckets.get(k), w.agg, w.column));
+  const css = getComputedStyle(document.body);
+  const accent = css.getPropertyValue("--accent").trim() || "#38e1c2";
+  const txt = css.getPropertyValue("--text-dim").trim() || "#93a0c8";
+  const grid = css.getPropertyValue("--border").trim() || "#243056";
+  const ch = new Chart(cv, {
+    type: w.chartType === "bar" ? "bar" : "line",
+    data: { labels, datasets: [{
+      label: w.title, data, borderColor: accent, backgroundColor: accent + "33",
+      tension: 0.35, fill: true, pointRadius: 2, borderWidth: 2,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: txt }, grid: { color: grid } },
+        y: { ticks: { color: txt }, grid: { color: grid }, beginAtZero: true },
+      },
+    },
+  });
+  state.charts.set(w.id, ch);
+}
+
+/* Searchable value combobox for filter rows. Suggestions = the unique
+   values in the selected column, narrowed by what the user has typed. */
+function makeSearchableValueInput(filter, getColumn, getTabName) {
+  const wrap = el("div", { class: "value-combo" });
+  const input = el("input", { type: "text", placeholder: "value", autocomplete: "off", value: filter.value ?? "" });
+  const dropdown = el("div", { class: "value-dropdown", style: "display:none" });
+  let activeIdx = -1, currentMatches = [];
+
+  function renderMatches() {
+    const col = getColumn();
+    const tabName = getTabName ? getTabName() : null;
+    dropdown.innerHTML = "";
+    activeIdx = -1;
+    if (!col) {
+      dropdown.append(el("div", { class: "vd-empty" }, "Pick a column first to see suggestions."));
+      dropdown.style.display = "block";
+      return;
+    }
+    const all = uniqueValuesForColumn(col, tabName);
+    if (!all.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, "No values found in this column yet."));
+      dropdown.style.display = "block";
+      return;
+    }
+    const q = (input.value || "").toLowerCase();
+    const matches = q
+      ? all.filter(v => v.toLowerCase().includes(q)).slice(0, 100)
+      : all.slice(0, 100);
+    currentMatches = matches;
+    if (!matches.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, "No matches. Type a value above and press Enter to use it as-is."));
+      dropdown.style.display = "block";
+      return;
+    }
+    matches.forEach((v, i) => {
+      const it = el("div", { class: "vd-item", "data-idx": i }, v);
+      // optional: show occurrence count
+      it.addEventListener("mousedown", e => {
+        e.preventDefault(); // keep focus so blur doesn't fire first
+        input.value = v;
+        filter.value = v;
+        dropdown.style.display = "none";
+      });
+      dropdown.append(it);
+    });
+    if (q && all.length > matches.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, `Showing ${matches.length} of ${all.length} values · keep typing to narrow`));
+    } else if (all.length > matches.length) {
+      dropdown.append(el("div", { class: "vd-empty" }, `${matches.length} of ${all.length} values · type to filter`));
+    }
+    dropdown.style.display = "block";
+  }
+  function setActive(idx) {
+    $$(".vd-item", dropdown).forEach(n => n.classList.remove("active"));
+    if (idx >= 0 && idx < currentMatches.length) {
+      activeIdx = idx;
+      const node = dropdown.querySelector(`.vd-item[data-idx="${idx}"]`);
+      if (node) { node.classList.add("active"); node.scrollIntoView({ block: "nearest" }); }
+    }
+  }
+
+  input.addEventListener("focus", renderMatches);
+  input.addEventListener("input", () => { filter.value = input.value; renderMatches(); });
+  input.addEventListener("blur",  () => setTimeout(() => { dropdown.style.display = "none"; }, 180));
+  input.addEventListener("keydown", e => {
+    if (dropdown.style.display === "none") return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(Math.min(activeIdx + 1, currentMatches.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(Math.max(activeIdx - 1, 0)); }
+    else if (e.key === "Enter" && activeIdx >= 0) {
+      e.preventDefault();
+      const v = currentMatches[activeIdx];
+      input.value = v; filter.value = v; dropdown.style.display = "none";
+    } else if (e.key === "Escape") { dropdown.style.display = "none"; }
+  });
+
+  wrap.append(input, dropdown);
+  return { wrap, input };
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Widget editor modal
+   ════════════════════════════════════════════════════════════════════════ */
+function openWidgetModal(widgetId) {
+  const dash = currentDashboard();
+  if (!dash) return;
+  const isNew = !widgetId;
+  const w = isNew
+    ? { id: uid(), kind: "kpi", title: "New KPI", ...defaultSpan("kpi"), agg: "COUNT", column: "", filters: [] }
+    : JSON.parse(JSON.stringify(dash.widgets.find(x => x.id === widgetId)));
+
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal" });
+  m.append(
+    el("h3", {}, isNew ? "Add widget" : "Edit widget"),
+    el("div", { class: "modal-sub" }, "Pick a widget type, then choose what to measure and how to filter it."),
+  );
+
+  // type
+  m.append(el("label", {}, "Widget type"));
+  const kindSel = el("select");
+  [
+    ["kpi","KPI tile"],
+    ["goal","Goal / progress"],
+    ["pacing","Pacing (projected end of period)"],
+    ["leaderboard","Leaderboard"],
+    ["chart","Trend chart"],
+  ].forEach(([v,l]) => {
+    kindSel.append(el("option", { value: v, selected: w.kind === v ? "selected" : null }, l));
+  });
+  m.append(kindSel);
+
+  // body container — re-render when kind changes
+  const body = el("div");
+  m.append(body);
+
+  function renderBody() {
+    body.innerHTML = "";
+    body.append((() => {
+      const w1 = el("div");
+      w1.append(el("label", {}, "Title"));
+      const t = el("input", { type: "text", value: w.title || "" });
+      t.addEventListener("input", () => w.title = t.value);
+      w1.append(t);
+      w1.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "💡 Drag the bottom-right corner of any widget to resize it after saving."));
+      return w1;
+    })());
+
+    // Data source tab — defaults to dashboard's main data tab
+    body.append(el("label", {}, "Data tab (which sheet tab this widget pulls from)"));
+    const tabSel = el("select");
+    tabSel.append(el("option", { value: "" }, `(dashboard default — ${state.dataTab || "none"})`));
+    state.tabs
+      .filter(t => t.title !== CFG.CONFIG_TAB && t.title !== CFG.USERS_TAB)
+      .forEach(t => tabSel.append(el("option", { value: t.title, selected: w.dataTab === t.title ? "selected" : null }, t.title)));
+    tabSel.addEventListener("change", async () => {
+      w.dataTab = tabSel.value || null;
+      if (w.dataTab && !state.tabsData[w.dataTab]) {
+        // fetch the new tab's columns so the column dropdowns below populate
+        const tip = el("div", { class: "muted", style: "font-size:11px;margin-top:6px" }, `Loading columns from "${w.dataTab}"…`);
+        body.append(tip);
+        await ensureTabLoaded(w.dataTab);
+        tip.remove();
+      }
+      // reset column choices that may not exist on the new tab
+      const cols = getColumnsForWidget(w);
+      if (w.column && !cols.includes(w.column)) w.column = "";
+      if (w.groupBy && !cols.includes(w.groupBy)) w.groupBy = "";
+      (w.filters || []).forEach(f => { if (f.column && !cols.includes(f.column)) f.column = ""; });
+      renderBody();
+    });
+    body.append(tabSel);
+    body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+      "Pick a different tab to read this widget's data from a separate sheet — e.g. one widget on Sales Data, another on Call Logs."));
+
+    // Per-widget time period (not shown for pacing — pacing has its own period)
+    if (w.kind !== "pacing") {
+      body.append(el("label", {}, "Time period"));
+      const timeSel = el("select");
+      [
+        ["TODAY","Today"],["YESTERDAY","Yesterday"],
+        ["WEEK","This Week"],["LAST_WEEK","Last Week"],
+        ["MTD","MTD"],["QTD","QTD"],["YTD","YTD"],
+        ["ALL","All Time"],
+      ].forEach(([v,l]) => {
+        timeSel.append(el("option", { value: v, selected: (w.timeFilter || "MTD") === v ? "selected" : null }, l));
+      });
+      timeSel.addEventListener("change", () => w.timeFilter = timeSel.value);
+      body.append(timeSel);
+      body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "💡 This applies when the top filter is set to 'Auto (per widget)'. Selecting Today/MTD/etc. up there overrides every widget."));
+    }
+
+    // aggregation + column
+    body.append(el("div", { class: "row2" },
+      (() => { const c = el("div");
+        c.append(el("label", {}, "Aggregation"));
+        const a = el("select");
+        ["COUNT","COUNT_DISTINCT","SUM","AVG","MIN","MAX"].forEach(v => {
+          a.append(el("option", { value: v, selected: w.agg === v ? "selected" : null }, v.replace("_"," ")));
+        });
+        a.addEventListener("change", () => w.agg = a.value);
+        c.append(a); return c;
+      })(),
+      (() => { const c = el("div");
+        c.append(el("label", {}, "Column" + (w.kind === "leaderboard" || w.kind === "kpi" || w.kind==="goal" || w.kind==="chart" ? " (numeric for SUM/AVG/MIN/MAX)" : "")));
+        const a = el("select");
+        a.append(el("option", { value: "" }, "(none)"));
+        getColumnsForWidget(w).forEach(c2 => a.append(el("option", { value: c2, selected: w.column === c2 ? "selected" : null }, c2)));
+        a.addEventListener("change", () => w.column = a.value);
+        c.append(a); return c;
+      })(),
+    ));
+
+    // format
+    body.append(el("label", {}, "Number format"));
+    const fmt = el("select");
+    [["number","Number"],["money","Currency ($)"]].forEach(([v,l]) => {
+      fmt.append(el("option", { value: v, selected: (w.format||"number")===v ? "selected" : null }, l));
+    });
+    fmt.addEventListener("change", () => w.format = fmt.value);
+    body.append(fmt);
+
+    // kind-specific
+    if (w.kind === "goal") {
+      body.append(el("label", {}, "Target value"));
+      const t = el("input", { type: "number", value: w.target ?? "" });
+      t.addEventListener("input", () => w.target = parseFloat(t.value));
+      body.append(t);
+    }
+    if (w.kind === "pacing") {
+      body.append(el("div", { class: "row2" },
+        (() => { const c = el("div");
+          c.append(el("label", { style: "margin-top:0" }, "Pacing period"));
+          const a = el("select");
+          [["WTD","Weekly (this week)"],["MTD","Monthly (this month)"],["QTD","Quarterly (this quarter)"],["YTD","Yearly (this year)"]]
+            .forEach(([v,l]) => a.append(el("option", { value: v, selected: (w.period||"MTD")===v?"selected":null }, l)));
+          a.addEventListener("change", () => w.period = a.value);
+          c.append(a); return c;
+        })(),
+        (() => { const c = el("div");
+          c.append(el("label", { style: "margin-top:0" }, "Working days"));
+          const a = el("select");
+          [["true","Business days only (Mon-Fri)"],["false","All calendar days"]]
+            .forEach(([v,l]) => a.append(el("option", { value: v, selected: ((w.businessDaysOnly !== false) === (v === "true")) ? "selected" : null }, l)));
+          a.addEventListener("change", () => w.businessDaysOnly = a.value === "true");
+          c.append(a); return c;
+        })(),
+      ));
+      body.append(el("label", {}, "Target (optional)"));
+      const t = el("input", { type: "number", placeholder: "e.g. 1000000", value: w.target ?? "" });
+      t.addEventListener("input", () => w.target = t.value === "" ? null : parseFloat(t.value));
+      body.append(t);
+      body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "Projection = current value × (total days in period ÷ days elapsed). With business days on, weekends don't drag the projection down."));
+    }
+
+    // Color thresholds — KPI / goal / pacing widgets get a green/yellow/red tint
+    if (w.kind === "kpi" || w.kind === "goal" || w.kind === "pacing") {
+      body.append(el("label", {}, "Color thresholds (optional)"));
+      const dirRow = el("div", { class: "row2" });
+      const dirCell = el("div");
+      dirCell.append(el("label", { style: "margin-top:0" }, "Direction"));
+      const dirSel = el("select");
+      [["higher","Higher is better (sales, calls)"], ["lower","Lower is better (missed, errors)"]].forEach(([v,l]) => {
+        dirSel.append(el("option", { value: v, selected: (w.direction || "higher") === v ? "selected" : null }, l));
+      });
+      dirSel.addEventListener("change", () => w.direction = dirSel.value);
+      dirCell.append(dirSel);
+      dirRow.append(dirCell);
+      // empty cell to balance the grid
+      dirRow.append(el("div"));
+      body.append(dirRow);
+
+      const tRow = el("div", { class: "row2" });
+      const goodCell = el("div");
+      goodCell.append(el("label", { style: "margin-top:0" }, "🟢 Green at/beyond"));
+      const goodIn = el("input", { type: "number", step: "any", placeholder: "e.g. 10", value: w.thresholdGood ?? "" });
+      goodIn.addEventListener("input", () => w.thresholdGood = goodIn.value === "" ? null : parseFloat(goodIn.value));
+      goodCell.append(goodIn);
+      const warnCell = el("div");
+      warnCell.append(el("label", { style: "margin-top:0" }, "🟡 Yellow at/beyond"));
+      const warnIn = el("input", { type: "number", step: "any", placeholder: "e.g. 5", value: w.thresholdWarn ?? "" });
+      warnIn.addEventListener("input", () => w.thresholdWarn = warnIn.value === "" ? null : parseFloat(warnIn.value));
+      warnCell.append(warnIn);
+      tRow.append(goodCell, warnCell);
+      body.append(tRow);
+      body.append(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
+        "Below the yellow threshold = 🔴 red. Leave both blank to disable color thresholds."));
+    }
+    if (w.kind === "leaderboard") {
+      body.append(el("div", { class: "row2" },
+        (() => { const c = el("div");
+          c.append(el("label", {}, "Group by (default = email)"));
+          const a = el("select");
+          a.append(el("option", { value: "" }, "(default: email column)"));
+          getColumnsForWidget(w).forEach(c2 => a.append(el("option", { value: c2, selected: w.groupBy===c2 ? "selected" : null }, c2)));
+          a.addEventListener("change", () => w.groupBy = a.value);
+          c.append(a); return c;
+        })(),
+        (() => { const c = el("div");
+          c.append(el("label", {}, "Show top N"));
+          const i = el("input", { type: "number", value: w.limit || 10, min: "1", max: "100" });
+          i.addEventListener("input", () => w.limit = parseInt(i.value,10) || 10);
+          c.append(i); return c;
+        })(),
+      ));
+    }
+    if (w.kind === "chart") {
+      body.append(el("label", {}, "Chart type"));
+      const a = el("select");
+      [["line","Line"],["bar","Bar"]].forEach(([v,l]) => {
+        a.append(el("option", { value: v, selected: (w.chartType||"line")===v ? "selected" : null }, l));
+      });
+      a.addEventListener("change", () => w.chartType = a.value);
+      body.append(a);
+    }
+
+    // filters
+    body.append(el("label", {}, "Filters (mix AND/OR — AND binds tighter than OR)"));
+    const fwrap = el("div");
+    body.append(fwrap);
+    function renderFilters() {
+      fwrap.innerHTML = "";
+      (w.filters || []).forEach((f, idx) => {
+        const row = el("div", { class: "filter-row" });
+
+        // first row: "WHERE" label; subsequent rows: AND/OR selector
+        const combo = el("div", { class: "combinator-cell" });
+        if (idx === 0) {
+          combo.append(el("span", {}, "WHERE"));
+        } else {
+          const sel = el("select");
+          sel.append(el("option", { value: "AND", selected: (f.combinator || "AND") === "AND" ? "selected" : null }, "AND"));
+          sel.append(el("option", { value: "OR",  selected: f.combinator === "OR"  ? "selected" : null }, "OR"));
+          sel.addEventListener("change", () => { f.combinator = sel.value; });
+          combo.append(sel);
+        }
+
+        const cs = el("select");
+        cs.append(el("option", { value: "" }, "(column)"));
+        getColumnsForWidget(w).forEach(c2 => cs.append(el("option", { value: c2, selected: f.column === c2 ? "selected" : null }, c2)));
+        cs.addEventListener("change", () => { f.column = cs.value; });
+        const os = el("select");
+        OPERATORS.forEach(o => os.append(el("option", { value: o, selected: f.op === o ? "selected" : null }, o.replace(/_/g," "))));
+        os.addEventListener("change", () => { f.op = os.value; renderFilters(); });
+
+        // Searchable value input — pulls unique values from the widget's tab + selected column
+        const valueBox = makeSearchableValueInput(f, () => f.column, () => w.dataTab || state.dataTab);
+        if (["is_empty","not_empty"].includes(f.op)) valueBox.wrap.style.visibility = "hidden";
+
+        const rm = el("button", { onclick: () => { w.filters.splice(idx,1); renderFilters(); } }, "✕");
+        row.append(combo, cs, os, valueBox.wrap, rm);
+        fwrap.append(row);
+      });
+      const add = el("button", { class: "add-filter-btn", onclick: () => {
+        w.filters = w.filters || [];
+        w.filters.push({ combinator: "AND", column: "", op: "equals", value: "" });
+        renderFilters();
+      } }, "+ Add filter");
+      fwrap.append(add);
+    }
+    renderFilters();
+  }
+  kindSel.addEventListener("change", () => { w.kind = kindSel.value; renderBody(); });
+  renderBody();
+
+  m.append(el("div", { class: "actions" },
+    isNew ? null : el("button", { class: "icon-btn danger", onclick: () => { deleteWidget(w.id); back.remove(); } }, "Delete"),
+    (!isNew && (w.col || w.row)) ? el("button", { class: "icon-btn", title: "Clear the saved position so this widget auto-arranges with the others", onclick: async () => {
+      delete w.col; delete w.row;
+      const d = currentDashboard();
+      const idx = d.widgets.findIndex(x => x.id === w.id);
+      if (idx >= 0) d.widgets[idx] = w;
+      try { await saveConfig(state.config); renderDashboard(); back.remove(); }
+      catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "↺ Auto-position") : null,
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
+    el("button", { class: "icon-btn primary", onclick: async (ev) => {
+      const saveBtn = ev.currentTarget;
+      const originalLabel = saveBtn.textContent;
+      saveBtn.textContent = "Saving…"; saveBtn.disabled = true;
+      const d = currentDashboard();
+      // snapshot so we can roll back on failure
+      const before = JSON.parse(JSON.stringify(d.widgets));
+      if (isNew) d.widgets.push(w);
+      else {
+        const idx = d.widgets.findIndex(x => x.id === w.id);
+        d.widgets[idx] = w;
+      }
+      try {
+        await saveConfig(state.config);
+        toast("Saved", "ok");
+        renderDashboard();
+        back.remove();
+      } catch (e) {
+        // keep modal open so the user can re-try without losing what they typed
+        d.widgets = before;
+        saveBtn.textContent = originalLabel; saveBtn.disabled = false;
+        const err = el("div", { style: "background:rgba(239,68,68,.15);color:var(--danger);border:1px solid var(--danger);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;line-height:1.5" },
+          "⚠ Save failed: " + e.message + " — your changes are kept on this screen. Click Save again to retry.");
+        m.append(err);
+      }
+    } }, "Save"),
+  ));
+  back.append(m);
+  document.body.append(back);
+}
+
+async function deleteWidget(id) {
+  if (!confirm("Delete this widget?")) return;
+  const d = currentDashboard();
+  if (!d) return;
+  d.widgets = d.widgets.filter(w => w.id !== id);
+  try {
+    await saveConfig(state.config);
+    renderDashboard();
+  } catch (e) { toast("Delete failed: " + e.message, "err"); }
+}
+
+function detectEmailsInRows() {
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const seen = new Map(); // lowercased email -> { email, name }
+  const emailCol = state.config?.columns?.email;
+  const nameCol  = state.config?.columns?.name;
+
+  // 1. Configured email column — primary source
+  if (emailCol) {
+    for (const r of state.rows) {
+      const e = r[emailCol]; if (!e) continue;
+      const s = String(e).trim();
+      if (!EMAIL_RE.test(s)) continue;
+      const k = s.toLowerCase();
+      if (!seen.has(k)) seen.set(k, { email: s, name: nameCol ? (r[nameCol] || "") : "" });
+    }
+  }
+  // 2. Fallback — scan EVERY cell of EVERY row for anything that looks like an email.
+  //    Catches cases where the email column was never configured in Settings.
+  if (!seen.size) {
+    for (const r of state.rows) {
+      for (const col of state.columns) {
+        const v = r[col]; if (!v) continue;
+        const s = String(v).trim();
+        if (!EMAIL_RE.test(s)) continue;
+        const k = s.toLowerCase();
+        if (!seen.has(k)) seen.set(k, { email: s, name: nameCol ? (r[nameCol] || "") : "" });
+      }
+    }
+  }
+  return seen;
+}
+
+function openPeopleModal() {
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal", style: "max-width:720px" });
+  m.append(
+    el("h3", {}, "👤 People"),
+    el("div", { class: "modal-sub" }, "Upload a headshot or paste an image URL for each person. Display name overrides the name shown in the leaderboard. Stored in a hidden __plecto_users tab in the sheet so all viewers see the same photos."),
+  );
+
+  // Add-person inline form (always available, even if detection fails)
+  const addBox = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px" });
+  addBox.append(el("div", { style: "font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px" }, "Add a person"));
+  const emailIn = el("input", { type: "email", placeholder: "alton@temmeninsurance.com", style: "width:100%;padding:7px 10px;background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:6px" });
+  const nameIn  = el("input", { type: "text",  placeholder: "Display name (optional)",  style: "width:100%;padding:7px 10px;background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:6px" });
+  const addBtn = el("button", { class: "icon-btn primary", style: "padding:7px 14px", onclick: () => {
+    const e = (emailIn.value || "").trim().toLowerCase();
+    if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { toast("Enter a valid email address", "err"); return; }
+    state.users[e] = state.users[e] || { photoUrl: "", displayName: "" };
+    if (nameIn.value.trim()) state.users[e].displayName = nameIn.value.trim();
+    emailIn.value = ""; nameIn.value = "";
+    refreshList();
+    toast("Added — set a headshot below, then click Save", "ok");
+  } }, "+ Add");
+  addBox.append(emailIn, nameIn, addBtn);
+  m.append(addBox);
+
+  const search = el("input", { class: "people-search", type: "text", placeholder: "Search by name or email…" });
+  m.append(search);
+
+  const listWrap = el("div", { class: "people-list" });
+  m.append(listWrap);
+
+  // detected from data + already-saved profiles
+  let people = [];
+  function rebuildPeople() {
+    const seen = detectEmailsInRows();
+    for (const k of Object.keys(state.users)) {
+      if (!seen.has(k)) seen.set(k, { email: k, name: state.users[k].displayName || "" });
+    }
+    people = Array.from(seen.values()).sort((a,b) => (a.name||a.email).localeCompare(b.name||b.email));
+  }
+  rebuildPeople();
+
+  function makeRow(p) {
+    const k = p.email.toLowerCase();
+    const profile = state.users[k] || { photoUrl: "", displayName: "" };
+    const row = el("div", { class: "people-row" });
+
+    const av = el("div", { class: "pp-avatar" }, initials(profile.displayName || p.name || p.email));
+    if (profile.photoUrl) {
+      const im = new Image(); im.src = profile.photoUrl;
+      im.onload = () => { av.innerHTML = ""; av.append(im); };
+    } else if (p.email) {
+      gravatar(p.email).then(url => {
+        if (!url) return;
+        const im = new Image(); im.src = url;
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      });
+    }
+
+    const meta = el("div", { class: "pp-meta" });
+    const nameInput = el("input", { type: "text", value: profile.displayName || p.name || "", placeholder: "Display name" });
+    nameInput.addEventListener("input", () => {
+      state.users[k] = state.users[k] || { photoUrl: "", displayName: "" };
+      state.users[k].displayName = nameInput.value;
+    });
+    meta.append(nameInput, el("div", { class: "pp-email" }, p.email));
+
+    const actions = el("div", { class: "pp-actions" });
+
+    const fileInput = el("input", { type: "file", accept: "image/*", style: "display:none" });
+    fileInput.addEventListener("change", async () => {
+      const f = fileInput.files?.[0]; if (!f) return;
+      try {
+        const dataUrl = await resizeImageToDataUrl(f, 128, 0.82);
+        state.users[k] = state.users[k] || { displayName: "" };
+        state.users[k].photoUrl = dataUrl;
+        // refresh avatar
+        const im = new Image(); im.src = dataUrl;
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      } catch (e) { toast("Couldn't read image: " + e.message, "err"); }
+    });
+    const uploadBtn = el("button", { onclick: () => fileInput.click() }, "📤 Upload");
+    const urlBtn = el("button", { onclick: () => {
+      const url = prompt("Paste an image URL (must allow hotlinking):", profile.photoUrl || "");
+      if (url == null) return;
+      state.users[k] = state.users[k] || { displayName: "" };
+      state.users[k].photoUrl = url.trim();
+      if (url.trim()) {
+        const im = new Image(); im.src = url.trim();
+        im.onload = () => { av.innerHTML = ""; av.append(im); };
+      } else {
+        av.innerHTML = ""; av.textContent = initials(profile.displayName || p.name || p.email);
+      }
+    } }, "🔗 URL");
+    const clearBtn = el("button", { class: "danger", onclick: () => {
+      if (state.users[k]) {
+        state.users[k].photoUrl = "";
+        av.innerHTML = ""; av.textContent = initials(profile.displayName || p.name || p.email);
+        // re-try Gravatar
+        gravatar(p.email).then(url => {
+          if (!url) return;
+          const im = new Image(); im.src = url;
+          im.onload = () => { av.innerHTML = ""; av.append(im); };
+        });
+      }
+    } }, "Clear");
+    actions.append(uploadBtn, urlBtn, clearBtn, fileInput);
+
+    row.append(av, meta, actions);
+    return row;
+  }
+
+  function refreshList() {
+    rebuildPeople();
+    listWrap.innerHTML = "";
+    const q = search.value.toLowerCase().trim();
+    const filtered = q ? people.filter(p => (p.email + " " + p.name + " " + (state.users[p.email.toLowerCase()]?.displayName || "")).toLowerCase().includes(q)) : people;
+    if (!filtered.length) {
+      const msg = people.length
+        ? "No matches."
+        : (state.rows.length
+            ? `No emails detected in your sheet's data (scanned ${state.rows.length} rows). Use the "Add a person" box above to add people manually, or check that your Email column is set in Settings → Email column.`
+            : "Sheet data hasn't loaded yet. Use the Add a person box above to add people manually.");
+      listWrap.append(el("div", { class: "muted", style: "padding:20px;text-align:center;line-height:1.6" }, msg));
+      return;
+    }
+    filtered.forEach(p => listWrap.append(makeRow(p)));
+  }
+  search.addEventListener("input", refreshList);
+  refreshList();
+
+  m.append(el("div", { class: "actions" },
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      try {
+        await ensureUsersTab(state.sheetId);
+        await saveUsers();
+        toast("People saved", "ok");
+        renderDashboard();
+        back.remove();
+      } catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "Save"),
+  ));
+
+  back.append(m);
+  document.body.append(back);
+}
+
+function openSettingsModal() {
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal" });
+  m.append(
+    el("h3", {}, "Dashboard settings"),
+    el("div", { class: "modal-sub" }, "Sheet, data tab, and column mappings."),
+  );
+
+  m.append(el("label", {}, "Data tab"));
+  const tabSel = el("select");
+  state.tabs.filter(t => t.title !== CFG.CONFIG_TAB).forEach(t =>
+    tabSel.append(el("option", { value: t.title, selected: state.dataTab === t.title ? "selected" : null }, t.title)));
+  m.append(tabSel);
+
+  const cols = state.columns;
+  m.append(el("label", {}, "Date column"));
+  const dateSel = el("select");
+  cols.forEach(c => dateSel.append(el("option", { value: c, selected: state.config.columns.date === c ? "selected" : null }, c)));
+  m.append(dateSel);
+
+  m.append(el("label", {}, "Email column"));
+  const emailSel = el("select");
+  cols.forEach(c => emailSel.append(el("option", { value: c, selected: state.config.columns.email === c ? "selected" : null }, c)));
+  m.append(emailSel);
+
+  m.append(el("label", {}, "Name column (optional)"));
+  const nameSel = el("select");
+  nameSel.append(el("option", { value: "" }, "(none)"));
+  cols.forEach(c => nameSel.append(el("option", { value: c, selected: state.config.columns.name === c ? "selected" : null }, c)));
+  m.append(nameSel);
+
+  m.append(el("div", { class: "actions" },
+    el("button", { class: "icon-btn", onclick: () => { back.remove(); state.sheetId = null; localStorage.removeItem(LS.SHEET_ID); render(); } }, "Switch sheet"),
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Cancel"),
+    el("button", { class: "icon-btn primary", onclick: async () => {
+      const tabChanged = tabSel.value !== state.dataTab;
+      state.dataTab = tabSel.value;
+      state.config.dataTab = tabSel.value;
+      state.config.columns = { date: dateSel.value, email: emailSel.value, name: nameSel.value || null };
+      try {
+        await saveConfig(state.config);
+        if (tabChanged) await loadData(); else renderDashboard();
+        toast("Saved", "ok");
+        back.remove();
+      } catch (e) { toast("Save failed: " + e.message, "err"); }
+    } }, "Save"),
+  ));
+  back.append(m);
+  document.body.append(back);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Manual Save button
+   ════════════════════════════════════════════════════════════════════════ */
+function renderSaveButton() {
+  const s = state.saveState;
+  let label, cls;
+  if (s === "saving") { label = "Saving…";          cls = "s-saving"; }
+  else if (s === "saved")  { label = "✓ Saved";    cls = "s-saved"; }
+  else if (s === "error")  { label = "⚠ Save failed — click to retry"; cls = "s-error"; }
+  else { label = "💾 Save"; cls = "s-idle"; }
+  const btn = el("button", {
+    class: "save-btn " + cls,
+    title: s === "error"
+      ? "Last save failed — your changes are kept locally. Click to retry writing to the sheet."
+      : "Force-save the dashboard to the Google Sheet right now.",
+  }, label);
+  btn.addEventListener("click", () => forceSave());
+  return btn;
+}
+async function forceSave() {
+  if (!state.config) return;
+  if (state.saveState === "saving") return;  // already in flight
+  try {
+    await saveConfig(state.config);
+    toast("Dashboard saved", "ok");
+  } catch (e) {
+    toast("Save failed: " + e.message, "err");
+  }
+}
+
+// Block tab close / refresh while a save is in flight or just failed
+window.addEventListener("beforeunload", e => {
+  if (state.saveState === "saving" || state.saveState === "error") {
+    e.preventDefault();
+    e.returnValue = "";
+    return "";
+  }
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   Share link
+   ════════════════════════════════════════════════════════════════════════ */
+function copyShareLink() {
+  if (!state.sheetId) return;
+  let url = `${location.origin}${location.pathname}?sheet=${state.sheetId}`;
+  if (state.activeDashboardId) url += `&dashboard=${state.activeDashboardId}`;
+  navigator.clipboard.writeText(url).then(() => {
+    toast("Share link copied — opens this exact dashboard for anyone with Sheet access", "ok");
+  }).catch(() => {
+    prompt("Copy this URL:", url);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Theme
+   ════════════════════════════════════════════════════════════════════════ */
+function currentTheme() { return document.body.getAttribute("data-theme") || "dark"; }
+function setTheme(t) {
+  document.body.setAttribute("data-theme", t);
+  localStorage.setItem(LS.THEME, t);
+}
+function toggleTheme() {
+  setTheme(currentTheme() === "dark" ? "light" : "dark");
+  renderDashboard(); // re-render charts so they pick up new colors
+  renderTopbar();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Cast to TV (LG WebOS optimized — Miracast, Chromecast, TV browser)
+   ════════════════════════════════════════════════════════════════════════ */
+function openCastModal() {
+  const back = el("div", { class: "modal-back", onclick: e => { if (e.target === back) back.remove(); } });
+  const m = el("div", { class: "modal", style: "max-width:680px" });
+  const url = `${location.origin}${location.pathname}?sheet=${state.sheetId || ""}${state.activeDashboardId ? "&dashboard=" + state.activeDashboardId : ""}`;
+
+  m.append(
+    el("h3", {}, "📡 Cast to LG TV"),
+    el("div", { class: "modal-sub" },
+      "Chrome's ‘Cast tab' shows LG WebOS TVs as ",
+      el("i", {}, "'Available for specific video sites'"),
+      " because LG uses its own protocol (Miracast) instead of Google Cast — Chrome physically cannot push arbitrary web pages to them. That's a Google + LG platform decision, not something this app can override. But every LG WebOS TV supports Miracast, and Windows has a built-in Miracast sender — that's the 30-second setup below."),
+  );
+
+  // ─── PRIMARY: Miracast on Windows → LG WebOS ────────────────────
+  const opt1 = el("div", { style: "background:linear-gradient(135deg, rgba(56,225,194,.15), rgba(91,141,239,.10));border:2px solid var(--accent);border-radius:12px;padding:18px;margin-bottom:14px" });
+  opt1.append(
+    el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:12px" },
+      el("span", { style: "font-size:22px" }, "✅"),
+      el("div", { style: "font-weight:700;font-size:15px;color:var(--accent)" }, "Screen Share (Miracast) — DOES WORK, USE THIS"),
+    ),
+    el("div", { style: "font-size:12px;color:var(--text-dim);margin-bottom:10px" },
+      "Windows 10/11 sends. LG WebOS receives. No dongle. No sign-in on the TV. Nothing to install."),
+    el("ol", { style: "padding-left:20px;margin:0;line-height:1.9;font-size:13px" },
+      el("li", {}, el("b", {}, "On the LG remote:"), " press Home → find the ", el("b", { style: "color:var(--accent)" }, "Screen Share"), " app. (On some models it's under ", el("i", {}, "Device Connector → PC → Screen Share"), ".) Leave the 'Ready to connect' screen up on the TV."),
+      el("li", {}, el("b", {}, "On this PC:"), " press ", el("kbd", { style: "background:var(--bg-3);padding:2px 7px;border-radius:4px;border:1px solid var(--border);font-family:monospace;font-size:12px" }, "Win + K"),
+        " — Windows opens the ‘Cast' panel."),
+      el("li", {}, "Pick ", el("b", {}, "[LG] webOS TV UQ9000PUD"), " from the list. Approve the pairing prompt on the TV with the remote."),
+      el("li", {}, "Windows now mirrors the whole PC screen to the TV. Come back to this browser and click ", el("b", { style: "color:var(--accent)" }, "📺 TV"), " — the dashboard fills the whole screen, no scrollbars."),
+      el("li", {}, "To stop: press ", el("kbd", { style: "background:var(--bg-3);padding:2px 7px;border-radius:4px;border:1px solid var(--border);font-family:monospace;font-size:12px" }, "Win + K"), " again → Disconnect."),
+    ),
+    el("div", { style: "margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" },
+      el("button", { class: "icon-btn primary", onclick: () => {
+        try { window.location.href = "ms-actioncenter:"; } catch {}
+        toast("If nothing opened, press Win + K on your keyboard", "");
+      } }, "🎯 Try to open Windows Cast"),
+      el("span", { class: "muted", style: "font-size:11px" }, "…or just press Win + K"),
+    ),
+  );
+  m.append(opt1);
+
+  // ─── Fallback: Chromecast dongle ────────────────────────────────
+  const opt2 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
+  opt2.append(
+    el("div", { style: "font-weight:700;margin-bottom:6px" }, "Alt · Chromecast dongle plugged into the TV"),
+    el("div", { style: "font-size:12px;color:var(--text-dim);margin-bottom:10px" },
+      "If you plug a Chromecast into the LG's HDMI, or you have a TV with Chromecast Built-In (most LG WebOS TVs don't — that's why yours showed as ‘specific video sites'), Chrome tab-cast works fully."),
+  );
+  const chromecastBtn = el("button", { class: "icon-btn primary" }, "🔷 Open Chrome Cast picker");
+  chromecastBtn.addEventListener("click", startChromecast);
+  opt2.append(chromecastBtn);
+  m.append(opt2);
+
+  // ─── Fallback: TV's own browser ─────────────────────────────────
+  const opt3 = el("div", { style: "background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px" });
+  opt3.append(
+    el("div", { style: "font-weight:700;margin-bottom:6px" }, "Alt · Open on the TV's own Web Browser"),
+    el("div", { style: "font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:10px" },
+      "Home → Web Browser on the LG. Type this URL and sign in with a Google account that has sheet access. Awkward with a remote, but useful for a permanent installation once you bookmark it on the TV."),
+    (() => {
+      const urlBox = el("div", { style: "display:flex;gap:8px" });
+      const inp = el("input", { type: "text", value: url, readonly: "readonly",
+        style: "flex:1;padding:8px 10px;font-family:'SF Mono',Menlo,monospace;font-size:11px;background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:6px" });
+      inp.addEventListener("focus", () => inp.select());
+      const copyBtn = el("button", { class: "icon-btn", onclick: () => {
+        navigator.clipboard.writeText(url).then(() => toast("URL copied", "ok"));
+      } }, "Copy");
+      urlBox.append(inp, copyBtn);
+      return urlBox;
+    })(),
+  );
+  m.append(opt3);
+
+  m.append(el("div", { class: "actions" },
+    el("button", { class: "icon-btn", onclick: () => back.remove() }, "Close"),
+  ));
+
+  back.append(m);
+  document.body.append(back);
+}
+
+async function startChromecast() {
+  if (!("PresentationRequest" in window)) {
+    toast("Chrome Cast isn't available in this browser. Use Chrome or Edge, or fall back to Screen Share (option 1).", "err");
+    return;
+  }
+  const url = `${location.origin}${location.pathname}?sheet=${state.sheetId || ""}${state.activeDashboardId ? "&dashboard=" + state.activeDashboardId : ""}`;
+  const req = new PresentationRequest([url]);
+  try {
+    const conn = await req.start();
+    toast("Casting started — the TV will need to sign in with Google. Consider Miracast instead for zero-config.", "ok");
+    conn.addEventListener("close", () => toast("Cast ended", ""));
+  } catch (e) {
+    if (e.name === "NotFoundError") {
+      toast("No Chromecast device found on this network. Try Screen Share (option 1).", "err");
+    } else if (e.name === "NotAllowedError") {
+      /* user closed the picker — silent */
+    } else {
+      toast("Cast failed: " + e.message, "err");
+    }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TV mode — fullscreen, hide chrome, scale grid to fit viewport
+   ════════════════════════════════════════════════════════════════════════ */
+async function toggleTvMode() {
+  state.tvMode = !state.tvMode;
+  if (state.tvMode) {
+    try { await document.documentElement.requestFullscreen(); }
+    catch (e) { /* browser blocked — still show TV layout even without native fullscreen */ }
+    startTvClock();
+  } else {
+    if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch {} }
+    stopTvClock();
+  }
+  render();
+  requestAnimationFrame(fitTvGrid);
+}
+function fitTvGrid() {
+  if (!state.tvMode) return;
+  const grid  = document.querySelector(".app-shell.tv-mode .grid");
+  const stage = document.querySelector(".app-shell.tv-mode .stage");
+  if (!grid || !stage) return;
+  // Reset before measuring so we get the natural size
+  grid.style.transform = "";
+  grid.style.width = "";
+  const naturalW = grid.scrollWidth  || 1;
+  const naturalH = grid.scrollHeight || 1;
+  const availW = stage.clientWidth  - 4;
+  const availH = stage.clientHeight - 4;
+  const scale = Math.min(availW / naturalW, availH / naturalH);
+  grid.style.transform = `scale(${scale})`;
+  // Compensate width so the scaled element still occupies its box's flex slot cleanly
+  grid.style.width = (100 / scale) + "%";
+}
+window.addEventListener("resize", () => { if (state.tvMode) fitTvGrid(); });
+document.addEventListener("fullscreenchange", () => {
+  // If the user pressed Esc, browser drops fullscreen — mirror that to state
+  if (!document.fullscreenElement && state.tvMode) {
+    state.tvMode = false;
+    stopTvClock();
+    render();
+  }
+});
+function startTvClock() {
+  stopTvClock();
+  state.tvClockTimer = setInterval(() => {
+    const c = document.querySelector(".tv-clock");
+    if (c) c.textContent = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }, 15000);
+}
+function stopTvClock() {
+  clearInterval(state.tvClockTimer);
+  state.tvClockTimer = null;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Boot / refresh loop
+   ════════════════════════════════════════════════════════════════════════ */
+function startAutoRefresh() {
+  clearInterval(state.refreshTimer);
+  state.refreshTimer = setInterval(() => {
+    if (tokenValid() && state.sheetId && state.dataTab) loadData();
+  }, CFG.REFRESH_MS);
+}
+
+async function boot() {
+  setTheme(localStorage.getItem(LS.THEME) || "dark");
+  state.sidebarCollapsed = localStorage.getItem(LS.SIDEBAR) === "1";
+
+  // ?sheet=<id>&dashboard=<id> URL params
+  const params = new URLSearchParams(location.search);
+  const urlDashId = params.get("dashboard");
+  const urlSheetId = parseSheetId(params.get("sheet") || "");
+  const savedSheetId = urlSheetId || localStorage.getItem(LS.SHEET_ID);
+  if (urlSheetId) localStorage.setItem(LS.SHEET_ID, urlSheetId);
+
+  // STEP 1 — restore from cache IMMEDIATELY (no network) so the dashboard appears instantly
+  // even before sign-in. We only need a token to fetch fresh data, not to show the layout.
+  if (savedSheetId) {
+    state.sheetId = savedSheetId;
+    state.sheetTitle = readCachedSheetTitle(savedSheetId);
+    const cached = readCachedConfig(savedSheetId);
+    if (cached) {
+      state.config = cached;
+      state.dataTab = cached.dataTab;
+    }
+    // active dashboard preference: URL param > localStorage > first
+    const stored = localStorage.getItem(LS.ACTIVE_DASH(savedSheetId));
+    state.activeDashboardId = urlDashId || stored || null;
+  }
+
+  // STEP 2 — if not signed in, show login (cached dashboard will be re-rendered after sign-in)
+  if (!loadStoredAuth()) { render(); return; }
+  if (!state.user?.email) await fetchUserEmail();
+
+  // Render the cached dashboard NOW so the user sees something while we fetch live data
+  render();
+
+  // STEP 3 — sync with the sheet in the background (won't blow away cached state on errors)
+  if (savedSheetId) {
+    try {
+      const meta = await fetchSheetMeta(savedSheetId);
+      state.sheetTitle = meta.title;
+      state.tabs = meta.tabs;
+      writeCachedSheetTitle(savedSheetId, meta.title);
+      await ensureConfigTab(savedSheetId);
+      const cfg = await loadConfig();
+      if (cfg) {
+        state.config = cfg;
+        state.dataTab = cfg.dataTab;
+      }
+      // Load user profiles in parallel with data — non-fatal if it fails
+      loadUsers().catch(e => console.warn("[plecto] loadUsers:", e.message));
+      if (state.dataTab) {
+        await loadData();
+        startAutoRefresh();
+      }
+      render();
+    } catch (e) {
+      console.warn("[plecto] background sync failed:", e.message);
+      // 401 → token expired during refresh. Don't sign out / wipe state.
+      // Just clear the token so the user can sign in again, KEEPING cached config visible.
+      if (String(e.message).includes("401")) {
+        state.token = null; state.tokenExp = 0;
+        localStorage.removeItem(LS.TOKEN);
+        localStorage.removeItem(LS.TOKEN_EXP);
+        toast("Session expired — sign in again to refresh data", "err");
+        renderTopbar();
+      }
+    }
+  }
+}
+
+window.addEventListener("DOMContentLoaded", boot);
+// Re-init token client once GIS script has loaded
+const gsiPoll = setInterval(() => {
+  if (window.google?.accounts?.oauth2) { clearInterval(gsiPoll); initTokenClient(); }
+}, 200);
+</script>
+
+</body>
+</html>
