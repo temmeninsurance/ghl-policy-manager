@@ -250,8 +250,15 @@
     box-shadow: 0 4px 12px rgba(0,0,0,.3);
   }
   @media (max-width: 700px) {
-    /* on phones, force every widget to full width but keep custom row heights */
-    .widget { grid-column: 1 / -1 !important; }
+    /* Phones — every widget full-width, auto-height so tall configs don't cram */
+    .stage { padding: 10px; }
+    .grid { grid-auto-rows: auto; gap: 10px; }
+    .widget {
+      grid-column: 1 / -1 !important;
+      grid-row: auto !important;
+      min-height: 180px;
+    }
+    .widget.kind-leaderboard { min-height: 320px; }
   }
 
   /* KPI tile */
@@ -549,9 +556,68 @@
   .sidebar.collapsed .sb-name, .sidebar.collapsed .sb-actions, .sidebar.collapsed .sb-new { display: none; }
   .sidebar.collapsed .sb-item { justify-content: center; padding: 9px 4px; }
 
-  @media (max-width: 700px) {
-    .sidebar { width: 100%; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+  /* Sidebar becomes a slide-in drawer on phones */
+  .hamburger { display: none; }
+  .sidebar-backdrop { display: none; }
+  @media (max-width: 768px) {
+    .hamburger {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: transparent; color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; font-size: 18px; cursor: pointer;
+      line-height: 1;
+    }
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: 260px; max-width: 82vw; z-index: 200;
+      transform: translateX(-105%);
+      transition: transform .22s ease;
+      box-shadow: 6px 0 32px rgba(0,0,0,.55);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar.collapsed { width: 260px; }   /* ignore desktop collapse on mobile */
+    .sidebar-backdrop {
+      display: block; position: fixed; inset: 0; z-index: 190;
+      background: rgba(0,0,0,.5);
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .sidebar-backdrop.show { opacity: 1; pointer-events: auto; }
     .app-body { flex-direction: column; }
+    /* Topbar: tighter padding, allow wrap, hide secondary text */
+    .topbar { padding: 8px 10px; gap: 6px; flex-wrap: wrap; }
+    .topbar .meta { display: none; }
+    .topbar .icon-btn { padding: 6px 9px; font-size: 11px; min-height: 34px; }
+    .topbar .save-btn { padding: 6px 10px; font-size: 11px; min-height: 34px; }
+    /* Filter bar: horizontal scroll instead of wrap so it stays one line */
+    .filterbar {
+      padding: 8px 10px; gap: 6px;
+      overflow-x: auto; flex-wrap: nowrap;
+      scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .filterbar::-webkit-scrollbar { display: none; }
+    .filterbar .chip { flex-shrink: 0; }
+    /* Modals: full-screen on phones for legibility */
+    .modal-back { padding: 0; }
+    .modal { max-width: 100vw !important; max-height: 100vh; border-radius: 0; padding: 18px; }
+    .modal .row2, .modal .row3 { grid-template-columns: 1fr; }
+    .filter-row { grid-template-columns: 60px 1fr 1fr 28px; gap: 6px; }
+    .filter-row input, .filter-row select { font-size: 12px; padding: 8px; }
+    /* Kill drag cursors on widgets — they're touch-move now */
+    .widget { cursor: default; }
+    .widget:hover .w-actions { display: none; }  /* always-visible on tap-only devices */
+    .widget .w-actions { display: flex; }
+    .resize-handle { opacity: .5; }  /* always faintly visible */
+    /* Filter row on very narrow: stack the value input beneath */
+  }
+  @media (max-width: 420px) {
+    .filter-row {
+      grid-template-columns: 1fr 28px;
+      grid-auto-flow: row dense;
+    }
+    .filter-row .combinator-cell,
+    .filter-row select:nth-of-type(1),
+    .filter-row select:nth-of-type(2),
+    .filter-row .value-combo { grid-column: 1; }
+    .filter-row button { grid-column: 2; grid-row: 1 / span 4; align-self: start; margin-top: 4px; }
   }
 
   /* Big Save button in topbar — state-aware */
@@ -743,6 +809,7 @@ const state = {
   users: {},         // lowercase email -> { photoUrl, displayName }
   activeDashboardId: null, // per-user, persisted in localStorage
   sidebarCollapsed: false,
+  mobileSidebarOpen: false,
   tvMode: false,
   tvClockTimer: null,
 };
@@ -777,6 +844,7 @@ function currentDashboard() {
 function setActiveDashboard(id) {
   state.activeDashboardId = id;
   if (state.sheetId) localStorage.setItem(LS.ACTIVE_DASH(state.sheetId), id);
+  state.mobileSidebarOpen = false; // auto-close mobile drawer after selecting a dashboard
   render();
 }
 
@@ -1571,6 +1639,12 @@ function render() {
   shell.append(renderTopbar());
   const body = el("div", { class: "app-body" });
   body.append(renderSidebar());
+  // Mobile drawer backdrop — tap to close
+  const backdrop = el("div", {
+    class: "sidebar-backdrop" + (state.mobileSidebarOpen ? " show" : ""),
+    onclick: () => { state.mobileSidebarOpen = false; render(); },
+  });
+  body.append(backdrop);
   const main = el("div", { class: "main" });
   main.append(renderFilterbar());
   const stage = el("div", { class: "stage", id: "stage" });
@@ -1608,6 +1682,14 @@ function renderTopbar() {
   const existing = $(".topbar");
   if (existing) existing.remove();
   const bar = el("div", { class: "topbar" });
+  // Hamburger (mobile only via CSS) — opens the sidebar drawer
+  if (state.config) {
+    const burger = el("button", { class: "hamburger", title: "Menu", onclick: () => {
+      state.mobileSidebarOpen = !state.mobileSidebarOpen;
+      render();
+    } }, "☰");
+    bar.append(burger);
+  }
   bar.append(
     el("div", { class: "brand" },
       el("span", { class: "brand-dot" }),
@@ -1840,7 +1922,9 @@ function renderFilterbar() {
 
 function renderSidebar() {
   const collapsed = state.sidebarCollapsed;
-  const sb = el("aside", { class: "sidebar" + (collapsed ? " collapsed" : "") });
+  const sb = el("aside", {
+    class: "sidebar" + (collapsed ? " collapsed" : "") + (state.mobileSidebarOpen ? " open" : ""),
+  });
   const hdr = el("div", { class: "sidebar-hdr" });
   hdr.append(el("span", {}, "Dashboards"));
   const hdrActions = el("div", { style: "display:flex;gap:2px" });
