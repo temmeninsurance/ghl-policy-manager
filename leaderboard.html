@@ -703,6 +703,7 @@
   .app-shell.tv-mode .lb-avatar { width: 60px; height: 60px; font-size: 22px; }
   .app-shell.tv-mode .lb-name   { font-size: 26px; }
   .app-shell.tv-mode .lb-value  { font-size: 30px; }
+  .app-shell.tv-mode .lb-total  { font-size: 24px !important; }
   .app-shell.tv-mode .widget    { padding: 20px; }
 
   /* tiny helper */
@@ -2110,26 +2111,18 @@ function renderWidget(w) {
     ? timeRange(effective.kind, { start: state.timeFilter.customStart, end: state.timeFilter.customEnd })
     : null;
 
-  const titleRow = el("div", { class: "w-title", style: "display:flex;justify-content:space-between;align-items:center;gap:8px" });
-  titleRow.append(el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, w.title || w.kind));
-  const periodLabel = isPacing
-    ? "Pacing · " + timeFilterLabel(w.period || "MTD") + (w.businessDaysOnly !== false ? " (business days)" : "")
-    : timeFilterLabel(effective.kind);
-  titleRow.append(el("span", {
-    style: "font-size:10px;color:" + (isPacing ? "var(--accent-2)" : (state.timeFilter.kind === "AUTO" ? "var(--text-faint)" : "var(--accent)")) + ";font-weight:600;letter-spacing:.4px;flex-shrink:0",
-    title: isPacing ? "Projects end-of-period based on current pace" : (state.timeFilter.kind === "AUTO" ? "This widget's saved time period" : "Overridden by global filter"),
-  }, periodLabel));
-  node.append(titleRow);
-
-  const body = el("div", { class: "w-body" });
-  node.append(body);
-
+  // Resolve tab + filtered rows FIRST so leaderboard widgets can show a
+  // total-of-filter in the title bar.
   const tab = getWidgetTab(w);
   const widgetRows = tab?.rows || [];
   const dateCol = tab?.dateCol || state.config.columns.date;
-  // If widget references a tab we haven't loaded yet, kick off a load and bail
+
+  // If widget references a tab we haven't loaded yet, show a stub and bail
   if (w.dataTab && !state.tabsData[w.dataTab]) {
+    node.append(el("div", { class: "w-title" }, w.title || w.kind));
+    const body = el("div", { class: "w-body" });
     body.append(el("div", { class: "muted", style: "padding:18px" }, `Loading "${w.dataTab}"…`));
+    node.append(body);
     ensureTabLoaded(w.dataTab).then(() => renderDashboard());
     return node;
   }
@@ -2137,6 +2130,33 @@ function renderWidget(w) {
   const inRange = !isPacing
     ? rowsInTimeRange(widgetRows, dateCol, range).filter(r => rowMatchesAll(r, w.filters))
     : [];
+
+  const titleRow = el("div", { class: "w-title", style: "display:flex;justify-content:space-between;align-items:center;gap:10px" });
+  titleRow.append(el("span", { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, w.title || w.kind));
+  const periodLabel = isPacing
+    ? "Pacing · " + timeFilterLabel(w.period || "MTD") + (w.businessDaysOnly !== false ? " (business days)" : "")
+    : timeFilterLabel(effective.kind);
+
+  const rightSide = el("div", { style: "display:flex;align-items:center;gap:10px;flex-shrink:0" });
+  // Leaderboards: show the aggregate total of the filtered rows in the corner
+  if (w.kind === "leaderboard") {
+    const total = aggregate(inRange, w.agg, w.column);
+    const totalLabel = w.format === "money" ? fmtMoney(total) : fmtNum(total);
+    rightSide.append(el("span", {
+      class: "lb-total",
+      style: "font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.2px",
+      title: `Total of the filter across ${inRange.length} row${inRange.length === 1 ? "" : "s"} (${w.agg || "COUNT"}${w.column ? " of " + w.column : ""})`,
+    }, totalLabel));
+  }
+  rightSide.append(el("span", {
+    style: "font-size:10px;color:" + (isPacing ? "var(--accent-2)" : (state.timeFilter.kind === "AUTO" ? "var(--text-faint)" : "var(--accent)")) + ";font-weight:600;letter-spacing:.4px",
+    title: isPacing ? "Projects end-of-period based on current pace" : (state.timeFilter.kind === "AUTO" ? "This widget's saved time period" : "Overridden by global filter"),
+  }, periodLabel));
+  titleRow.append(rightSide);
+  node.append(titleRow);
+
+  const body = el("div", { class: "w-body" });
+  node.append(body);
 
   // Apply threshold-based color tier
   if (w.kind === "kpi" || w.kind === "goal") {
