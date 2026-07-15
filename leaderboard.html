@@ -1019,6 +1019,44 @@ function loadStoredAuth() {
   return false;
 }
 
+/* Silent re-auth via GIS `prompt: "none"`. Succeeds if the user's Google
+   session is still active AND they previously granted this app access.
+   Used to survive the 5-minute page reload past the 1-hour access-token
+   expiry without kicking the user back to the sign-in screen. */
+async function attemptSilentAuth() {
+  const gisReady = await new Promise(res => {
+    if (window.google?.accounts?.oauth2) return res(true);
+    const start = Date.now();
+    const iv = setInterval(() => {
+      if (window.google?.accounts?.oauth2) { clearInterval(iv); res(true); }
+      else if (Date.now() - start > 4000)  { clearInterval(iv); res(false); }
+    }, 80);
+  });
+  if (!gisReady || CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) return false;
+  return new Promise(resolve => {
+    let done = false;
+    const finish = ok => { if (done) return; done = true; resolve(ok); };
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CFG.OAUTH_CLIENT_ID,
+      scope: CFG.SCOPES,
+      callback: resp => {
+        if (resp.error || !resp.access_token) { console.warn("[plecto] silent auth:", resp.error); return finish(false); }
+        state.token = resp.access_token;
+        state.tokenExp = Date.now() + (resp.expires_in - 60) * 1000;
+        localStorage.setItem(LS.TOKEN, state.token);
+        localStorage.setItem(LS.TOKEN_EXP, String(state.tokenExp));
+        console.log("[plecto] silent auth succeeded");
+        finish(true);
+      },
+      error_callback: err => { console.warn("[plecto] silent auth error:", err?.type || err); finish(false); },
+    });
+    state.tokenClient = client;   // reuse for signIn / signOut / switchAccount
+    try { client.requestAccessToken({ prompt: "none" }); }
+    catch (e) { console.warn("[plecto] silent auth threw:", e); finish(false); }
+    setTimeout(() => finish(false), 6000); // safety timeout
+  });
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    Sheets API
    ════════════════════════════════════════════════════════════════════════ */
@@ -3405,8 +3443,17 @@ async function boot() {
     state.activeDashboardId = urlDashId || stored || null;
   }
 
-  // STEP 2 — if not signed in, show login (cached dashboard will be re-rendered after sign-in)
-  if (!loadStoredAuth()) { render(); return; }
+  // STEP 2 — auth. Try stored token → silent GIS re-auth → login screen.
+  // Silent re-auth is what lets the 5-minute page reload survive past the
+  // 1-hour access-token expiry without kicking the user back to sign-in.
+  if (!loadStoredAuth()) {
+    if (savedSheetId) {
+      const silent = await attemptSilentAuth();
+      if (!silent) { render(); return; }
+    } else {
+      render(); return;
+    }
+  }
   if (!state.user?.email) await fetchUserEmail();
 
   // Render the cached dashboard NOW so the user sees something while we fetch live data
