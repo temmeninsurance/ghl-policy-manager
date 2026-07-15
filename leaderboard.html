@@ -51,6 +51,11 @@
     // How often to re-pull sheet data (ms)
     REFRESH_MS: 60_000,
 
+    // How often to do a full page reload — protects against stale JS state,
+    // expired tokens, memory leaks, silent code updates. Skipped while a
+    // modal / drag / save is in flight.
+    PAGE_RELOAD_MS: 5 * 60_000,
+
     // Tab name used to store dashboard config inside the sheet
     CONFIG_TAB: "__plecto_config",
 
@@ -801,6 +806,7 @@ const state = {
   // "AUTO" = use each widget's own setting; anything else overrides every widget
   timeFilter: { kind: "AUTO", customStart: null, customEnd: null },
   refreshTimer: null,
+  pageReloadTimer: null,
   loading: false,
   lastFetched: null,
   charts: new Map(), // widgetId -> Chart instance
@@ -3350,6 +3356,27 @@ function startAutoRefresh() {
   state.refreshTimer = setInterval(() => {
     if (tokenValid() && state.sheetId && state.dataTab) loadData();
   }, CFG.REFRESH_MS);
+  startPageReloadTimer();
+}
+
+/* Full-page reload every PAGE_RELOAD_MS. Skipped while an editing UI is
+   open so we never nuke half-finished work. Also skips if the user has
+   interacted with the page in the last 30s. */
+let _lastInteractionAt = Date.now();
+["mousedown","keydown","touchstart"].forEach(ev =>
+  window.addEventListener(ev, () => { _lastInteractionAt = Date.now(); }, { capture: true, passive: true }));
+
+function startPageReloadTimer() {
+  clearInterval(state.pageReloadTimer);
+  state.pageReloadTimer = setInterval(() => {
+    // Defer if the user is clearly mid-task
+    if (document.querySelector(".modal-back"))                   return;
+    if (state.saveState === "saving" || state.saveState === "error") return;
+    if (document.querySelector(".widget.dragging, .widget.resizing")) return;
+    if (Date.now() - _lastInteractionAt < 30_000)                 return;
+    console.log("[plecto] scheduled full-page reload");
+    location.reload();
+  }, CFG.PAGE_RELOAD_MS);
 }
 
 async function boot() {
