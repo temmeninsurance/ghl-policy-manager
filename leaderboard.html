@@ -807,6 +807,7 @@ const state = {
   timeFilter: { kind: "AUTO", customStart: null, customEnd: null },
   refreshTimer: null,
   pageReloadTimer: null,
+  tokenRefreshTimer: null,
   loading: false,
   lastFetched: null,
   charts: new Map(), // widgetId -> Chart instance
@@ -956,6 +957,7 @@ function initTokenClient() {
       state.tokenExp = Date.now() + (resp.expires_in - 60) * 1000;
       localStorage.setItem(LS.TOKEN, state.token);
       localStorage.setItem(LS.TOKEN_EXP, String(state.tokenExp));
+      scheduleTokenRefresh();     // start the proactive refresh loop
       // try to get email via userinfo
       fetchUserEmail().then(() => boot());
     },
@@ -1021,50 +1023,76 @@ function loadStoredAuth() {
 
 /* Silent re-auth via GIS `prompt: "none"`. Succeeds if the user's Google
    session is still active AND they previously granted this app access.
-   Used to survive the 5-minute page reload past the 1-hour access-token
-   expiry without kicking the user back to the sign-in screen. */
+   Used to survive page reloads and the 1-hour access-token expiry
+   without kicking the user back to the sign-in screen. */
+let _silentAuthInFlight = null;
 async function attemptSilentAuth() {
-  const gisReady = await new Promise(res => {
-    if (window.google?.accounts?.oauth2) return res(true);
-    const start = Date.now();
-    const iv = setInterval(() => {
-      if (window.google?.accounts?.oauth2) { clearInterval(iv); res(true); }
-      else if (Date.now() - start > 4000)  { clearInterval(iv); res(false); }
-    }, 80);
-  });
-  if (!gisReady || CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) return false;
-  return new Promise(resolve => {
-    let done = false;
-    const finish = ok => { if (done) return; done = true; resolve(ok); };
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CFG.OAUTH_CLIENT_ID,
-      scope: CFG.SCOPES,
-      callback: resp => {
-        if (resp.error || !resp.access_token) { console.warn("[plecto] silent auth:", resp.error); return finish(false); }
-        state.token = resp.access_token;
-        state.tokenExp = Date.now() + (resp.expires_in - 60) * 1000;
-        localStorage.setItem(LS.TOKEN, state.token);
-        localStorage.setItem(LS.TOKEN_EXP, String(state.tokenExp));
-        console.log("[plecto] silent auth succeeded");
-        finish(true);
-      },
-      error_callback: err => { console.warn("[plecto] silent auth error:", err?.type || err); finish(false); },
+  if (_silentAuthInFlight) return _silentAuthInFlight; // coalesce concurrent calls
+  _silentAuthInFlight = (async () => {
+    const gisReady = await new Promise(res => {
+      if (window.google?.accounts?.oauth2) return res(true);
+      const start = Date.now();
+      const iv = setInterval(() => {
+        if (window.google?.accounts?.oauth2) { clearInterval(iv); res(true); }
+        else if (Date.now() - start > 4000)  { clearInterval(iv); res(false); }
+      }, 80);
     });
-    state.tokenClient = client;   // reuse for signIn / signOut / switchAccount
-    try { client.requestAccessToken({ prompt: "none" }); }
-    catch (e) { console.warn("[plecto] silent auth threw:", e); finish(false); }
-    setTimeout(() => finish(false), 6000); // safety timeout
-  });
+    if (!gisReady || CFG.OAUTH_CLIENT_ID.startsWith("PASTE_")) return false;
+    return new Promise(resolve => {
+      let done = false;
+      const finish = ok => { if (done) return; done = true; resolve(ok); };
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: CFG.OAUTH_CLIENT_ID,
+        scope: CFG.SCOPES,
+        callback: resp => {
+          if (resp.error || !resp.access_token) { console.warn("[plecto] silent auth:", resp.error); return finish(false); }
+          state.token = resp.access_token;
+          state.tokenExp = Date.now() + (resp.expires_in - 60) * 1000;
+          localStorage.setItem(LS.TOKEN, state.token);
+          localStorage.setItem(LS.TOKEN_EXP, String(state.tokenExp));
+          console.log("[plecto] silent auth succeeded, next refresh in ~55 min");
+          scheduleTokenRefresh();
+          finish(true);
+        },
+        error_callback: err => { console.warn("[plecto] silent auth error:", err?.type || err); finish(false); },
+      });
+      state.tokenClient = client;   // reuse for signIn / signOut / switchAccount
+      try { client.requestAccessToken({ prompt: "none" }); }
+      catch (e) { console.warn("[plecto] silent auth threw:", e); finish(false); }
+      setTimeout(() => finish(false), 6000); // safety timeout
+    });
+  })();
+  try { return await _silentAuthInFlight; }
+  finally { _silentAuthInFlight = null; }
+}
+
+/* Proactively refresh the token ~5 min before it expires so day-long
+   sessions never hit an expired-token API call. If the silent refresh
+   fails, retry every 60s until it works — Google's session usually
+   comes back once a transient network / auth blip clears. */
+function scheduleTokenRefresh() {
+  clearTimeout(state.tokenRefreshTimer);
+  const marginMs   = 5 * 60_000;
+  const timeToExp  = state.tokenExp - Date.now();
+  const delay      = Math.max(30_000, timeToExp - marginMs);
+  state.tokenRefreshTimer = setTimeout(async () => {
+    const ok = await attemptSilentAuth();
+    if (!ok) {
+      // Retry every minute so an always-on TV recovers automatically
+      state.tokenRefreshTimer = setTimeout(scheduleTokenRefresh, 60_000);
+    }
+    // On success, scheduleTokenRefresh is already re-called from inside attemptSilentAuth
+  }, delay);
 }
 
 /* ════════════════════════════════════════════════════════════════════════
    Sheets API
    ════════════════════════════════════════════════════════════════════════ */
-async function api(path, opts={}) {
+async function api(path, opts={}, _retry = false) {
+  // Proactively refresh if token is missing/expired — don't sign out, just try silent auth
   if (!tokenValid()) {
-    toast("Session expired — sign in again", "err");
-    signOut();
-    throw new Error("token expired");
+    const ok = await attemptSilentAuth();
+    if (!ok) throw new Error("Sheets API 401: session expired — sign in again");
   }
   const r = await fetch(SHEETS_API + path, {
     ...opts,
@@ -1074,6 +1102,11 @@ async function api(path, opts={}) {
       ...(opts.headers || {}),
     },
   });
+  // 401 = token rejected (revoked / clock skew / edge case). Try one silent refresh then retry.
+  if (r.status === 401 && !_retry) {
+    const ok = await attemptSilentAuth();
+    if (ok) return api(path, opts, true);
+  }
   if (!r.ok) {
     const txt = await r.text();
     throw new Error(`Sheets API ${r.status}: ${txt.slice(0, 200)}`);
@@ -3454,6 +3487,7 @@ async function boot() {
       render(); return;
     }
   }
+  scheduleTokenRefresh();  // proactively refresh 5 min before expiry, forever
   if (!state.user?.email) await fetchUserEmail();
 
   // Render the cached dashboard NOW so the user sees something while we fetch live data
