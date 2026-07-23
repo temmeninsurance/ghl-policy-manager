@@ -1085,6 +1085,27 @@ function scheduleTokenRefresh() {
   }, delay);
 }
 
+/* Background recovery loop — kicks in when silent auth fails on boot and
+   we're showing the cached dashboard. Keeps retrying every 30 seconds
+   forever. When it succeeds, kicks off data refresh + normal timers. */
+function startSilentAuthRecovery() {
+  clearTimeout(state.tokenRefreshTimer);
+  const attempt = async () => {
+    if (tokenValid()) return; // already recovered by some other path
+    const ok = await attemptSilentAuth();
+    if (ok) {
+      console.log("[plecto] recovered from stale session");
+      const banner = document.getElementById("reconnect-banner");
+      if (banner) banner.remove();
+      if (state.dataTab) { loadData(); startAutoRefresh(); }
+      renderTopbar();
+    } else {
+      state.tokenRefreshTimer = setTimeout(attempt, 30_000);
+    }
+  };
+  attempt();
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    Sheets API
    ════════════════════════════════════════════════════════════════════════ */
@@ -1688,7 +1709,12 @@ function render() {
   const app = $("#app");
   app.innerHTML = "";
 
-  if (!tokenValid()) {
+  // Show sign-in ONLY if there's no cached dashboard to fall back to.
+  // With cached config we keep the dashboard visible even without a
+  // valid token — silent-auth recovery retries in the background so a
+  // TV never lands on the sign-in screen unless it was never signed in.
+  const hasCachedDashboard = state.sheetId && state.config && state.dataTab;
+  if (!tokenValid() && !hasCachedDashboard) {
     app.append(renderLogin());
     return;
   }
@@ -1759,7 +1785,19 @@ function renderTopbar() {
   // re-render in place if it already exists (so loading state updates without flicker)
   const existing = $(".topbar");
   if (existing) existing.remove();
+  const existingBanner = document.getElementById("reconnect-banner");
+  if (existingBanner) existingBanner.remove();
   const bar = el("div", { class: "topbar" });
+  // Stale-session banner — shows when we lost the token but are still
+  // rendering the cached dashboard. Silent auth is retrying in background.
+  if (!tokenValid() && state.config) {
+    const banner = el("div", {
+      id: "reconnect-banner",
+      style: "background:rgba(245,158,11,.18);color:#fef3c7;border-bottom:1px solid rgba(245,158,11,.4);padding:6px 18px;font-size:12px;text-align:center;font-weight:600",
+    }, "⟳ Reconnecting to Google — dashboard shown with last-known data, live updates resume automatically.");
+    const shell = $(".app-shell");
+    if (shell) shell.prepend(banner);
+  }
   // Hamburger (mobile only via CSS) — opens the sidebar drawer
   if (state.config) {
     const burger = el("button", { class: "hamburger", title: "Menu", onclick: () => {
@@ -3439,12 +3477,19 @@ let _lastInteractionAt = Date.now();
 
 function startPageReloadTimer() {
   clearInterval(state.pageReloadTimer);
-  state.pageReloadTimer = setInterval(() => {
+  state.pageReloadTimer = setInterval(async () => {
     // Defer if the user is clearly mid-task
     if (document.querySelector(".modal-back"))                   return;
     if (state.saveState === "saving" || state.saveState === "error") return;
     if (document.querySelector(".widget.dragging, .widget.resizing")) return;
     if (Date.now() - _lastInteractionAt < 30_000)                 return;
+    // Preflight silent auth so a bad reload can't drop a live TV onto
+    // the sign-in screen. If auth would fail, skip this cycle.
+    const authOk = tokenValid() || (await attemptSilentAuth());
+    if (!authOk) {
+      console.warn("[plecto] skipping scheduled reload — silent auth would fail");
+      return;
+    }
     console.log("[plecto] scheduled full-page reload");
     location.reload();
   }, CFG.PAGE_RELOAD_MS);
@@ -3476,13 +3521,20 @@ async function boot() {
     state.activeDashboardId = urlDashId || stored || null;
   }
 
-  // STEP 2 — auth. Try stored token → silent GIS re-auth → login screen.
-  // Silent re-auth is what lets the 5-minute page reload survive past the
-  // 1-hour access-token expiry without kicking the user back to sign-in.
+  // STEP 2 — auth. Try stored token → silent GIS re-auth. If both fail
+  // but we have a cached dashboard, keep showing it with a reconnect
+  // banner and retry silent auth forever in the background. The sign-in
+  // screen ONLY appears when there's no cached dashboard at all.
   if (!loadStoredAuth()) {
     if (savedSheetId) {
       const silent = await attemptSilentAuth();
-      if (!silent) { render(); return; }
+      if (!silent) {
+        // Keep the cached dashboard visible; recover in background.
+        state.user = { email: localStorage.getItem(LS.USER) || "" };
+        render();
+        startSilentAuthRecovery();
+        return;
+      }
     } else {
       render(); return;
     }
