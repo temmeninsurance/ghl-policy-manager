@@ -245,6 +245,23 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 }
 .kpi-num { font-size: 5vh; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
 .kpi-lbl { font-size: 1.7vh; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
+.kpi-delta { font-size: 1.7vh; font-weight: 800; position: relative; z-index: 1; }
+.kpi-delta.up { color: #22c55e; }
+.kpi-delta.down { color: #ef4444; }
+
+/* Trend chart */
+.wboard.trend { flex-direction: row; align-items: stretch; gap: .5vw; padding: .5vh .3vw; overflow: visible; }
+.tcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .5vh; }
+.tbar {
+  width: 78%; min-height: 3px;
+  border-radius: .6vh .6vh 0 0;
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+  opacity: .85;
+  transition: height .9s cubic-bezier(.2, .8, .2, 1);
+}
+.tcol.now .tbar { background: linear-gradient(180deg, var(--gold), #b8860b); opacity: 1; }
+.tval { font-size: 1.4vh; color: var(--dim); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tlbl { font-size: 1.4vh; color: var(--dim); font-weight: 700; white-space: nowrap; }
 
 /* Board widgets */
 .widgets { flex: 1; display: grid; gap: 1.4vw; min-height: 0; }
@@ -2070,9 +2087,10 @@ const VIEWS = {
   today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD",
   last_month: "Last Month", last_year: "Last Year", all: "All Time",
 };
-const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown", rookies: "Rookie Leaderboard", pace: "Pace board (rep goals)" };
+const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown", trend: "Trend chart", rookies: "Rookie Leaderboard", pace: "Pace board (rep goals)" };
 const ROOKIE_MONTHS = 6; // first sale within this window = rookie
-const METRICS = { revenue: "Revenue", apps: "Apps", avg: "Avg $ / App" };
+const METRICS = { revenue: "Revenue", apps: "Apps", avg: "Avg $ / App", reps: "Active Reps" };
+const KPI_ONLY_METRICS = ["avg", "reps"];
 const DEFAULT_STATE = {
   title: CFG.TITLE,
   view: "mtd",
@@ -2108,7 +2126,11 @@ function normalizeState(s) {
   }
   out.widgets = out.widgets
     .filter((w) => WIDGET_TYPES[w?.type])
-    .map((w) => ({ ...w, metric: METRICS[w.metric] ? w.metric : "revenue" }));
+    .map((w) => {
+      let metric = METRICS[w.metric] ? w.metric : "revenue";
+      if (w.type !== "kpi" && KPI_ONLY_METRICS.includes(metric)) metric = "revenue";
+      return { ...w, metric };
+    });
   if (typeof out.filters !== "object" || !out.filters) out.filters = {};
   return out;
 }
@@ -2535,7 +2557,7 @@ function rowsFor(widget, range) {
     if (d < start || d > end) continue;
     let keep = true;
     for (const [k, v] of Object.entries(state.filters)) {
-      if (fields.length && !fields.includes(k)) continue; // stale filter key
+      if (k !== CFG.agentField && fields.length && !fields.includes(k)) continue; // stale filter key
       if (!matchesFilter(r, k, v)) { keep = false; break; }
     }
     if (keep && widget?.ffield && widget?.fvalue && !matchesFilter(r, widget.ffield, widget.fvalue)) keep = false;
@@ -2575,6 +2597,52 @@ function fmtBy(metric, n) {
   return metric === "apps" ? fmt(n) : fmtMoney(n);
 }
 
+function metricValue(rows, metric) {
+  if (metric === "reps") {
+    const s = new Set();
+    for (const r of rows) if (r[CFG.agentField]) s.add(r[CFG.agentField]);
+    return s.size;
+  }
+  const sums = sumsOf(rows);
+  if (metric === "apps") return sums.apps;
+  if (metric === "avg") return sums.revenue / Math.max(1, sums.apps);
+  return sums.revenue;
+}
+
+function fmtKpi(metric, v) {
+  return metric === "apps" || metric === "reps" ? fmt(Math.round(v)) : fmtMoney(v);
+}
+
+function fmtShort(metric, n) {
+  if (metric === "apps") return fmt(Math.round(n));
+  if (n >= 1e6) return "$" + (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return "$" + Math.round(n / 1e3) + "k";
+  return "$" + Math.round(n);
+}
+
+// % change vs the prior equivalent window, compared at the same point for
+// in-progress periods (day 18 vs day 18 of the previous window).
+function kpiDelta(w, cur) {
+  const b = concreteBounds();
+  if (!b) return null;
+  const sD = new Date(b[0] + "T12:00");
+  const eD = new Date(b[1] + "T12:00");
+  const len = Math.round((eD - sD) / 864e5) + 1;
+  const ps = new Date(sD);
+  ps.setDate(ps.getDate() - len);
+  let pe = new Date(sD);
+  pe.setDate(pe.getDate() - 1);
+  const today = ymd(new Date());
+  if (today < b[1]) {
+    const off = Math.max(0, Math.round((new Date(today + "T12:00") - sD) / 864e5));
+    pe = new Date(ps);
+    pe.setDate(pe.getDate() + off);
+  }
+  const prev = metricValue(rowsFor(w, [ymd(ps), ymd(pe)]), w.metric);
+  if (!(prev > 0)) return null;
+  return ((cur - prev) / prev) * 100;
+}
+
 function widgetLabel(w) {
   if (w.label) return w.label;
   const suffix = w.fvalue ? ` — ${w.fvalue}` : "";
@@ -2582,6 +2650,7 @@ function widgetLabel(w) {
   if (w.type === "breakdown") return `${METRICS[w.metric]} by ${String(w.field || "").replace(/_/g, " ")}` + suffix;
   if (w.type === "rookies") return "Rookie Leaderboard" + suffix;
   if (w.type === "pace") return "Goal Pace — MTD" + suffix;
+  if (w.type === "trend") return `${METRICS[w.metric]} Trend` + suffix;
   return "Leaderboard" + (w.metric === "apps" ? " — Apps" : "") + suffix;
 }
 
@@ -2668,10 +2737,8 @@ function render() {
   kpiRow.innerHTML = "";
   let headerSet = false;
   for (const w of kpis) {
-    const sums = sumsOf(rowsFor(w));
-    const value = w.metric === "apps" ? fmt(sums.apps)
-      : w.metric === "avg" ? fmtMoney(sums.revenue / Math.max(1, sums.apps))
-      : fmtMoney(sums.revenue);
+    const cur = metricValue(rowsFor(w), w.metric);
+    const value = fmtKpi(w.metric, cur);
     if (!headerSet) {
       document.getElementById("totalNum").textContent = value;
       document.getElementById("totalLbl").textContent = widgetLabel(w);
@@ -2686,6 +2753,13 @@ function render() {
     lbl.className = "kpi-lbl";
     lbl.textContent = widgetLabel(w);
     tile.append(num, lbl);
+    const d = kpiDelta(w, cur);
+    if (d !== null) {
+      const dl = document.createElement("div");
+      dl.className = "kpi-delta " + (d >= 0 ? "up" : "down");
+      dl.textContent = `${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}% vs prior`;
+      tile.appendChild(dl);
+    }
     kpiRow.appendChild(tile);
   }
 
@@ -2696,6 +2770,62 @@ function render() {
   const todayS = ymd(new Date());
   for (let bi = 0; bi < boards.length; bi++) {
     const w = boards[bi];
+    // Trend chart: buckets by day (short periods) or month (long/unbounded),
+    // colored bars with the current bucket in gold.
+    if (w.type === "trend") {
+      const rows = rowsFor(w);
+      const b = concreteBounds();
+      const monthly = !b || (new Date(b[1] + "T12:00") - new Date(b[0] + "T12:00")) / 864e5 > 62;
+      const agg = new Map();
+      for (const r of rows) {
+        const d = r[CFG.dateField] || "";
+        if (!d) continue;
+        const key = monthly ? d.slice(0, 7) : d;
+        const acc = agg.get(key) || { apps: 0, revenue: 0 };
+        acc.apps += Number(r[CFG.appsField]) || 0;
+        acc.revenue += Number(r[CFG.revenueField]) || 0;
+        agg.set(key, acc);
+      }
+      const keys = [...agg.keys()].sort().slice(monthly ? -24 : -31);
+      const maxV = Math.max(1, ...keys.map((k) => agg.get(k)[w.metric]));
+      const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+      const panel = document.createElement("div");
+      panel.className = "widget";
+      const h = document.createElement("h3");
+      h.textContent = widgetLabel(w);
+      const boardEl = document.createElement("div");
+      boardEl.className = "wboard trend";
+      panel.append(h, boardEl);
+
+      for (const key of keys) {
+        const v = agg.get(key)[w.metric];
+        const col = document.createElement("div");
+        col.className = "tcol" + (key === keys[keys.length - 1] ? " now" : "");
+        const tv = document.createElement("div");
+        tv.className = "tval";
+        tv.textContent = fmtShort(w.metric, v);
+        const bar = document.createElement("div");
+        bar.className = "tbar";
+        bar.style.height = Math.max(2, (v / maxV) * 100) + "%";
+        const tl = document.createElement("div");
+        tl.className = "tlbl";
+        tl.textContent = monthly
+          ? MONTHS[Number(key.slice(5, 7)) - 1] + (key.slice(5, 7) === "01" || key === keys[0] ? " '" + key.slice(2, 4) : "")
+          : String(Number(key.slice(8, 10)));
+        col.append(tv, bar, tl);
+        boardEl.appendChild(col);
+      }
+      if (!keys.length) {
+        const empty = document.createElement("div");
+        empty.className = "more";
+        empty.textContent = "No data in this period yet.";
+        boardEl.appendChild(empty);
+      }
+      widgetsEl.appendChild(panel);
+      continue;
+    }
+
     // Pace board: each rep against their own monthly goal (set in the
     // Agents editor), ranked by attainment, always MTD.
     if (w.type === "pace") {
@@ -3242,7 +3372,7 @@ function openEditor(source, idx) {
   // Dashboard-level filters — multi-select (any-of within a field)
   const grid = document.getElementById("pickerGrid");
   grid.querySelectorAll("label.dyn").forEach((el) => el.remove());
-  for (const f of latest?.filterFields || []) {
+  for (const f of [CFG.agentField, ...(latest?.filterFields || [])]) {
     const cur = s.filters[f];
     const base = uniqueValues(f);
     const extras = (Array.isArray(cur) ? cur : cur ? [cur] : []).filter((v) => !base.includes(v));
@@ -3283,9 +3413,11 @@ function widgetRow(w) {
   del.addEventListener("click", () => row.remove());
 
   function syncVisibility() {
-    // "Avg $ / App" only makes sense for KPI tiles.
-    metricSel.querySelector('option[value="avg"]').hidden = typeSel.value !== "kpi";
-    if (typeSel.value !== "kpi" && metricSel.value === "avg") metricSel.value = "revenue";
+    // Avg $/App and Active Reps only make sense for KPI tiles.
+    for (const m of KPI_ONLY_METRICS) {
+      metricSel.querySelector(`option[value="${m}"]`).hidden = typeSel.value !== "kpi";
+    }
+    if (typeSel.value !== "kpi" && KPI_ONLY_METRICS.includes(metricSel.value)) metricSel.value = "revenue";
     fieldSel.parentElement.style.visibility = typeSel.value === "breakdown" ? "visible" : "hidden";
   }
   typeSel.addEventListener("change", syncVisibility);
