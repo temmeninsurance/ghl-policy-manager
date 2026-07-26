@@ -223,49 +223,134 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .tk-letter:nth-child(even) { transform: rotate(3deg) translateY(.15vh); }
 
 body.temmenkart {
+  --bg: #9fd8ff;
+  --panel: #ffffff;
+  --line: #14285c;
+  --text: #14285c;
+  --dim: #4f6592;
+  --accent: #0284c7;
+  --accent-dim: #0284c7;
+  /* race-day sky with clouds */
   background:
-    radial-gradient(60vw 30vh at 15% -5%, rgba(56, 189, 248, .12), transparent),
-    radial-gradient(50vw 28vh at 85% -5%, rgba(239, 68, 68, .10), transparent),
-    radial-gradient(45vw 25vh at 50% 110%, rgba(34, 197, 94, .08), transparent),
-    var(--bg);
+    radial-gradient(38vw 16vh at 16% 14%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(30vw 13vh at 74% 8%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(24vw 11vh at 46% 26%, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #56b1f0 0%, #9fd8ff 48%, #cdeeff 100%);
+  font-family: "Futura", "Century Gothic", "Trebuchet MS", -apple-system, sans-serif;
 }
-body.temmenkart header { position: relative; border-bottom: none; }
+body.temmenkart header {
+  position: relative;
+  background: rgba(255, 255, 255, .94);
+  border-bottom: none;
+  box-shadow: 0 .3vh .8vh rgba(20, 40, 92, .25);
+}
 body.temmenkart header::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: .6vh;
+  content: ""; position: absolute; left: 0; right: 0; bottom: -.6vh; height: .6vh;
   background: linear-gradient(90deg, #38bdf8, #22c55e, #facc15, #ef4444, #2dd4bf, #38bdf8);
 }
-body.temmenkart .brand { font-size: 3.4vh; letter-spacing: .08em; }
-body.temmenkart .view-badge { color: #facc15; border-color: rgba(250, 204, 21, .6); }
-body.temmenkart .total-num { color: #facc15; }
-
-body.temmenkart .kpi-tile { border-width: 2px; }
-body.temmenkart .kpi-tile:nth-child(4n+1) { border-color: rgba(56, 189, 248, .55); }
-body.temmenkart .kpi-tile:nth-child(4n+1) .kpi-num { color: #38bdf8; }
-body.temmenkart .kpi-tile:nth-child(4n+2) { border-color: rgba(250, 204, 21, .55); }
-body.temmenkart .kpi-tile:nth-child(4n+2) .kpi-num { color: #facc15; }
-body.temmenkart .kpi-tile:nth-child(4n+3) { border-color: rgba(239, 68, 68, .55); }
-body.temmenkart .kpi-tile:nth-child(4n+3) .kpi-num { color: #ef4444; }
-body.temmenkart .kpi-tile:nth-child(4n+4) { border-color: rgba(34, 197, 94, .55); }
-body.temmenkart .kpi-tile:nth-child(4n+4) .kpi-num { color: #22c55e; }
-
-body.temmenkart .widget h3 { color: #facc15; letter-spacing: .16em; }
-body.temmenkart .track {
-  background: linear-gradient(180deg, #222c47, #141d33);
-  border-color: #2b3a5e;
-  box-shadow: inset 0 .55vh 0 rgba(34, 197, 94, .28), inset 0 -.55vh 0 rgba(34, 197, 94, .28);
+body.temmenkart .brand { font-size: 3.6vh; letter-spacing: .06em; }
+body.temmenkart .menu-btn, body.temmenkart .gear {
+  background: #fff; color: #14285c; border: 2px solid #14285c;
+  border-radius: 1vh; font-weight: 800;
+  box-shadow: .25vh .35vh 0 rgba(20, 40, 92, .3);
 }
-body.temmenkart .track::before { border-top: .45vh dashed rgba(250, 204, 21, .35); }
+body.temmenkart .view-badge {
+  background: #ffe14d; color: #14285c; border: 2px solid #14285c;
+  font-style: italic; font-weight: 900;
+  box-shadow: .25vh .35vh 0 rgba(20, 40, 92, .3);
+}
+body.temmenkart .total-num { color: #14285c; }
+
+body.temmenkart .kpi-tile {
+  border: 3px solid #14285c; border-radius: 1.6vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: .5vh .6vh 0 rgba(20, 40, 92, .3);
+}
+body.temmenkart .kpi-tile:nth-child(2n+1) { transform: rotate(-.5deg); }
+body.temmenkart .kpi-tile:nth-child(2n) { transform: rotate(.5deg); }
+body.temmenkart .kpi-tile::before {
+  content: ""; display: block;
+  height: 1.6vh; margin: 0 -1.5vw .7vh;
+  border-bottom: 3px solid #14285c;
+}
+body.temmenkart .kpi-tile:nth-child(4n+1)::before { background: #38bdf8; }
+body.temmenkart .kpi-tile:nth-child(4n+1) .kpi-num { color: #0284c7; }
+body.temmenkart .kpi-tile:nth-child(4n+2)::before { background: #ffe14d; }
+body.temmenkart .kpi-tile:nth-child(4n+2) .kpi-num { color: #d99a06; }
+body.temmenkart .kpi-tile:nth-child(4n+3)::before { background: #ef4444; }
+body.temmenkart .kpi-tile:nth-child(4n+3) .kpi-num { color: #dc2626; }
+body.temmenkart .kpi-tile:nth-child(4n+4)::before { background: #22c55e; }
+body.temmenkart .kpi-tile:nth-child(4n+4) .kpi-num { color: #16a34a; }
+
+body.temmenkart .widget h3 {
+  color: #14285c; letter-spacing: .14em;
+  font-style: italic; transform: skewX(-6deg); transform-origin: left;
+}
+
+/* position badges */
+body.temmenkart .rank {
+  background: #fff; color: #14285c; border: 2px solid #14285c;
+  border-radius: 50%;
+  width: 4.6vh; height: 4.6vh; line-height: 4.2vh;
+  font-size: 2.2vh; justify-self: center;
+  box-shadow: .25vh .35vh 0 rgba(20, 40, 92, .3);
+}
+body.temmenkart .rank.r1 { background: var(--gold); color: #14285c; }
+body.temmenkart .rank.r2 { background: var(--silver); color: #14285c; }
+body.temmenkart .rank.r3 { background: var(--bronze); color: #fff; }
+
+/* day-race asphalt with grass edges and a red/white kerb */
+body.temmenkart .track {
+  background: linear-gradient(180deg, #83919f, #677484);
+  border: 2px solid #14285c;
+  box-shadow:
+    inset 0 .55vh 0 rgba(74, 222, 128, .65),
+    inset 0 -.55vh 0 rgba(74, 222, 128, .65),
+    .3vh .4vh 0 rgba(20, 40, 92, .25);
+}
+body.temmenkart .track::before { border-top: .5vh dashed rgba(255, 255, 255, .8); }
+body.temmenkart .track::after {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: .9vw;
+  background: repeating-linear-gradient(45deg, #ef4444 0 1.2vh, #fff 1.2vh 2.4vh);
+  border-right: 2px solid #14285c;
+}
+body.temmenkart .lane-name {
+  left: 1.6vw;
+  background: #fff; color: #14285c; border: 2px solid #14285c;
+  box-shadow: .2vh .3vh 0 rgba(20, 40, 92, .25);
+}
 body.temmenkart .kart { animation: tk-bob 1.5s ease-in-out infinite; }
 body.temmenkart .row:nth-child(2n) .kart { animation-delay: .35s; }
 body.temmenkart .row:nth-child(3n) .kart { animation-delay: .7s; }
-body.temmenkart .kart .avatar { border-width: 2px; box-shadow: 0 .5vh 1vh rgba(0, 0, 0, .5); }
+body.temmenkart .kart .avatar { border: 2px solid #14285c; background: #fff; box-shadow: 0 .5vh 1vh rgba(20, 40, 92, .45); }
 body.temmenkart .kart .item { animation: tk-float 1.8s ease-in-out infinite; }
+body.temmenkart .row.race:first-child .track { border-color: #b8860b; }
+body.temmenkart .row.race:first-child .lane-name { color: #b8860b; border-color: #b8860b; }
 body.temmenkart .row.race:first-child .kart .avatar {
   border-color: var(--gold);
-  box-shadow: 0 0 1.6vh rgba(251, 191, 36, .8), 0 .5vh 1vh rgba(0, 0, 0, .5);
+  box-shadow: 0 0 1.6vh rgba(251, 191, 36, .9), 0 .5vh 1vh rgba(20, 40, 92, .45);
 }
-body.temmenkart .row.race:first-child .apps { color: #facc15; }
-body.temmenkart footer { border-top-color: #2b3a5e; }
+body.temmenkart .row.race:first-child .apps { color: #d99a06; }
+body.temmenkart .apps { color: #14285c; }
+
+/* breakdown widgets stay bars — give them the same candy treatment */
+body.temmenkart .bar-wrap {
+  background: #fff; border: 2px solid #14285c;
+  box-shadow: .3vh .4vh 0 rgba(20, 40, 92, .25);
+}
+body.temmenkart .bar {
+  background: linear-gradient(90deg, rgba(14, 165, 233, .5), rgba(14, 165, 233, .18));
+  border-right: 2px solid #0284c7;
+}
+body.temmenkart .name { color: #14285c; }
+
+body.temmenkart footer {
+  background: rgba(255, 255, 255, .94);
+  border-top: 2px solid #14285c;
+  color: #4f6592;
+}
+body.temmenkart .dot { background: #16a34a; }
+body.temmenkart .wboard::-webkit-scrollbar-thumb { background: rgba(20, 40, 92, .35); }
 
 @keyframes tk-bob {
   0%, 100% { transform: translateY(-54%); }
@@ -528,6 +613,10 @@ footer {
   .kart .item { top: -12px; font-size: 12px; }
   .lane-name { font-size: 12px; left: 6px; padding: 3px 10px; }
   .track .finish { width: 14px; background-size: 10px 10px; }
+  body.temmenkart .brand { font-size: 17px; }
+  body.temmenkart .rank { width: 26px; height: 26px; line-height: 22px; font-size: 12px; }
+  body.temmenkart .track::after { width: 8px; }
+  body.temmenkart .lane-name { left: 14px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
