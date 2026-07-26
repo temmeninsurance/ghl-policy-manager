@@ -301,6 +301,7 @@ footer {
     <div id="agentsEditor" class="hidden">
       <div class="picker-actions" style="border-top:none;padding-top:0">
         <input id="adminKey" type="password" placeholder="Admin key (set once — saved on this device)">
+        <input id="agentSearch" type="text" placeholder="🔍 Search agents…">
       </div>
       <div id="agentsList"></div>
     </div>
@@ -724,6 +725,9 @@ function agentKeys() {
   return [...set.values()].sort((a, b) => a.localeCompare(b));
 }
 
+const agentSearch = document.getElementById("agentSearch");
+agentSearch.addEventListener("input", renderAgentsEditor);
+
 // Downscale to a small square JPEG data URI so profiles stay tiny.
 function resizePhoto(file) {
   return new Promise((resolve, reject) => {
@@ -769,7 +773,10 @@ async function saveProfile(agent, name, photo, btn) {
 function renderAgentsEditor() {
   const list = document.getElementById("agentsList");
   list.innerHTML = "";
-  for (const agent of agentKeys()) {
+  const q = agentSearch.value.trim().toLowerCase();
+  const matches = agentKeys().filter((a) =>
+    !q || a.toLowerCase().includes(q) || displayNameOf(a).toLowerCase().includes(q));
+  for (const agent of matches) {
     const rowEl = document.createElement("div");
     rowEl.className = "agent-row";
 
