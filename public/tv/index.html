@@ -91,10 +91,17 @@ header {
   border-bottom: 1px solid var(--line);
 }
 .sync-chip {
-  display: flex; align-items: center; gap: .5vw;
-  color: var(--dim); font-size: 1.5vh;
-  max-width: 24vw; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: .7vw;
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid var(--line); border-radius: 1vh;
+  padding: .5vh 1vw;
+  white-space: nowrap;
 }
+.sync-col { display: flex; flex-direction: column; line-height: 1.25; }
+#syncTime { font-size: 1.6vh; font-weight: 700; color: var(--text); letter-spacing: .02em; }
+#syncRows { font-size: 1.15vh; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .1em; }
+.sync-chip .dot { box-shadow: 0 0 1vh rgba(45, 212, 191, .7); }
+.sync-chip .dot.stale { box-shadow: 0 0 1vh rgba(239, 68, 68, .8); }
 .menu-btn, .gear {
   background: none; border: 1px solid var(--line); border-radius: .8vh;
   color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: .4vh 1vw;
@@ -1394,7 +1401,9 @@ footer {
   .daterange input[type="date"] { font-size: 12px; padding: 4px 6px; max-width: 118px; }
   .daterange button { font-size: 12px; padding: 3px 8px; }
   .total-box { display: none; } /* the KPI tiles carry the totals on phones */
-  .sync-chip { font-size: 10px; max-width: 45vw; }
+  .sync-chip { padding: 3px 8px; border-radius: 8px; }
+  #syncTime { font-size: 11px; }
+  #syncRows { font-size: 8px; }
 
   main { flex: 1 0 auto; height: auto; padding: 10px 12px; gap: 12px; }
   .kpi-row { flex-wrap: wrap; gap: 8px; }
@@ -1506,7 +1515,10 @@ footer {
     <button id="drClear" class="hidden" title="Clear date filter">✕</button>
   </div>
   <div class="spacer"></div>
-  <div class="sync-chip"><div class="dot" id="liveDot"></div><div id="statusText">Connecting…</div></div>
+  <div class="sync-chip" id="syncChip">
+    <div class="dot" id="liveDot"></div>
+    <div class="sync-col"><b id="syncTime">Connecting…</b><span id="syncRows">live data</span></div>
+  </div>
   <button class="gear hidden" id="gearBtn" title="Edit this dashboard">✎ Edit</button>
   <div class="total-box">
     <div class="total-num" id="totalNum">0</div>
@@ -2511,17 +2523,19 @@ function render() {
 
 function updateStatus() {
   const dot = document.getElementById("liveDot");
-  const txt = document.getElementById("statusText");
-  const parts = [];
+  const timeEl = document.getElementById("syncTime");
+  const rowsEl = document.getElementById("syncRows");
   if (latest?.updatedAt?.toDate) {
     const t = latest.updatedAt.toDate();
-    parts.push(`Data synced ${t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`);
-    // Sync runs every 5 min — flag if the doc is > 20 min old.
+    timeEl.textContent = "Synced " + t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    // Sync runs every 2 min — flag if the data is > 20 min old.
     dot.classList.toggle("stale", Date.now() - t.getTime() > 20 * 60_000);
   }
-  if (latest?.rowCount != null) parts.push(`${latest.rowCount.toLocaleString()} rows`);
-  if (latest?.warnings?.length) parts.push("⚠ " + latest.warnings[0]);
-  txt.textContent = parts.join(" · ") || "Live";
+  const warn = latest?.warnings?.length ? latest.warnings[0] : "";
+  rowsEl.textContent =
+    (latest?.rowCount != null ? latest.rowCount.toLocaleString() + " rows" : "live data") +
+    (warn ? " ⚠" : "");
+  document.getElementById("syncChip").title = warn;
 }
 
 /* ── Sidebar ── */
