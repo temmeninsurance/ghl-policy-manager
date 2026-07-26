@@ -101,6 +101,17 @@ header {
   border-radius: 999px;
   text-align: center;
 }
+.daterange { display: flex; align-items: center; gap: .4vw; color: var(--dim); font-size: 1.8vh; }
+.daterange input[type="date"] {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: .7vh; padding: .5vh .6vw; font-size: 1.7vh; font-family: inherit;
+  color-scheme: dark;
+}
+.daterange button {
+  background: none; border: 1px solid var(--line); border-radius: .7vh;
+  color: var(--dim); font-size: 1.8vh; cursor: pointer; padding: .4vh .7vw;
+}
+.daterange button:hover { color: #ef4444; border-color: #ef4444; }
 .spacer { flex: 1; }
 .total-box { text-align: right; }
 .total-num { font-size: 5vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -1337,6 +1348,9 @@ footer {
   .menu-btn, .gear { font-size: 15px; padding: 6px 10px; border-radius: 8px; }
   .brand { font-size: 16px; letter-spacing: .06em; flex: 1; min-width: 55%; }
   .view-badge { font-size: 12px; padding: 4px 10px; min-width: 0; }
+  .daterange { font-size: 12px; }
+  .daterange input[type="date"] { font-size: 12px; padding: 4px 6px; max-width: 118px; }
+  .daterange button { font-size: 12px; padding: 3px 8px; }
   .total-box { display: none; } /* the KPI tiles carry the totals on phones */
 
   main { flex: 1 0 auto; height: auto; padding: 10px 12px; gap: 12px; }
@@ -1438,6 +1452,12 @@ footer {
   <button class="menu-btn" id="menuBtn" title="Dashboards">☰</button>
   <div class="brand" id="brand"></div>
   <div class="view-badge" id="viewBadge">—</div>
+  <div class="daterange" id="dateRange">
+    <input type="date" id="drFrom" title="From">
+    <span>–</span>
+    <input type="date" id="drTo" title="To">
+    <button id="drClear" class="hidden" title="Clear date filter">✕</button>
+  </div>
   <div class="spacer"></div>
   <button class="gear hidden" id="gearBtn" title="Edit this dashboard">✎ Edit</button>
   <div class="total-box">
@@ -1958,14 +1978,23 @@ function periodRange(v) {
   return [ymd(new Date(y, now.getMonth(), 1)), "9999"]; // mtd
 }
 
-// Active range: contest dates override the date frame when set.
+// Ad-hoc date filter from the header picker — a per-screen viewing control
+// that overrides everything else until cleared. Remembered per device.
+let dateOverride = null;
+try { dateOverride = JSON.parse(localStorage.getItem("tvDateOverride")); } catch { /* ignore */ }
+
+// Active range: header date picker > contest dates > date frame.
 function currentRange() {
+  if (dateOverride) return [dateOverride.start || "0000", dateOverride.end || "9999"];
   if (state.contestStart && state.contestEnd) return [state.contestStart, state.contestEnd];
   return periodRange(state.view);
 }
 
 // Concrete [start, end] for pace math (null when unbounded, e.g. All Time).
 function concreteBounds() {
+  if (dateOverride) {
+    return dateOverride.start && dateOverride.end ? [dateOverride.start, dateOverride.end] : null;
+  }
   if (state.contestStart && state.contestEnd) return [state.contestStart, state.contestEnd];
   const now = new Date();
   const y = now.getFullYear();
@@ -2089,7 +2118,10 @@ function render() {
 
   // Date-frame badge doubles as the contest countdown clock.
   const badge = document.getElementById("viewBadge");
-  if (state.contestStart && state.contestEnd) {
+  if (dateOverride) {
+    const short = (d) => d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "…";
+    badge.textContent = `📅 ${short(dateOverride.start)} – ${short(dateOverride.end)}`;
+  } else if (state.contestStart && state.contestEnd) {
     const left = new Date(state.contestEnd + "T23:59:59").getTime() - Date.now();
     if (left <= 0) badge.textContent = "🏁 FINAL";
     else {
@@ -2810,6 +2842,37 @@ setInterval(() => {
     }
   }
 }, 50);
+
+/* ── Header date picker ── */
+const drFrom = document.getElementById("drFrom");
+const drTo = document.getElementById("drTo");
+const drClear = document.getElementById("drClear");
+
+function syncDatePicker() {
+  drFrom.value = dateOverride?.start || "";
+  drTo.value = dateOverride?.end || "";
+  drClear.classList.toggle("hidden", !dateOverride);
+}
+
+function onDateInput() {
+  const start = drFrom.value || "";
+  const end = drTo.value || "";
+  if (!start && !end) dateOverride = null;
+  else if (start && end && start > end) return; // wait for a sane range
+  else dateOverride = { start, end };
+  if (dateOverride) localStorage.setItem("tvDateOverride", JSON.stringify(dateOverride));
+  else localStorage.removeItem("tvDateOverride");
+  syncDatePicker();
+  render();
+}
+drFrom.addEventListener("change", onDateInput);
+drTo.addEventListener("change", onDateInput);
+drClear.addEventListener("click", () => {
+  drFrom.value = "";
+  drTo.value = "";
+  onDateInput();
+});
+syncDatePicker();
 
 /* ── Init ── */
 applyState();
