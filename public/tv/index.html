@@ -195,9 +195,15 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
   transition: left 1.2s cubic-bezier(.2, .8, .2, 1);
   z-index: 2;
 }
-.kart .avatar { width: 4.2vh; height: 4.2vh; font-size: 1.6vh; border-color: var(--accent-dim); z-index: 1; }
-.kart-emoji { font-size: 2.8vh; line-height: 1; margin-top: -1.4vh; transform: scaleX(-1); }
-.kart .item { position: absolute; top: -1.9vh; font-size: 1.9vh; }
+.kart .avatar {
+  width: 4.3vh; height: 4.3vh; font-size: 1.6vh;
+  border-color: var(--accent-dim); z-index: 1;
+  margin-bottom: -2.3vh; /* drop the driver into the cockpit */
+  transform: translateX(-14%);
+}
+.kart-svg { display: block; width: 8vh; color: #ef4444; }
+.kart-svg svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 .4vh .6vh rgba(20, 40, 92, .35)); }
+.kart .item { position: absolute; top: -1.9vh; font-size: 1.9vh; z-index: 2; }
 .lane-name {
   position: absolute; left: .8vw; top: 50%; transform: translateY(-50%);
   z-index: 1;
@@ -232,12 +238,15 @@ body.temmenkart {
   --dim: #4f6592;
   --accent: #0284c7;
   --accent-dim: #0284c7;
-  /* race-day sky with clouds */
+  /* race-day sky: sunshine, clouds, and rolling green hills on the horizon */
   background:
-    radial-gradient(38vw 16vh at 16% 14%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(30vw 13vh at 74% 8%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(24vw 11vh at 46% 26%, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 70%),
-    linear-gradient(180deg, #56b1f0 0%, #9fd8ff 48%, #cdeeff 100%);
+    radial-gradient(circle at 88% 16%, #fff9cf 0 4.5vh, rgba(255, 240, 150, .6) 6.5vh, rgba(255, 240, 150, 0) 11vh),
+    radial-gradient(38vw 16vh at 14% 16%, rgba(255, 255, 255, .98), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(30vw 13vh at 60% 9%, rgba(255, 255, 255, .9), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(24vw 11vh at 38% 28%, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(95vw 26vh at 15% 106%, #4ecb63 0 60%, rgba(78, 203, 99, 0) 61%),
+    radial-gradient(95vw 30vh at 88% 110%, #3bb653 0 60%, rgba(59, 182, 83, 0) 61%),
+    linear-gradient(180deg, #2f9ff2 0%, #74cbff 45%, #c3ecff 100%);
   font-family: "Futura", "Century Gothic", "Trebuchet MS", -apple-system, sans-serif;
 }
 body.temmenkart header {
@@ -324,6 +333,13 @@ body.temmenkart .lane-name {
 body.temmenkart .kart { animation: tk-bob 1.5s ease-in-out infinite; }
 body.temmenkart .row:nth-child(2n) .kart { animation-delay: .35s; }
 body.temmenkart .row:nth-child(3n) .kart { animation-delay: .7s; }
+/* every lane races a different-colored kart */
+body.temmenkart .row:nth-child(5n+1) .kart-svg { color: #ef4444; }
+body.temmenkart .row:nth-child(5n+2) .kart-svg { color: #2f9de8; }
+body.temmenkart .row:nth-child(5n+3) .kart-svg { color: #22c55e; }
+body.temmenkart .row:nth-child(5n+4) .kart-svg { color: #f59e0b; }
+body.temmenkart .row:nth-child(5n+5) .kart-svg { color: #a855f7; }
+body.temmenkart .row.race:first-child .kart-svg { color: #f5b514; }
 body.temmenkart .kart .avatar { border: 2px solid #14285c; background: #fff; box-shadow: 0 .5vh 1vh rgba(20, 40, 92, .45); }
 body.temmenkart .kart .item { animation: tk-float 1.8s ease-in-out infinite; }
 body.temmenkart .row.race:first-child .track { border-color: #b8860b; }
@@ -1265,8 +1281,8 @@ footer {
   .row { grid-template-columns: 24px 42px 1fr auto; height: 52px; gap: 8px; }
   .row.noav { grid-template-columns: 24px 1fr auto; }
   .row.race { grid-template-columns: 24px 1fr auto; }
-  .kart .avatar { width: 26px; height: 26px; font-size: 10px; }
-  .kart-emoji { font-size: 17px; margin-top: -8px; }
+  .kart .avatar { width: 26px; height: 26px; font-size: 10px; margin-bottom: -13px; }
+  .kart-svg { width: 46px; }
   .kart .item { top: -12px; font-size: 12px; }
   .lane-name { font-size: 12px; left: 6px; padding: 3px 10px; }
   .track .finish { width: 14px; background-size: 10px 10px; }
@@ -1601,6 +1617,21 @@ const JACKET_SVG = `<svg viewBox="0 0 32 36" xmlns="http://www.w3.org/2000/svg">
   <circle cx="16" cy="28" r="1" fill="#c9a227"/>
 </svg>`;
 
+// TemmenKart: side-view go-kart the rep's photo rides in — body tinted via
+// currentColor so lanes can cycle team colors.
+const KART_SVG = `<svg viewBox="0 0 96 56" xmlns="http://www.w3.org/2000/svg">
+  <rect x="7" y="9" width="17" height="5" rx="2.5" fill="#14285c"/>
+  <rect x="11" y="12" width="10" height="26" rx="4" fill="currentColor" stroke="#14285c" stroke-width="2"/>
+  <path d="M58 33 L82 24 Q92 26 92 33 Z" fill="currentColor" stroke="#14285c" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="6" y="31" width="86" height="11" rx="5.5" fill="currentColor" stroke="#14285c" stroke-width="2"/>
+  <circle cx="57" cy="23" r="4.5" fill="none" stroke="#14285c" stroke-width="2.5"/>
+  <line x1="57" y1="27" x2="55" y2="32" stroke="#14285c" stroke-width="2.5"/>
+  <circle cx="23" cy="43" r="10.5" fill="#1c2230" stroke="#0c1120" stroke-width="2"/>
+  <circle cx="23" cy="43" r="4.2" fill="#cfd4e2"/>
+  <circle cx="77" cy="43" r="9" fill="#1c2230" stroke="#0c1120" stroke-width="2"/>
+  <circle cx="77" cy="43" r="3.6" fill="#cfd4e2"/>
+</svg>`;
+
 // TemmenKart theme: multicolored kart-game wordmark for the title.
 const TK_COLORS = ["#38bdf8", "#22c55e", "#ef4444", "#facc15", "#2dd4bf"];
 function setBrand(title) {
@@ -1875,7 +1906,7 @@ function render() {
             <div class="kart" style="left:${pct}%">
               <span class="item">${ITEMS[Math.min(i, ITEMS.length - 1)]}</span>
               <div class="avatar"></div>
-              <span class="kart-emoji">🏎️</span>
+              <span class="kart-svg">${KART_SVG}</span>
             </div>
           </div>
           ${valueCell}`;
