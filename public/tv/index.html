@@ -1495,6 +1495,21 @@ onSnapshot(collection(db, "tvProfiles"), (snap) => {
 // Shared dashboard list — one set for every TV/phone.
 onSnapshot(doc(db, "tvDashboards", "config"), (snap) => {
   sharedDashboards = snap.exists() ? (snap.data().dashboards || []) : null;
+  // If this screen is currently showing a saved dashboard whose definition
+  // just changed (theme, date frame, filters, widgets…), swap to the fresh
+  // version immediately — no reload or re-click needed on any device.
+  if (sharedDashboards) {
+    const cur = getDashboards().find((d) =>
+      (state.id && d.id === state.id) || (!state.id && d.title === state.title));
+    if (cur) {
+      const fresh = normalizeState(structuredClone(cur));
+      if (JSON.stringify(fresh) !== JSON.stringify(state)) {
+        state = fresh;
+        persistState();
+        applyState();
+      }
+    }
+  }
   renderSidebar();
 });
 

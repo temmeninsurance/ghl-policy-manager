@@ -5,6 +5,14 @@
     "cleanUrls": true,
     "rewrites": [
       { "source": "/", "destination": "/tv/index.html" }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      }
     ]
   },
   "firestore": {
