@@ -462,6 +462,101 @@ body.temmenopoly .dot { background: #14804a; }
 body.temmenopoly .dot.stale { background: #ed1b24; }
 body.temmenopoly .wboard::-webkit-scrollbar-thumb { background: rgba(22, 19, 14, .3); }
 
+/* ── Temmen Madness full-page theme — tournament broadcast look ─────────────
+   Charcoal shield + teal from the logo, bracket-blue accents, scoreboard
+   KPI tiles, seed badges, and baskets that build toward the trophy. */
+body.temmenmadness {
+  --bg: #171c23;
+  --panel: #232a34;
+  --line: #3a4553;
+  --text: #f0f4f8;
+  --dim: #8fa0b3;
+  --accent: #2dd4bf;
+  --accent-dim: #14b8a6;
+  background:
+    radial-gradient(70vw 40vh at 50% -12%, rgba(45, 212, 191, .14), transparent),
+    repeating-linear-gradient(135deg, transparent 0 3.2vh, rgba(255, 255, 255, .018) 3.2vh 6.4vh),
+    var(--bg);
+}
+body.temmenmadness header {
+  position: relative;
+  background: linear-gradient(180deg, #262e39, #1d242d);
+  border-bottom: .45vh solid #2dd4bf;
+  box-shadow: 0 .5vh 1.4vh rgba(0, 0, 0, .5);
+}
+body.temmenmadness header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -.95vh; height: .5vh;
+  background: repeating-linear-gradient(90deg, #1d6fd1 0 4vw, transparent 4vw 5.2vw);
+}
+body.temmenmadness .brand {
+  color: #fff;
+  font-size: 3.2vh; font-weight: 900; font-style: italic;
+  letter-spacing: .06em; text-transform: uppercase;
+  text-shadow: .25vh .35vh 0 rgba(0, 0, 0, .6), 0 0 2.4vh rgba(45, 212, 191, .35);
+}
+body.temmenmadness .brand::before { content: "🏀 "; font-style: normal; text-shadow: none; }
+body.temmenmadness .menu-btn, body.temmenmadness .gear {
+  background: #1d242d; border: 1px solid #3a4553; color: #8fa0b3; border-radius: .6vh;
+}
+body.temmenmadness .view-badge {
+  background: #1d6fd1; color: #fff; border: none;
+  font-style: italic; font-weight: 900;
+  clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%);
+  border-radius: 0; padding: .6vh 1.6vw;
+}
+body.temmenmadness .total-num { color: #fff; text-shadow: 0 0 2.4vh rgba(45, 212, 191, .5); }
+
+/* scoreboard tiles */
+body.temmenmadness .kpi-tile {
+  background: linear-gradient(180deg, #10151b, #171d25);
+  border: 2px solid #2dd4bf; border-radius: .8vh;
+  box-shadow: 0 0 1.6vh rgba(45, 212, 191, .18), inset 0 .3vh 0 rgba(255, 255, 255, .06);
+}
+body.temmenmadness .kpi-num {
+  color: #fff; text-shadow: 0 0 2vh rgba(45, 212, 191, .55);
+}
+body.temmenmadness .kpi-lbl { color: #2dd4bf; font-style: italic; font-weight: 800; }
+
+body.temmenmadness .widget h3 {
+  color: #fff; font-style: italic; transform: skewX(-6deg); transform-origin: left;
+  border-bottom: .35vh solid #1d6fd1; padding-bottom: .5vh; align-self: flex-start;
+}
+body.temmenmadness .widget h3::before { content: "🏀 "; font-style: normal; }
+
+/* seed badges */
+body.temmenmadness .rank {
+  background: #10151b; color: #8fa0b3; border: 1px solid #3a4553;
+  border-radius: .5vh; width: 4.4vh; height: 4.4vh; line-height: 4.2vh;
+  font-size: 2.1vh; font-style: italic; justify-self: center;
+}
+body.temmenmadness .rank.r1 { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 1.2vh rgba(251, 191, 36, .4); }
+body.temmenmadness .rank.r2 { color: var(--silver); border-color: var(--silver); }
+body.temmenmadness .rank.r3 { color: var(--bronze); border-color: var(--bronze); }
+
+body.temmenmadness .avatar { border-color: #2dd4bf; background: #10151b; }
+body.temmenmadness .bar-wrap {
+  background: #10151b; border: 1px solid #3a4553; border-radius: .6vh;
+}
+body.temmenmadness .bar {
+  background: linear-gradient(90deg, rgba(45, 212, 191, .5), rgba(29, 111, 209, .3));
+  border-right: 2px solid #2dd4bf;
+}
+body.temmenmadness .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(251, 191, 36, .45), rgba(29, 111, 209, .25));
+  border-right-color: var(--gold);
+}
+body.temmenmadness .row:first-child .bar-wrap { border-color: rgba(251, 191, 36, .55); }
+body.temmenmadness .name { font-style: italic; font-weight: 800; padding-right: 13vw; }
+body.temmenmadness .houses {
+  position: absolute; right: 1vw; top: 50%; transform: translateY(-50%);
+  font-size: 2.3vh; letter-spacing: .15vw;
+  filter: drop-shadow(0 0 .8vh rgba(45, 212, 191, .4));
+}
+body.temmenmadness footer {
+  background: #1d242d; border-top: 1px solid #3a4553;
+}
+body.temmenmadness .dot { box-shadow: 0 0 1vh rgba(45, 212, 191, .8); }
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -617,6 +712,10 @@ footer {
   body.temmenkart .rank { width: 26px; height: 26px; line-height: 22px; font-size: 12px; }
   body.temmenkart .track::after { width: 8px; }
   body.temmenkart .lane-name { left: 14px; }
+  body.temmenmadness .brand { font-size: 15px; }
+  body.temmenmadness .rank { width: 26px; height: 26px; line-height: 24px; font-size: 12px; }
+  body.temmenmadness .houses { font-size: 13px; right: 8px; }
+  body.temmenmadness .name { padding-right: 80px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
@@ -733,6 +832,7 @@ footer {
           <option value="default">Standard</option>
           <option value="race">TemmenKart 🏁</option>
           <option value="opoly">Temmenopoly 🎩</option>
+          <option value="madness">Temmen Madness 🏀</option>
         </select>
       </label>
     </div>
@@ -799,7 +899,7 @@ const DEFAULT_STATE = {
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
-  out.theme = ["race", "opoly"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -922,6 +1022,7 @@ function setBrand(title) {
 function applyState() {
   document.body.classList.toggle("temmenkart", state.theme === "race");
   document.body.classList.toggle("temmenopoly", state.theme === "opoly");
+  document.body.classList.toggle("temmenmadness", state.theme === "madness");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -1163,10 +1264,14 @@ function render() {
       } else {
         row.className = "row" + (isAgents ? "" : " noav");
         const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
-        // Temmenopoly: houses build up with progress; the leader gets the hotel.
-        const houses = state.theme === "opoly" && isAgents
-          ? `<div class="houses">${i === 0 ? "🏨" : "🏠".repeat(Math.min(4, Math.floor(pct / 25)))}</div>`
-          : "";
+        // Theme trinkets: Temmenopoly builds houses toward the hotel;
+        // Temmen Madness racks up baskets toward the trophy.
+        let houses = "";
+        if (isAgents && state.theme === "opoly") {
+          houses = `<div class="houses">${i === 0 ? "🏨" : "🏠".repeat(Math.min(4, Math.floor(pct / 25)))}</div>`;
+        } else if (isAgents && state.theme === "madness") {
+          houses = `<div class="houses">${i === 0 ? "🏆" : "🏀".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+        }
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
           ${isAgents ? '<div class="avatar"></div>' : ""}
