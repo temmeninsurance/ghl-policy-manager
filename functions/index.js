@@ -13,9 +13,9 @@
  *
  * Setup:
  *   1. Fill in SHEET_ID / SHEET_TAB / COLUMN_MAP below.
- *   2. Enable the Google Sheets API on the Firebase/GCP project.
+ *   2. Enable the Google Sheets API on the temmen-leaderboard-2026 project.
  *   3. Share the sheet (Viewer) with the functions' runtime service account:
- *      <PROJECT_NUMBER>-compute@developer.gserviceaccount.com
+ *      205711754258-compute@developer.gserviceaccount.com
  */
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -32,7 +32,7 @@ initializeApp();
    ════════════════════════════════════════════════════════════════════════ */
 
 // The long ID from the sheet URL: docs.google.com/spreadsheets/d/<SHEET_ID>/edit
-const SHEET_ID = "REPLACE_WITH_SHEET_ID";
+const SHEET_ID = "1Q_UveDxIZ8-NokXp_umtoiiEC0Gs_MZvt4ZmFjbmly8";
 
 // Exact tab (worksheet) name holding the submission rows.
 const SHEET_TAB = "REPLACE_WITH_TAB_NAME";

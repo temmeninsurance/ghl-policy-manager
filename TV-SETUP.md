@@ -22,35 +22,39 @@ no PHI, no client data, no revenue.
 | `firebase.json` | Hosting (`public/`), rules, functions codebase `tv-leaderboard` |
 | `.firebaserc` | Firebase project alias |
 
-## Values to fill in before deploying
+## Project
 
-1. `.firebaserc` — the Firebase **project ID**.
-2. `functions/index.js` CONFIG block — `SHEET_ID`, `SHEET_TAB`, `COLUMN_MAP`
+- Firebase project: **Temmen Leaderboard** (`temmen-leaderboard-2026`,
+  project number `205711754258`) — a dedicated project, so the deny-all
+  default in `firestore.rules` is safe to deploy as-is.
+- Functions runtime service account (share the sheet with this, Viewer):
+  **`205711754258-compute@developer.gserviceaccount.com`**
+
+## Values still to fill in before deploying
+
+1. `functions/index.js` CONFIG block — `SHEET_ID`, `SHEET_TAB`, `COLUMN_MAP`
    (exact header-row text for agent, date, optional apps + filter fields).
-3. `public/tv/index.html` — `FIREBASE_CONFIG` (apiKey, authDomain, projectId
-   from Project settings → Your apps → Web app) and
-   `TV_CONFIG.filterFields` (must equal the optional fields in COLUMN_MAP).
+2. `public/tv/index.html` — `FIREBASE_CONFIG.apiKey` (from the web app,
+   see below) and `TV_CONFIG.filterFields` (must equal the optional fields
+   in COLUMN_MAP).
 
-## One-time GCP setup
+## One-time project setup
 
-1. **Enable the Sheets API** on the Firebase project:
-   `https://console.cloud.google.com/apis/library/sheets.googleapis.com?project=<PROJECT_ID>`
-2. **Share the sheet (Viewer)** with the functions runtime service account:
-   `<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`
-   (find the project number on the Project settings page, or
-   `gcloud projects describe <PROJECT_ID> --format='value(projectNumber)'`).
-
-## ⚠️ Before deploying Firestore rules
-
-`firebase deploy --only firestore:rules` **replaces the project's entire
-ruleset**. If this Firebase project already has rules (e.g. for the portal),
-copy them from Firebase Console → Firestore → Rules into `firestore.rules`
-at the marked spot first. As shipped, everything except `tvLeaderboard`
-is deny-all.
+1. **Upgrade to the Blaze plan** (Cloud Functions and Cloud Scheduler
+   require it; cost at this scale is ~$0).
+2. **Create the Firestore database**: Firebase Console → Firestore →
+   Create database → production mode → `us-central1` (or nam5).
+3. **Create a web app** (for the TV page's apiKey): Project settings →
+   Your apps → Add app → Web (</>) → name it "TV Leaderboard" — no hosting
+   snippet needed. Copy the `apiKey` into `public/tv/index.html`.
+4. **Enable the Sheets API**:
+   https://console.cloud.google.com/apis/library/sheets.googleapis.com?project=temmen-leaderboard-2026
+5. **Share the sheet (Viewer)** with
+   `205711754258-compute@developer.gserviceaccount.com`.
 
 The functions deploy is isolated via the `tv-leaderboard` codebase in
-`firebase.json`, so it will not touch functions deployed from other repos
-(e.g. GHL sync functions).
+`firebase.json`, so it can never touch functions deployed from other
+repos/projects (e.g. GHL sync functions).
 
 ## Deploy
 
