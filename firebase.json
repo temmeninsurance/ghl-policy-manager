@@ -3,8 +3,8 @@
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "cleanUrls": true,
-    "redirects": [
-      { "source": "/", "destination": "/tv/", "type": 302 }
+    "rewrites": [
+      { "source": "/", "destination": "/tv/index.html" }
     ]
   },
   "firestore": {
