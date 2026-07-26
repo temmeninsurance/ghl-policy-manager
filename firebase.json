@@ -2,7 +2,10 @@
   "hosting": {
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "cleanUrls": true
+    "cleanUrls": true,
+    "redirects": [
+      { "source": "/", "destination": "/tv/", "type": 302 }
+    ]
   },
   "firestore": {
     "rules": "firestore.rules"
