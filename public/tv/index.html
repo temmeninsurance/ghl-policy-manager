@@ -40,9 +40,10 @@ window.TV_CONFIG = {
   appsField: "apps",
   revenueField: "revenue",
 
-  // Endpoint of the updateAgentProfile Cloud Function (in-app editing of
-  // agent names/photos, guarded by the admin key).
+  // Endpoints of the admin-key-guarded Cloud Functions (in-app editing of
+  // agent names/photos and the shared dashboard list).
   PROFILE_ENDPOINT: "https://us-central1-temmen-leaderboard-2026.cloudfunctions.net/updateAgentProfile",
+  DASH_ENDPOINT: "https://us-central1-temmen-leaderboard-2026.cloudfunctions.net/updateDashboards",
 
   // Full page reload cadence — guards against stale JS, memory leaks,
   // and silent code updates on always-on TVs.
@@ -371,7 +372,7 @@ footer {
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const CFG = window.TV_CONFIG;
 const FB = window.FIREBASE_CONFIG;
@@ -457,11 +458,38 @@ function persistState() {
   history.replaceState(null, "", link);
 }
 
+// Dashboards are shared across all screens via Firestore
+// (tvDashboards/config). Until the first shared save happens, any
+// dashboards saved on this device (pre-sharing) act as a local fallback —
+// the next save migrates them up for everyone.
+let sharedDashboards = null;
+
 function getDashboards() {
+  if (sharedDashboards !== null) return structuredClone(sharedDashboards);
   try { return JSON.parse(localStorage.getItem("tvDashboards")) || []; } catch { return []; }
 }
-function setDashboards(ds) {
+
+async function setDashboards(ds) {
+  sharedDashboards = ds; // optimistic — every other screen updates via the snapshot
   localStorage.setItem("tvDashboards", JSON.stringify(ds));
+  let key = (localStorage.getItem("tvAdminKey") || "").trim();
+  if (!key) key = (prompt("Admin key (needed to save dashboards for all screens):") || "").trim();
+  if (!key) {
+    alert("Saved on this device only — enter the admin key to share dashboards with every screen.");
+    return;
+  }
+  try {
+    const resp = await fetch(CFG.DASH_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, dashboards: ds }),
+    });
+    const out = await resp.json();
+    if (!out.ok) throw new Error(out.error || "Save failed");
+    localStorage.setItem("tvAdminKey", key);
+  } catch (e) {
+    alert("Dashboards not synced to other screens: " + e.message);
+  }
 }
 
 function updateChips() {
@@ -512,6 +540,12 @@ onSnapshot(collection(db, "tvProfiles"), (snap) => {
   snap.forEach((d) => next.set(d.id, d.data()));
   profiles = next;
   render();
+});
+
+// Shared dashboard list — one set for every TV/phone.
+onSnapshot(doc(db, "tvDashboards", "config"), (snap) => {
+  sharedDashboards = snap.exists() ? (snap.data().dashboards || []) : null;
+  renderSidebar();
 });
 
 // Data is split across docs: tvLeaderboard/current holds metadata, and

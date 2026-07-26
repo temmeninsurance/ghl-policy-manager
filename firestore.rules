@@ -30,6 +30,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Shared dashboard definitions. Written only by the updateDashboards
+    // Cloud Function (Admin SDK, admin-key guarded).
+    match /tvDashboards/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // >>> PASTE ANY EXISTING PROJECT RULES HERE (from Firebase Console) <<<
 
     // Default: everything not matched above is private.

@@ -378,3 +378,39 @@ exports.updateAgentProfile = onRequest(
     }
   }
 );
+
+// Shared dashboard definitions (tvDashboards/config) so every TV/phone sees
+// the same set. Same admin-key guard as profiles; the doc is public-read.
+exports.updateDashboards = onRequest(
+  { region: "us-central1", invoker: "public", cors: true, secrets: [TV_ADMIN_KEY] },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).json({ ok: false, error: "POST only" });
+        return;
+      }
+      const { key, dashboards } = req.body || {};
+      if (!key || key !== TV_ADMIN_KEY.value()) {
+        res.status(403).json({ ok: false, error: "Invalid admin key" });
+        return;
+      }
+      if (!Array.isArray(dashboards) || dashboards.length > 200 ||
+          dashboards.some((d) => !d || typeof d.title !== "string" || !d.title.trim() || d.title.length > 80)) {
+        res.status(400).json({ ok: false, error: "dashboards must be an array of {title, ...} objects" });
+        return;
+      }
+      if (JSON.stringify(dashboards).length > 500_000) {
+        res.status(400).json({ ok: false, error: "Dashboard config too large" });
+        return;
+      }
+      await getFirestore().doc("tvDashboards/config").set({
+        dashboards,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      res.json({ ok: true, count: dashboards.length });
+    } catch (err) {
+      logger.error("updateDashboards failed", err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  }
+);
