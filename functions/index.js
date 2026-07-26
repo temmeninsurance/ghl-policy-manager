@@ -71,10 +71,10 @@ const EXCLUDE_COLUMNS = [
 // renamed/added client-data column can't leak by accident.
 const EXCLUDE_PATTERNS = [/customer/i, /phone/i, /company/i, /client/i];
 
-// Rows-this-year threshold above which we warn about the 1 MB Firestore
-// document limit (and the hard byte guard below refuses to write a doc
-// that would exceed it).
-const ROW_WARN_THRESHOLD = 9000;
+// Rows are split into one Firestore doc per month (tvLeaderboard/<yyyy-mm>)
+// plus a small metadata doc (tvLeaderboard/current). A month doc
+// approaching the 1 MB Firestore limit warns at 80% and fails hard rather
+// than truncate.
 const MAX_DOC_BYTES = 950_000;
 
 /* ════════════════════════════════════════════════════════════════════════ */
@@ -83,6 +83,14 @@ const REQUIRED_FIELDS = ["agent", "date"];
 
 function normalizeHeader(h) {
   return String(h ?? "").trim().toLowerCase();
+}
+
+// Cheap stable content hash (djb2) — used to skip rewriting month docs whose
+// rows haven't changed, so TV listeners don't re-download unchanged months.
+function hashString(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return String(h);
 }
 
 // Public display name for an agent cell. Profile match first; otherwise a
@@ -238,37 +246,67 @@ async function syncSheetToFirestore() {
   }
 
   const warnings = [];
-  if (rows.length > ROW_WARN_THRESHOLD) {
-    warnings.push(
-      `Sheet has ${rows.length} rows this year (> ${ROW_WARN_THRESHOLD}). ` +
-      `Approaching the 1 MB Firestore document limit — consider splitting the ` +
-      `doc by month (tvLeaderboard/2026-01, 2026-02, …).`
-    );
+
+  // One doc per month, so a full year can exceed 1 MB overall while each
+  // doc stays small.
+  const byMonth = new Map();
+  for (const row of rows) {
+    const m = row.date.slice(0, 7);
+    if (!byMonth.has(m)) byMonth.set(m, []);
+    byMonth.get(m).push(row);
   }
 
-  const doc = {
+  const db = getFirestore();
+  const metaRef = db.doc("tvLeaderboard/current");
+  const prevHashes = ((await metaRef.get()).data() || {}).monthHashes || {};
+
+  const monthHashes = {};
+  let monthsWritten = 0;
+  for (const [month, monthRows] of byMonth) {
+    const payload = { month, rowCount: monthRows.length, rows: monthRows };
+    const json = JSON.stringify(payload);
+    if (json.length > MAX_DOC_BYTES) {
+      throw new Error(
+        `Refusing to write: month ${month} would be ~${Math.round(json.length / 1024)} KB, ` +
+        `over the 1 MB Firestore doc limit. Reduce synced fields for this to fit.`
+      );
+    }
+    if (json.length > MAX_DOC_BYTES * 0.8) {
+      warnings.push(`Month ${month} is at ${Math.round((json.length / MAX_DOC_BYTES) * 100)}% of the 1 MB doc limit.`);
+    }
+    const hash = hashString(json);
+    monthHashes[month] = hash;
+    if (prevHashes[month] === hash) continue; // unchanged — skip the write
+    await db.doc(`tvLeaderboard/${month}`).set({ ...payload, updatedAt: FieldValue.serverTimestamp() });
+    monthsWritten++;
+  }
+
+  // Drop month docs that no longer exist in the sheet (e.g. year rollover).
+  for (const month of Object.keys(prevHashes)) {
+    if (!byMonth.has(month)) await db.doc(`tvLeaderboard/${month}`).delete();
+  }
+
+  await metaRef.set({
     updatedAt: FieldValue.serverTimestamp(),
     year: currentYear,
+    months: [...byMonth.keys()].sort(),
+    monthHashes,
     rowCount: rows.length,
     skippedInvalid,
     skippedOtherYears,
     fields: [...new Set([...Object.keys(colIndex), "apps"])],
     filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps", "revenue"].includes(f)),
     warnings,
-    rows,
+  });
+
+  const summary = {
+    synced: rows.length,
+    months: byMonth.size,
+    monthsWritten,
+    skippedInvalid,
+    skippedOtherYears,
+    warnings,
   };
-
-  const approxBytes = JSON.stringify(doc).length;
-  if (approxBytes > MAX_DOC_BYTES) {
-    throw new Error(
-      `Refusing to write: doc would be ~${Math.round(approxBytes / 1024)} KB, over the 1 MB ` +
-      `Firestore limit. Split by month (tvLeaderboard/<yyyy-mm> docs) before re-enabling sync.`
-    );
-  }
-
-  await getFirestore().doc("tvLeaderboard/current").set(doc);
-
-  const summary = { synced: rows.length, skippedInvalid, skippedOtherYears, approxBytes, warnings };
   logger.info("TV leaderboard synced", summary);
   return summary;
 }

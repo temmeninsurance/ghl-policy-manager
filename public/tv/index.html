@@ -202,7 +202,7 @@ footer {
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const CFG = window.TV_CONFIG;
 const FB = window.FIREBASE_CONFIG;
@@ -248,15 +248,25 @@ const db = getFirestore(initializeApp(FB));
 let latest = null;
 let lastUpdateMs = 0;
 
-onSnapshot(doc(db, "tvLeaderboard", "current"),
+// Data is split across docs: tvLeaderboard/current holds metadata, and
+// tvLeaderboard/<yyyy-mm> docs each hold one month of rows. Merge them.
+onSnapshot(collection(db, "tvLeaderboard"),
   (snap) => {
-    if (!snap.exists()) {
+    let meta = null;
+    const rows = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (d.id === "current") meta = data;
+      else if (Array.isArray(data.rows)) rows.push(...data.rows);
+    });
+    if (!meta && !rows.length) {
       overlay.classList.remove("hidden");
       overlayMsg.textContent = "No leaderboard data yet — run the sync function once, then this page updates automatically.";
       return;
     }
-    latest = snap.data();
+    latest = { ...(meta || {}), rows };
     lastUpdateMs = Date.now();
+    if (filters === null) initFilters(latest.filterFields?.length ? latest.filterFields : CFG.filterFields);
     overlay.classList.add("hidden");
     render();
   },
