@@ -49,9 +49,6 @@ window.TV_CONFIG = {
   // and silent code updates on always-on TVs.
   PAGE_RELOAD_MS: 4 * 60 * 60_000,
 
-  // Max entries per board widget before collapsing into "+ N more".
-  MAX_ROWS: 14,
-
   TITLE: "TEMMEN LEADERBOARD",
 };
 </script>
@@ -135,16 +132,21 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .widgets { flex: 1; display: grid; gap: 1.4vw; min-height: 0; }
 .widget { display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
 .widget h3 { font-size: 2vh; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; font-weight: 700; }
-.widget .wboard { flex: 1; display: flex; flex-direction: column; gap: .9vh; min-height: 0; }
+.widget .wboard {
+  flex: 1; display: flex; flex-direction: column; gap: 1vh;
+  min-height: 0; overflow-y: auto; padding-right: .4vw;
+}
+.wboard::-webkit-scrollbar { width: .6vh; }
+.wboard::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+.wboard::-webkit-scrollbar-track { background: transparent; }
 
 .row {
   display: grid;
   grid-template-columns: 3.2vw 6vh 1fr minmax(9vw, auto);
   align-items: center;
   gap: .9vw;
-  flex: 1;
-  min-height: 0;
-  max-height: 8.5vh;
+  flex: 0 0 auto;
+  height: 7.2vh;
 }
 .row.noav { grid-template-columns: 3.2vw 1fr minmax(9vw, auto); }
 .rank { font-size: 2.7vh; font-weight: 800; color: var(--dim); text-align: center; font-variant-numeric: tabular-nums; }
@@ -159,7 +161,7 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
   overflow: hidden; position: relative;
 }
 .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.bar-wrap { position: relative; height: 100%; max-height: 7vh; background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh; overflow: hidden; }
+.bar-wrap { position: relative; height: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh; overflow: hidden; }
 .bar {
   position: absolute; inset: 0 auto 0 0;
   background: linear-gradient(90deg, rgba(20,184,166,.55), rgba(45,212,191,.25));
@@ -701,6 +703,7 @@ function render() {
   }
 
   const widgetsEl = document.getElementById("widgets");
+  const scrollPos = [...widgetsEl.querySelectorAll(".wboard")].map((el) => el.scrollTop);
   widgetsEl.innerHTML = "";
   widgetsEl.style.gridTemplateColumns = `repeat(${Math.max(1, boards.length)}, 1fr)`;
   for (const w of boards) {
@@ -727,7 +730,7 @@ function render() {
     panel.append(h, boardEl);
 
     const max = ranked.length ? ranked[0][w.metric] : 1;
-    const shown = ranked.slice(0, CFG.MAX_ROWS);
+    const shown = ranked; // every matching entry — the board scrolls
     for (let i = 0; i < shown.length; i++) {
       const e = shown[i];
       const main = e[w.metric];
@@ -755,13 +758,6 @@ function render() {
       }
       boardEl.appendChild(row);
     }
-    if (ranked.length > CFG.MAX_ROWS) {
-      const more = document.createElement("div");
-      more.className = "more";
-      const rest = ranked.slice(CFG.MAX_ROWS).reduce((s, r) => s + r[w.metric], 0);
-      more.textContent = `+ ${ranked.length - CFG.MAX_ROWS} more · ${fmtBy(w.metric, rest)}`;
-      boardEl.appendChild(more);
-    }
     if (!ranked.length) {
       const empty = document.createElement("div");
       empty.className = "more";
@@ -770,6 +766,10 @@ function render() {
     }
     widgetsEl.appendChild(panel);
   }
+  // Keep each board's scroll position across live refreshes.
+  [...widgetsEl.querySelectorAll(".wboard")].forEach((el, i) => {
+    if (scrollPos[i]) el.scrollTop = scrollPos[i];
+  });
 
   if (!headerSet) {
     document.getElementById("totalNum").textContent = "—";
