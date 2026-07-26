@@ -314,14 +314,14 @@ async function syncSheetToFirestore() {
 /* ── Exports ─────────────────────────────────────────────────────────────── */
 
 exports.syncLeaderboard = onSchedule(
-  { schedule: "every 5 minutes", region: "us-central1", timeZone: "America/Chicago" },
+  { schedule: "every 5 minutes", region: "us-central1", timeZone: "America/Chicago", memory: "512MiB", timeoutSeconds: 300 },
   async () => {
     await syncSheetToFirestore();
   }
 );
 
 exports.syncLeaderboardNow = onRequest(
-  { region: "us-central1", invoker: "public" },
+  { region: "us-central1", invoker: "public", memory: "512MiB", timeoutSeconds: 300 },
   async (req, res) => {
     try {
       const summary = await syncSheetToFirestore();
