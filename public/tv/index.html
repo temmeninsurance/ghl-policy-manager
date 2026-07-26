@@ -775,10 +775,10 @@ body.temmengolf .row:nth-child(2n) .houses { animation-delay: .6s; }
 body.temmengolf .row:first-child .houses {
   animation: md-shine 2.4s ease-in-out infinite;
 }
-/* dye the coat emoji Masters green */
-body.temmengolf .jacket {
-  display: inline-block;
-  filter: hue-rotate(95deg) saturate(2.2) brightness(.82);
+body.temmengolf .jacket { display: inline-block; }
+body.temmengolf .jacket svg {
+  width: 3.4vh; height: 3.8vh; display: block;
+  filter: drop-shadow(0 .3vh .6vh rgba(0, 0, 0, .45));
 }
 body.temmengolf footer {
   background: #093325; border-top: 2px solid rgba(245, 213, 71, .5); color: #d9e5d3;
@@ -1249,6 +1249,19 @@ async function setDashboards(ds) {
   }
 }
 
+// Temmen Classic: the champion's jacket, drawn in true Augusta green —
+// notched lapels, white shirt, gold buttons.
+const JACKET_SVG = `<svg viewBox="0 0 32 36" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 7 Q8 3 12 3 L16 8 L20 3 Q24 3 28 7 L30 15 L27 33 L5 33 L2 15 Z"
+        fill="#006747" stroke="#00382a" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M12 3 L16 8 L11 15 L8.6 5.4 Z" fill="#00543a"/>
+  <path d="M20 3 L16 8 L21 15 L23.4 5.4 Z" fill="#00543a"/>
+  <path d="M16 8 L13.2 12.5 L15.1 21 L16.9 21 L18.8 12.5 Z" fill="#fffdf1"/>
+  <path d="M16 8.6 L14.9 10.4 L16 15.5 L17.1 10.4 Z" fill="#c9a227"/>
+  <circle cx="16" cy="24" r="1" fill="#c9a227"/>
+  <circle cx="16" cy="28" r="1" fill="#c9a227"/>
+</svg>`;
+
 // TemmenKart theme: multicolored kart-game wordmark for the title.
 const TK_COLORS = ["#38bdf8", "#22c55e", "#ef4444", "#facc15", "#2dd4bf"];
 function setBrand(title) {
@@ -1522,7 +1535,7 @@ function render() {
           houses = `<div class="houses">${i === 0 ? "🏆" : "🏀".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         } else if (isAgents && state.theme === "golf") {
           // birdies on the card; the leader wears the green jacket
-          houses = `<div class="houses">${i === 0 ? '<span class="jacket">🧥</span>' : "⛳".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+          houses = `<div class="houses">${i === 0 ? `<span class="jacket">${JACKET_SVG}</span>` : "⛳".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         }
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
