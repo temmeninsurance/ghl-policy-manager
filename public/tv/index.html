@@ -1587,6 +1587,18 @@ footer {
       <label><span>Contest ends</span>
         <input id="selCEnd" type="date">
       </label>
+      <label><span>Reps visible on screen</span>
+        <select id="selRows">
+          <option value="0">Auto</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="8">8</option>
+          <option value="10">10</option>
+          <option value="12">12</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+        </select>
+      </label>
       <label><span>Celebrations</span>
         <select id="selCele">
           <option value="on">On — takeover on new sales</option>
@@ -1673,6 +1685,8 @@ function normalizeState(s) {
   out.goal = Number(out.goal) > 0 ? Number(out.goal) : 0;
   out.contestStart = /^\d{4}-\d{2}-\d{2}$/.test(out.contestStart || "") ? out.contestStart : "";
   out.contestEnd = /^\d{4}-\d{2}-\d{2}$/.test(out.contestEnd || "") ? out.contestEnd : "";
+  const rs = Number(out.rowsShown);
+  out.rowsShown = Number.isInteger(rs) && rs >= 3 && rs <= 30 ? rs : 0; // 0 = auto
   out.theme = ["race", "opoly", "madness", "golf", "cup", "deal"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
@@ -2473,6 +2487,18 @@ function render() {
     if (scrollPos[i]) el.scrollTop = scrollPos[i];
   });
 
+  // Admin-chosen frame size: stretch/shrink rows so exactly N reps fill
+  // each board before scrolling. (Phones keep natural sizing.)
+  if (state.rowsShown > 0 && !window.matchMedia("(max-width: 700px)").matches) {
+    requestAnimationFrame(() => {
+      for (const boardEl of widgetsEl.querySelectorAll(".wboard")) {
+        const gap = parseFloat(getComputedStyle(boardEl).rowGap) || 0;
+        const rowH = Math.max(34, (boardEl.clientHeight - gap * (state.rowsShown - 1)) / state.rowsShown);
+        boardEl.querySelectorAll(".row").forEach((r) => { r.style.height = rowH + "px"; });
+      }
+    });
+  }
+
   if (!headerSet) {
     document.getElementById("totalNum").textContent = "—";
     document.getElementById("totalLbl").textContent = "";
@@ -2695,6 +2721,7 @@ function openEditor(source, idx) {
   document.getElementById("selCStart").value = s.contestStart || "";
   document.getElementById("selCEnd").value = s.contestEnd || "";
   document.getElementById("selCele").value = s.celebrate === false ? "off" : "on";
+  document.getElementById("selRows").value = String(s.rowsShown || 0);
 
   // Parent choices: top-level saved dashboards (by id), excluding itself.
   const parentSel = document.getElementById("selParent");
@@ -2807,6 +2834,7 @@ function editorToState(title) {
     contestStart: document.getElementById("selCStart").value || "",
     contestEnd: document.getElementById("selCEnd").value || "",
     celebrate: document.getElementById("selCele").value !== "off",
+    rowsShown: Number(document.getElementById("selRows").value) || 0,
     filters,
     widgets,
   });
