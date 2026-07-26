@@ -39,17 +39,23 @@ const SHEET_TAB = "All Apps";
 
 // Maps output field → exact header-row text in the sheet (case/whitespace
 // insensitive match). `agent` and `date` are required. `apps` is optional —
-// leave it null and every row counts as 1 app. Any additional entries become
-// filterable label fields on the TV page (keep them non-sensitive!).
+// leave it null and every row counts as 1 app.
 const COLUMN_MAP = {
   agent: "REPLACE_WITH_AGENT_HEADER", // required
   date: "REPLACE_WITH_DATE_HEADER",   // required
   apps: null,                          // optional — null = 1 app per row
-  // Optional filterable fields — uncomment/edit to match the sheet:
-  // product: "Product",
-  // carrier: "Carrier",
-  // source: "Source",
 };
+
+// When true, every sheet column NOT mapped above is also synced as a
+// filterable label field (field key = slugified header, e.g.
+// "Lead Source" → lead_source) and the TV page picks them up automatically.
+// ⚠ The leaderboard doc is PUBLICLY readable — list any column that must
+// stay private (client names, phones, premiums, …) in EXCLUDE_COLUMNS.
+const SYNC_ALL_COLUMNS = true;
+const EXCLUDE_COLUMNS = [
+  // "Client Name",
+  // "Premium",
+];
 
 // Rows-this-year threshold above which we warn about the 1 MB Firestore
 // document limit (and the hard byte guard below refuses to write a doc
@@ -137,6 +143,19 @@ async function syncSheetToFirestore() {
     );
   }
 
+  if (SYNC_ALL_COLUMNS) {
+    const excluded = new Set(EXCLUDE_COLUMNS.map(normalizeHeader));
+    const used = new Set(Object.values(colIndex));
+    const reserved = new Set(["agent", "date", "apps"]);
+    for (let idx = 0; idx < headers.length; idx++) {
+      if (used.has(idx) || excluded.has(headers[idx]) || !headers[idx]) continue;
+      let key = headers[idx].replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      if (!key || reserved.has(key)) continue;
+      while (key in colIndex) key += "_2";
+      colIndex[key] = idx;
+    }
+  }
+
   const currentYear = new Date().getFullYear();
   const rows = [];
   let skippedInvalid = 0;
@@ -183,7 +202,8 @@ async function syncSheetToFirestore() {
     rowCount: rows.length,
     skippedInvalid,
     skippedOtherYears,
-    fields: Object.keys(COLUMN_MAP).filter((f) => COLUMN_MAP[f] != null || f === "apps"),
+    fields: [...new Set([...Object.keys(colIndex), "apps"])],
+    filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps"].includes(f)),
     warnings,
     rows,
   };

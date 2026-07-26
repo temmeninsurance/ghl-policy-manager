@@ -40,8 +40,9 @@ window.TV_CONFIG = {
   dateField: "date",
   appsField: "apps",
 
-  // Exactly the optional filterable fields mapped in COLUMN_MAP,
-  // e.g. ["product", "carrier", "source"].
+  // Filterable fields are read from the synced doc automatically (every
+  // sheet column becomes filterable via SYNC_ALL_COLUMNS in the function).
+  // This list is only a fallback for docs that predate that feature.
   filterFields: [],
 
   // Rotate between MTD and YTD views this often (ms).
@@ -213,21 +214,25 @@ if (FB.apiKey.startsWith("REPLACE_")) {
 
 /* ── URL filters & view lock ── */
 const params = new URLSearchParams(location.search);
-const filters = {};
-for (const f of CFG.filterFields) {
-  const v = params.get(f);
-  if (v) filters[f] = v.trim().toLowerCase();
-}
 const lockedView = ["mtd", "ytd"].includes((params.get("view") || "").toLowerCase())
   ? params.get("view").toLowerCase() : null;
 
-const chipsEl = document.getElementById("chips");
-for (const [k, v] of Object.entries(filters)) {
-  const c = document.createElement("div");
-  c.className = "chip";
-  c.innerHTML = `${k}: <b></b>`;
-  c.querySelector("b").textContent = params.get(k);
-  chipsEl.appendChild(c);
+// Built on the first snapshot, from the field list the sync function
+// publishes in the doc — so any URL param matching a sheet column filters.
+let filters = null;
+function initFilters(fieldList) {
+  filters = {};
+  const chipsEl = document.getElementById("chips");
+  for (const f of fieldList || []) {
+    const v = params.get(f);
+    if (!v) continue;
+    filters[f] = v.trim().toLowerCase();
+    const c = document.createElement("div");
+    c.className = "chip";
+    c.innerHTML = `${f.replace(/_/g, " ")}: <b></b>`;
+    c.querySelector("b").textContent = v;
+    chipsEl.appendChild(c);
+  }
 }
 
 /* ── Firestore live listener ── */
