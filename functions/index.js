@@ -64,7 +64,12 @@ const AGENT_PROFILES = {
 const SYNC_ALL_COLUMNS = true;
 const EXCLUDE_COLUMNS = [
   "Annual Premium", // premium data — never public
+  "Agent Name",     // redundant — agent identity comes from Employee email
 ];
+
+// Any header matching one of these is also excluded — pattern-based so a
+// renamed/added client-data column can't leak by accident.
+const EXCLUDE_PATTERNS = [/customer/i, /phone/i, /company/i, /client/i];
 
 // Rows-this-year threshold above which we warn about the 1 MB Firestore
 // document limit (and the hard byte guard below refuses to write a doc
@@ -188,6 +193,7 @@ async function syncSheetToFirestore() {
     const reserved = new Set(["agent", "date", "apps", "revenue"]);
     for (let idx = 0; idx < headers.length; idx++) {
       if (used.has(idx) || excluded.has(headers[idx]) || !headers[idx]) continue;
+      if (EXCLUDE_PATTERNS.some((p) => p.test(headers[idx]))) continue;
       let key = headers[idx].replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
       if (!key || reserved.has(key)) continue;
       while (key in colIndex) key += "_2";
