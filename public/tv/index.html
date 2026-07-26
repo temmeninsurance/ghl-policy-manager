@@ -116,6 +116,19 @@ header {
 .total-num { font-size: 5.2vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
 .total-lbl { font-size: 1.6vh; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; margin-top: .4vh; }
 
+.tabs {
+  display: flex; flex-wrap: wrap; gap: .8vw;
+  padding: 1.2vh 2.2vw 0;
+}
+.tabs:empty { display: none; }
+.tab {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  color: var(--dim); font-size: 2vh; font-weight: 700;
+  padding: .8vh 1.6vw; cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-color: var(--accent-dim); background: rgba(20, 184, 166, .08); }
+
 main { flex: 1; padding: 1.6vh 2.2vw; display: flex; flex-direction: column; min-height: 0; }
 #board { flex: 1; display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
 
@@ -260,6 +273,8 @@ footer {
   </div>
 </header>
 
+<nav class="tabs" id="dashTabs"></nav>
+
 <main><div id="board"></div></main>
 
 <footer>
@@ -393,7 +408,32 @@ function applyState() {
   document.getElementById("brand").textContent = state.title || CFG.TITLE;
   document.title = state.title || CFG.TITLE;
   updateChips();
+  renderTabs();
   render();
+}
+
+// Saved dashboards as an always-visible tab bar — click to switch boards
+// without leaving the page. (Create/delete them in the ⚙ picker.)
+function renderTabs() {
+  const nav = document.getElementById("dashTabs");
+  nav.innerHTML = "";
+  const saved = getDashboards();
+  if (!saved.length) return;
+  const tabs = [
+    { name: CFG.TITLE, state: structuredClone(DEFAULT_STATE) },
+    ...saved.map((d) => ({ name: d.title, state: d })),
+  ];
+  for (const t of tabs) {
+    const el = document.createElement("button");
+    el.className = "tab" + ((state.title || CFG.TITLE) === t.name ? " active" : "");
+    el.textContent = t.name;
+    el.addEventListener("click", () => {
+      state = structuredClone(t.state);
+      persistState();
+      applyState();
+    });
+    nav.appendChild(el);
+  }
 }
 
 /* ── Agent profiles (names + photos, edited in-app) ── */
@@ -691,6 +731,7 @@ function renderSaved() {
         ds.splice(c.idx, 1);
         localStorage.setItem("tvDashboards", JSON.stringify(ds));
         renderSaved();
+        renderTabs();
       });
       card.appendChild(del);
     }
