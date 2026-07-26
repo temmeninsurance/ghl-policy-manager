@@ -1261,6 +1261,363 @@ body.temmendeal .dot { background: #ffb02e; box-shadow: 0 0 1vh rgba(255, 176, 4
   50% { transform: translateY(-50%) scale(1.08); filter: drop-shadow(0 0 1.2vh rgba(255, 176, 46, .7)); }
 }
 
+/* ── Temmen Wonderland full-page theme — SUPER Christmas ────────────────────
+   Midnight snow globe: starfield, moon, aurora and snow hills behind
+   everything; three layers of falling snow drifting over the boards; a
+   Santa-red header trimmed with twinkling string lights; KPI tiles as
+   wrapped presents with ribbons and bows; ornament rank badges; a tree
+   at the end of every lane; candy-cane leader bar; presents pile up
+   toward Santa. */
+body.temmenxmas {
+  --bg: #0c1e3d;
+  --panel: #14294e;
+  --line: #35558c;
+  --text: #f4f8ff;
+  --dim: #a9c0e8;
+  --accent: #f4c430;
+  --accent-dim: #d9a916;
+  background: var(--bg);
+}
+body.temmenxmas::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    /* moon */
+    radial-gradient(circle at 84% 14%, #fdf6d8 0 4.2vh, rgba(253, 246, 216, .35) 5.5vh, transparent 9vh),
+    /* aurora ribbons */
+    radial-gradient(50vw 14vh at 25% 18%, rgba(122, 231, 167, .14), transparent 70%),
+    radial-gradient(44vw 12vh at 55% 10%, rgba(168, 85, 247, .12), transparent 70%),
+    /* stars */
+    radial-gradient(1.5px 1.5px at 12% 22%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 32% 9%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 48% 30%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 64% 16%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 90% 34%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 7% 44%, #fff 50%, transparent 51%),
+    /* snow hills */
+    radial-gradient(70vw 22vh at 18% 104%, #dcecff 0 60%, transparent 61%),
+    radial-gradient(80vw 26vh at 85% 107%, #cfe4fb 0 60%, transparent 61%),
+    /* night sky */
+    linear-gradient(180deg, #081430 0%, #0c1e3d 55%, #14294e 100%);
+}
+/* three drifting snow layers, above the boards but under all controls */
+body.temmenxmas::after {
+  content: ""; position: fixed; inset: 0; z-index: 15; pointer-events: none;
+  background-image:
+    radial-gradient(2.6px 2.6px at 20% 25%, rgba(255, 255, 255, .95) 50%, transparent 51%),
+    radial-gradient(2px 2px at 60% 60%, rgba(255, 255, 255, .8) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 85% 40%, rgba(255, 255, 255, .65) 50%, transparent 51%);
+  background-size: 210px 210px, 340px 340px, 460px 460px;
+  animation: xmas-snow 11s linear infinite;
+}
+body.temmenxmas header {
+  position: relative;
+  background: linear-gradient(180deg, #b81f33, #8e1425);
+  border-bottom: .4vh solid #f4c430;
+  box-shadow: 0 .5vh 1.8vh rgba(0, 0, 0, .5);
+}
+/* string lights under the header */
+body.temmenxmas header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1.5vh; height: 1.4vh;
+  background:
+    radial-gradient(.55vh .55vh at 5% 60%, #ff5252 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 15% 30%, #ffe14d 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 25% 60%, #6fe07f 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 35% 30%, #6fb4ff 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 45% 60%, #ff5252 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 55% 30%, #ffe14d 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 65% 60%, #6fe07f 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 75% 30%, #6fb4ff 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 85% 60%, #ff5252 50%, transparent 55%),
+    radial-gradient(.55vh .55vh at 95% 30%, #ffe14d 50%, transparent 55%);
+  animation: xmas-twinkle 1.6s ease-in-out infinite alternate;
+}
+body.temmenxmas .brand { font-size: 3.2vh; letter-spacing: .1em; }
+body.temmenxmas .brand::before { content: "🎄 "; }
+body.temmenxmas .menu-btn, body.temmenxmas .gear {
+  background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .5); color: #fff; border-radius: .8vh;
+}
+body.temmenxmas .view-badge {
+  background: #fff; color: #8e1425; border: 2px solid #f4c430; font-weight: 900;
+}
+body.temmenxmas .sync-chip { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .4); }
+body.temmenxmas .sync-chip #syncTime { color: #fff; }
+body.temmenxmas .sync-chip #syncRows { color: rgba(255, 255, 255, .75); }
+body.temmenxmas .total-num { color: #ffe14d; text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .5); }
+body.temmenxmas .total-lbl { color: rgba(255, 255, 255, .85); }
+
+/* KPI tiles wrapped as presents */
+body.temmenxmas .kpi-tile {
+  position: relative;
+  border: 2px solid rgba(255, 255, 255, .35); border-radius: 1vh;
+  box-shadow: 0 .7vh 1.8vh rgba(0, 0, 0, .5);
+  overflow: visible;
+}
+body.temmenxmas .kpi-tile:nth-child(4n+1) { background: linear-gradient(180deg, #c1272d, #8e1425); }
+body.temmenxmas .kpi-tile:nth-child(4n+2) { background: linear-gradient(180deg, #1f7a3d, #14582b); }
+body.temmenxmas .kpi-tile:nth-child(4n+3) { background: linear-gradient(180deg, #2456a6, #183c77); }
+body.temmenxmas .kpi-tile:nth-child(4n+4) { background: linear-gradient(180deg, #7a3fa0, #5a2b78); }
+body.temmenxmas .kpi-tile::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent calc(50% - .7vw), rgba(244, 196, 48, .85) calc(50% - .7vw), rgba(244, 196, 48, .85) calc(50% + .7vw), transparent calc(50% + .7vw)),
+    linear-gradient(0deg, transparent calc(50% - .8vh), rgba(244, 196, 48, .6) calc(50% - .8vh), rgba(244, 196, 48, .6) calc(50% + .8vh), transparent calc(50% + .8vh));
+  border-radius: inherit;
+}
+body.temmenxmas .kpi-tile::after {
+  content: "🎀"; position: absolute; top: -1.6vh; left: 50%; transform: translateX(-50%);
+  font-size: 2.6vh; filter: drop-shadow(0 .3vh .5vh rgba(0, 0, 0, .4));
+}
+body.temmenxmas .kpi-num { color: #fff; text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .55); position: relative; z-index: 1; }
+body.temmenxmas .kpi-lbl { color: rgba(255, 255, 255, .9); font-weight: 800; position: relative; z-index: 1; }
+
+body.temmenxmas .widget h3 {
+  color: #ffe14d;
+  background: rgba(8, 20, 48, .8);
+  padding: .4vh 1.2vw .5vh; border-radius: .5vh;
+  border-left: .4vw solid #c1272d;
+  align-self: flex-start;
+}
+body.temmenxmas .widget h3::before { content: "🎄 "; }
+
+/* ornament rank badges */
+body.temmenxmas .rank {
+  color: #fff; border: 2px solid rgba(255, 255, 255, .8);
+  border-radius: 50%; width: 4.5vh; height: 4.5vh; line-height: 4.1vh;
+  font-weight: 900; font-size: 2.1vh; justify-self: center;
+  box-shadow: 0 .4vh 1vh rgba(0, 0, 0, .5), inset .4vh .5vh .8vh rgba(255, 255, 255, .35);
+}
+body.temmenxmas .row .rank { background: radial-gradient(circle at 35% 30%, #ff8a8a, #c1272d 65%); }
+body.temmenxmas .row:nth-child(4n+2) .rank { background: radial-gradient(circle at 35% 30%, #8fe3a5, #1f7a3d 65%); }
+body.temmenxmas .row:nth-child(4n+3) .rank { background: radial-gradient(circle at 35% 30%, #9db9f0, #2456a6 65%); }
+body.temmenxmas .row:nth-child(4n+4) .rank { background: radial-gradient(circle at 35% 30%, #cfa4ec, #7a3fa0 65%); }
+body.temmenxmas .rank.r1 {
+  background: radial-gradient(circle at 35% 30%, #ffedb0, #d9a916 65%);
+  box-shadow: 0 0 1.6vh rgba(244, 196, 48, .8), inset .4vh .5vh .8vh rgba(255, 255, 255, .4);
+}
+
+body.temmenxmas .avatar { border: 2px solid #fff; background: #14294e; box-shadow: 0 .4vh 1vh rgba(0, 0, 0, .5); }
+body.temmenxmas .bar-wrap {
+  background: rgba(9, 22, 46, .92);
+  border: 1px solid #35558c; border-radius: .8vh;
+  box-shadow: 0 .4vh 1vh rgba(0, 0, 0, .45);
+}
+body.temmenxmas .bar {
+  background: linear-gradient(90deg, rgba(31, 122, 61, .6), rgba(31, 122, 61, .22));
+  border-right: 2px solid #6fe07f;
+}
+/* candy-cane leader bar */
+body.temmenxmas .row:first-child .bar {
+  background: repeating-linear-gradient(45deg, rgba(216, 31, 52, .65) 0 1.4vh, rgba(255, 255, 255, .75) 1.4vh 2.8vh);
+  border-right-color: #fff;
+}
+body.temmenxmas .row:first-child .bar-wrap { border-color: rgba(244, 196, 48, .7); box-shadow: 0 0 1.8vh rgba(244, 196, 48, .3); }
+body.temmenxmas .name { font-weight: 800; padding-right: 17vw; }
+body.temmenxmas .apps { color: #ffe14d; text-shadow: 0 .3vh 1vh rgba(0, 0, 0, .8); }
+body.temmenxmas .sub { color: #cfe0f7; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .8); }
+body.temmenxmas .more { color: #cfe0f7; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .8); }
+
+/* the tree at the end of every lane */
+body.temmenxmas .row:not(.noav) .bar-wrap::after {
+  content: "🎄"; position: absolute; right: .6vw; top: 50%; transform: translateY(-50%);
+  font-size: 3.4vh;
+  filter: drop-shadow(0 0 1vh rgba(111, 224, 127, .6));
+}
+body.temmenxmas .houses {
+  position: absolute; right: 4.4vw; top: 50%; transform: translateY(-50%);
+  font-size: 2.3vh; letter-spacing: .2vw;
+  animation: xmas-wiggle 2.2s ease-in-out infinite;
+}
+body.temmenxmas .row:nth-child(2n) .houses { animation-delay: .5s; }
+body.temmenxmas .row:first-child .houses { animation: md-shine 2.2s ease-in-out infinite; }
+body.temmenxmas .dot { background: #6fe07f; box-shadow: 0 0 1vh rgba(111, 224, 127, .8); }
+
+@keyframes xmas-snow {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to { background-position: 40px 210px, -55px 340px, 70px 460px; }
+}
+@keyframes xmas-twinkle {
+  from { opacity: 1; filter: none; }
+  to { opacity: .55; filter: hue-rotate(30deg); }
+}
+@keyframes xmas-wiggle {
+  0%, 100% { transform: translateY(-50%) rotate(-5deg); }
+  50% { transform: translateY(-50%) rotate(5deg); }
+}
+
+/* ── Temmen Frightnight full-page theme — SUPER Halloween ───────────────────
+   Haunted hollow: purple-black night with a full moon, stars, jack-o-
+   lantern glow and a hill silhouette; fog drifts and embers float up
+   over the boards; flickering pumpkin-lit numbers; potion-purple
+   banners; pumpkin rank badges; a haunted house at the end of every
+   lane; pumpkins collect toward the ghost with the most. */
+body.temmenhallow {
+  --bg: #150b21;
+  --panel: #201232;
+  --line: #4a2f6b;
+  --text: #f4eefc;
+  --dim: #a98fc9;
+  --accent: #ff7a1a;
+  --accent-dim: #d95f00;
+  background: var(--bg);
+}
+body.temmenhallow::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    /* full moon with halo */
+    radial-gradient(circle at 82% 16%, #f7ecc9 0 4.5vh, rgba(247, 236, 201, .3) 6vh, transparent 10vh),
+    /* stars */
+    radial-gradient(1.5px 1.5px at 14% 18%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 30% 8%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 52% 24%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 68% 12%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 8% 38%, #fff 50%, transparent 51%),
+    /* jack-o-lantern glow from below */
+    radial-gradient(45vw 20vh at 10% 105%, rgba(255, 122, 26, .28), transparent),
+    radial-gradient(45vw 20vh at 90% 105%, rgba(255, 122, 26, .22), transparent),
+    /* haunted hill silhouette */
+    radial-gradient(90vw 24vh at 50% 108%, #0a0512 0 62%, transparent 63%),
+    /* toxic green mist band */
+    radial-gradient(70vw 12vh at 50% 78%, rgba(132, 226, 75, .07), transparent),
+    /* night sky */
+    linear-gradient(180deg, #0d0618 0%, #150b21 50%, #241238 100%);
+}
+/* drifting fog + embers floating up, above the boards */
+body.temmenhallow::after {
+  content: ""; position: fixed; inset: 0; z-index: 15; pointer-events: none;
+  background-image:
+    radial-gradient(28vw 9vh at 20% 88%, rgba(200, 180, 235, .10), transparent 70%),
+    radial-gradient(34vw 11vh at 70% 94%, rgba(200, 180, 235, .08), transparent 70%),
+    radial-gradient(2px 2px at 30% 80%, rgba(255, 150, 60, .9) 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 62% 90%, rgba(255, 122, 26, .8) 50%, transparent 51%),
+    radial-gradient(1.3px 1.3px at 84% 70%, rgba(255, 180, 90, .7) 50%, transparent 51%);
+  background-size: 100% 100%, 100% 100%, 300px 300px, 420px 420px, 520px 520px;
+  animation: hallow-drift 13s linear infinite;
+}
+body.temmenhallow header {
+  position: relative;
+  background: linear-gradient(180deg, #2a1642, #1a0d2c);
+  border-bottom: .4vh solid #ff7a1a;
+  box-shadow: 0 .5vh 2vh rgba(0, 0, 0, .6), 0 .5vh 3vh rgba(255, 122, 26, .15);
+}
+body.temmenhallow .brand {
+  font-size: 3.2vh; letter-spacing: .1em;
+  animation: hallow-flicker 4s ease-in-out infinite;
+}
+body.temmenhallow .brand::before { content: "🎃 "; }
+body.temmenhallow .menu-btn, body.temmenhallow .gear {
+  background: #1a0d2c; border: 1px solid #4a2f6b; color: #a98fc9; border-radius: .8vh;
+}
+body.temmenhallow .view-badge {
+  background: linear-gradient(180deg, #ff8c33, #e0660a); color: #1a0d2c; border: none;
+  font-weight: 900;
+  clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%);
+  border-radius: 0; padding: .6vh 1.6vw;
+}
+body.temmenhallow .total-num { color: #ff8c33; text-shadow: 0 0 2.4vh rgba(255, 122, 26, .6); }
+
+/* potion-cabinet KPI tiles */
+body.temmenhallow .kpi-tile {
+  background: linear-gradient(180deg, #241238, #170b26);
+  border: 2px solid rgba(255, 122, 26, .5); border-radius: .9vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: 0 .6vh 1.8vh rgba(0, 0, 0, .55), 0 0 2vh rgba(255, 122, 26, .12);
+}
+body.temmenhallow .kpi-lbl {
+  order: -1;
+  margin: 0 -1.5vw .9vh; padding: .6vh 1.5vw;
+  background: linear-gradient(90deg, #6d28d9, #4c1d95);
+  color: #f4eefc; font-style: italic; font-weight: 900; letter-spacing: .16em;
+  border-bottom: 2px solid rgba(255, 122, 26, .6);
+}
+body.temmenhallow .kpi-num {
+  color: #ff8c33;
+  text-shadow: 0 0 2.2vh rgba(255, 122, 26, .65);
+  animation: hallow-flicker 5s ease-in-out infinite;
+}
+
+body.temmenhallow .widget h3 {
+  color: #ff8c33;
+  background: rgba(13, 6, 24, .85);
+  padding: .4vh 1.2vw .5vh; border-radius: .5vh;
+  border-left: .4vw solid #6d28d9;
+  align-self: flex-start;
+  text-shadow: 0 0 1.4vh rgba(255, 122, 26, .4);
+}
+body.temmenhallow .widget h3::before { content: "🎃 "; }
+
+/* pumpkin rank badges */
+body.temmenhallow .rank {
+  background: radial-gradient(circle at 35% 30%, #ffab5e, #e0660a 70%);
+  color: #2a1000; border: 2px solid #1a0d2c;
+  border-radius: 50% / 46%;
+  width: 4.6vh; height: 4.2vh; line-height: 3.9vh;
+  font-weight: 900; font-size: 2vh; justify-self: center;
+  box-shadow: 0 .4vh 1vh rgba(0, 0, 0, .55), inset 0 -.5vh .8vh rgba(150, 60, 0, .5);
+  position: relative;
+}
+body.temmenhallow .rank.r1 {
+  box-shadow: 0 0 1.8vh rgba(255, 122, 26, .9), inset 0 -.5vh .8vh rgba(150, 60, 0, .5);
+  animation: hallow-flicker 3s ease-in-out infinite;
+}
+body.temmenhallow .rank.r2 { filter: hue-rotate(230deg) saturate(.7); color: #fff; }
+body.temmenhallow .rank.r3 { filter: hue-rotate(60deg) saturate(1.1); color: #142000; }
+
+body.temmenhallow .avatar { background: #170b26; border: 2px solid #ff7a1a; box-shadow: 0 .4vh 1vh rgba(0, 0, 0, .5); }
+body.temmenhallow .bar-wrap {
+  background: rgba(16, 8, 28, .92);
+  border: 1px solid #4a2f6b; border-radius: .8vh;
+  box-shadow: 0 .4vh 1vh rgba(0, 0, 0, .5);
+}
+body.temmenhallow .bar {
+  background: linear-gradient(90deg, rgba(255, 122, 26, .5), rgba(109, 40, 217, .3));
+  border-right: 2px solid #ff7a1a;
+}
+body.temmenhallow .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(132, 226, 75, .5), rgba(109, 40, 217, .35));
+  border-right-color: #84e24b;
+}
+body.temmenhallow .row:first-child .bar-wrap { border-color: rgba(132, 226, 75, .6); box-shadow: 0 0 1.8vh rgba(132, 226, 75, .25); }
+body.temmenhallow .name { font-weight: 800; padding-right: 17vw; }
+body.temmenhallow .apps { color: #ff8c33; text-shadow: 0 0 1.8vh rgba(255, 122, 26, .5), 0 .3vh .8vh rgba(0, 0, 0, .8); }
+body.temmenhallow .sub { color: #d9c8f0; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .8); }
+body.temmenhallow .more { color: #d9c8f0; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .8); }
+
+/* the haunted house at the end of every lane */
+body.temmenhallow .row:not(.noav) .bar-wrap::after {
+  content: "🏚️"; position: absolute; right: .6vw; top: 50%; transform: translateY(-50%);
+  font-size: 3.2vh;
+  filter: drop-shadow(0 0 1vh rgba(168, 85, 247, .7));
+}
+body.temmenhallow .houses {
+  position: absolute; right: 4.4vw; top: 50%; transform: translateY(-50%);
+  font-size: 2.3vh; letter-spacing: .2vw;
+  animation: xmas-wiggle 2.4s ease-in-out infinite;
+}
+body.temmenhallow .row:nth-child(2n) .houses { animation-delay: .6s; }
+body.temmenhallow .row:first-child .houses {
+  animation: hallow-float 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 1.4vh rgba(244, 238, 252, .8));
+}
+body.temmenhallow .dot { background: #ff7a1a; box-shadow: 0 0 1vh rgba(255, 122, 26, .8); }
+
+@keyframes hallow-drift {
+  from { background-position: -30vw 0, 20vw 0, 0 0, 0 0, 0 0; }
+  to { background-position: 70vw 0, 120vw 0, -25px -300px, 30px -420px, -20px -520px; }
+}
+@keyframes hallow-flicker {
+  0%, 100% { opacity: 1; }
+  8% { opacity: .75; }
+  10% { opacity: 1; }
+  46% { opacity: .85; }
+  50% { opacity: 1; }
+  72% { opacity: .7; }
+  74% { opacity: 1; }
+}
+@keyframes hallow-float {
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(calc(-50% - 1.2vh)); }
+}
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -1476,6 +1833,13 @@ footer {
   body.temmendeal .name { padding-right: 100px; }
   body.temmendeal .row:not(.noav) .bar-wrap::before { right: 15px; width: 10px; height: 6px; border-width: 2px; }
   body.temmendeal .row:not(.noav) .bar-wrap::after { right: 8px; width: 24px; }
+  body.temmenxmas .brand, body.temmenhallow .brand { font-size: 15px; }
+  body.temmenxmas .rank, body.temmenhallow .rank { width: 26px; height: 26px; line-height: 23px; font-size: 12px; }
+  body.temmenxmas .houses, body.temmenhallow .houses { font-size: 13px; right: 44px; }
+  body.temmenxmas .name, body.temmenhallow .name { padding-right: 100px; }
+  body.temmenxmas .row:not(.noav) .bar-wrap::after,
+  body.temmenhallow .row:not(.noav) .bar-wrap::after { font-size: 18px; right: 6px; }
+  body.temmenxmas .kpi-tile::after { font-size: 15px; top: -9px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
@@ -1650,6 +2014,8 @@ footer {
           <option value="golf">Temmen Classic ⛳</option>
           <option value="cup">Temmen Cup ⚽</option>
           <option value="deal">Temmen Deal 💼</option>
+          <option value="xmas">Temmen Wonderland 🎄</option>
+          <option value="hallow">Temmen Frightnight 🎃</option>
         </select>
       </label>
     </div>
@@ -1735,7 +2101,7 @@ function normalizeState(s) {
     }
     out.filters = nf;
   }
-  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -1865,19 +2231,25 @@ const KART_SVG = `<svg viewBox="0 0 96 56" xmlns="http://www.w3.org/2000/svg">
   <circle cx="77" cy="43" r="3.6" fill="#cfd4e2"/>
 </svg>`;
 
-// TemmenKart theme: multicolored kart-game wordmark for the title.
+// Playful per-letter wordmarks for the game themes.
 const TK_COLORS = ["#38bdf8", "#22c55e", "#ef4444", "#facc15", "#2dd4bf"];
+const BRAND_PALETTES = {
+  race: TK_COLORS,
+  xmas: ["#ffffff", "#f4c430", "#9be89d"],
+  hallow: ["#ff7a1a", "#a855f7", "#84e24b"],
+};
 function setBrand(title) {
   const el = document.getElementById("brand");
   el.textContent = "";
-  if (state.theme !== "race") { el.textContent = title; return; }
+  const pal = BRAND_PALETTES[state.theme];
+  if (!pal) { el.textContent = title; return; }
   let ci = 0;
   for (const ch of title) {
     const s = document.createElement("span");
     s.textContent = ch;
     if (ch.trim()) {
       s.className = "tk-letter";
-      s.style.color = TK_COLORS[ci++ % TK_COLORS.length];
+      s.style.color = pal[ci++ % pal.length];
     }
     el.appendChild(s);
   }
@@ -1890,6 +2262,8 @@ function applyState() {
   document.body.classList.toggle("temmengolf", state.theme === "golf");
   document.body.classList.toggle("temmencup", state.theme === "cup");
   document.body.classList.toggle("temmendeal", state.theme === "deal");
+  document.body.classList.toggle("temmenxmas", state.theme === "xmas");
+  document.body.classList.toggle("temmenhallow", state.theme === "hallow");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -1981,7 +2355,8 @@ onSnapshot(collection(db, "tvLeaderboard"),
    upgrade the headline. First snapshot only sets the baseline. */
 const CELEB_HEADLINES = {
   race: "🏁 FULL THROTTLE!", opoly: "🎩 PAYDAY!", madness: "🏀 BUCKETS!",
-  golf: "⛳ BIRDIE!", cup: "⚽ GOOOOAL!", deal: "💼 DEAL!", default: "🎉 NEW SALE!",
+  golf: "⛳ BIRDIE!", cup: "⚽ GOOOOAL!", deal: "💼 DEAL!",
+  xmas: "🎄 HO HO SOLD!", hallow: "🎃 TRICK OR TREAT!", default: "🎉 NEW SALE!",
 };
 const MILESTONE_STEP = 250; // career apps
 let celebBaseline = null;
@@ -2493,6 +2868,12 @@ function render() {
         } else if (isAgents && state.theme === "deal") {
           // money bags stack up; the leader holds the big case
           houses = `<div class="houses">${i === 0 ? "💼" : "💰".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+        } else if (isAgents && state.theme === "xmas") {
+          // presents pile up under the tree; Santa rides with the leader
+          houses = `<div class="houses">${i === 0 ? "🎅" : "🎁".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+        } else if (isAgents && state.theme === "hallow") {
+          // pumpkins collect on the porch; the leader is the ghost with the most
+          houses = `<div class="houses">${i === 0 ? "👻" : "🎃".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         }
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
