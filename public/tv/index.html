@@ -204,6 +204,72 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .row.race:first-child .track { border-color: var(--gold); }
 .row.race:first-child .lane-name { color: rgba(251, 191, 36, .45); }
 
+/* ── TemmenKart full-page theme (active while a race dashboard shows) ── */
+.tk-letter {
+  display: inline-block;
+  font-weight: 900;
+  transform: rotate(-3deg) translateY(-.1vh);
+  text-shadow:
+    -1px -1px 0 #04121a, 1px -1px 0 #04121a,
+    -1px 1px 0 #04121a, 1px 1px 0 #04121a,
+    2px 3px 0 rgba(0, 0, 0, .55);
+}
+.tk-letter:nth-child(even) { transform: rotate(3deg) translateY(.15vh); }
+
+body.temmenkart {
+  background:
+    radial-gradient(60vw 30vh at 15% -5%, rgba(56, 189, 248, .12), transparent),
+    radial-gradient(50vw 28vh at 85% -5%, rgba(239, 68, 68, .10), transparent),
+    radial-gradient(45vw 25vh at 50% 110%, rgba(34, 197, 94, .08), transparent),
+    var(--bg);
+}
+body.temmenkart header { position: relative; border-bottom: none; }
+body.temmenkart header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: .6vh;
+  background: linear-gradient(90deg, #38bdf8, #22c55e, #facc15, #ef4444, #2dd4bf, #38bdf8);
+}
+body.temmenkart .brand { font-size: 3.4vh; letter-spacing: .08em; }
+body.temmenkart .view-badge { color: #facc15; border-color: rgba(250, 204, 21, .6); }
+body.temmenkart .total-num { color: #facc15; }
+
+body.temmenkart .kpi-tile { border-width: 2px; }
+body.temmenkart .kpi-tile:nth-child(4n+1) { border-color: rgba(56, 189, 248, .55); }
+body.temmenkart .kpi-tile:nth-child(4n+1) .kpi-num { color: #38bdf8; }
+body.temmenkart .kpi-tile:nth-child(4n+2) { border-color: rgba(250, 204, 21, .55); }
+body.temmenkart .kpi-tile:nth-child(4n+2) .kpi-num { color: #facc15; }
+body.temmenkart .kpi-tile:nth-child(4n+3) { border-color: rgba(239, 68, 68, .55); }
+body.temmenkart .kpi-tile:nth-child(4n+3) .kpi-num { color: #ef4444; }
+body.temmenkart .kpi-tile:nth-child(4n+4) { border-color: rgba(34, 197, 94, .55); }
+body.temmenkart .kpi-tile:nth-child(4n+4) .kpi-num { color: #22c55e; }
+
+body.temmenkart .widget h3 { color: #facc15; letter-spacing: .16em; }
+body.temmenkart .track {
+  background: linear-gradient(180deg, #222c47, #141d33);
+  border-color: #2b3a5e;
+  box-shadow: inset 0 .55vh 0 rgba(34, 197, 94, .28), inset 0 -.55vh 0 rgba(34, 197, 94, .28);
+}
+body.temmenkart .track::before { border-top: .45vh dashed rgba(250, 204, 21, .35); }
+body.temmenkart .kart { animation: tk-bob 1.5s ease-in-out infinite; }
+body.temmenkart .row:nth-child(2n) .kart { animation-delay: .35s; }
+body.temmenkart .row:nth-child(3n) .kart { animation-delay: .7s; }
+body.temmenkart .kart .avatar { border-width: 2px; box-shadow: 0 .5vh 1vh rgba(0, 0, 0, .5); }
+body.temmenkart .kart .item { animation: tk-float 1.8s ease-in-out infinite; }
+body.temmenkart .row.race:first-child .kart .avatar {
+  border-color: var(--gold);
+  box-shadow: 0 0 1.6vh rgba(251, 191, 36, .8), 0 .5vh 1vh rgba(0, 0, 0, .5);
+}
+body.temmenkart .row.race:first-child .apps { color: #facc15; }
+body.temmenkart footer { border-top-color: #2b3a5e; }
+
+@keyframes tk-bob {
+  0%, 100% { transform: translateY(-54%); }
+  50% { transform: translateY(-63%); }
+}
+@keyframes tk-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-.6vh); }
+}
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -464,7 +530,7 @@ footer {
       <label><span>Theme</span>
         <select id="selTheme">
           <option value="default">Standard</option>
-          <option value="race">Kart Race 🏁</option>
+          <option value="race">TemmenKart 🏁</option>
         </select>
       </label>
     </div>
@@ -633,8 +699,27 @@ async function setDashboards(ds) {
   }
 }
 
+// TemmenKart theme: multicolored kart-game wordmark for the title.
+const TK_COLORS = ["#38bdf8", "#22c55e", "#ef4444", "#facc15", "#2dd4bf"];
+function setBrand(title) {
+  const el = document.getElementById("brand");
+  el.textContent = "";
+  if (state.theme !== "race") { el.textContent = title; return; }
+  let ci = 0;
+  for (const ch of title) {
+    const s = document.createElement("span");
+    s.textContent = ch;
+    if (ch.trim()) {
+      s.className = "tk-letter";
+      s.style.color = TK_COLORS[ci++ % TK_COLORS.length];
+    }
+    el.appendChild(s);
+  }
+}
+
 function applyState() {
-  document.getElementById("brand").textContent = state.title || CFG.TITLE;
+  document.body.classList.toggle("temmenkart", state.theme === "race");
+  setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
   render();
