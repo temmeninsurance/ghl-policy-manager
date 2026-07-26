@@ -479,15 +479,32 @@ body.temmenmadness {
     repeating-linear-gradient(135deg, transparent 0 3.2vh, rgba(255, 255, 255, .018) 3.2vh 6.4vh),
     var(--bg);
 }
-/* the court: hardwood planks rising from the floor, halfcourt line and
-   center circle in arena paint — visible through the page's open areas */
+/* the court: the whole backdrop is a dark-stained hardwood floor with
+   painted markings — center circle & dot, halfcourt line, three-point
+   arcs sweeping in from the baselines, free-throw circles — dimmed at
+   the edges like arena lighting. Panels float over it. */
 body.temmenmadness::after {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(circle at 50% 100%, transparent 17.8vh, rgba(45, 212, 191, .22) 18vh, rgba(45, 212, 191, .22) 18.7vh, transparent 18.9vh),
-    linear-gradient(90deg, transparent calc(50% - .15vw), rgba(45, 212, 191, .16) calc(50% - .15vw), rgba(45, 212, 191, .16) calc(50% + .15vw), transparent calc(50% + .15vw)) 0 100% / 100% 26vh no-repeat,
-    repeating-linear-gradient(90deg, rgba(139, 87, 42, .14) 0 5vw, rgba(160, 104, 50, .14) 5vw 10vw) 0 100% / 100% 26vh no-repeat,
-    linear-gradient(180deg, transparent 0%, rgba(101, 62, 28, .30) 100%) 0 100% / 100% 26vh no-repeat;
+    /* center circle + dot */
+    radial-gradient(circle at 50% 50%, transparent 13.6vh, rgba(45, 212, 191, .30) 13.8vh, rgba(45, 212, 191, .30) 14.5vh, transparent 14.7vh),
+    radial-gradient(circle at 50% 50%, rgba(45, 212, 191, .14) 0, rgba(45, 212, 191, .14) 2.2vh, transparent 2.4vh),
+    /* halfcourt line */
+    linear-gradient(90deg, transparent calc(50% - .16vw), rgba(45, 212, 191, .26) calc(50% - .16vw), rgba(45, 212, 191, .26) calc(50% + .16vw), transparent calc(50% + .16vw)),
+    /* three-point arcs from each baseline */
+    radial-gradient(circle at -8vw 50%, transparent 52vh, rgba(240, 244, 248, .16) 52.2vh, rgba(240, 244, 248, .16) 52.9vh, transparent 53.1vh),
+    radial-gradient(circle at calc(100% + 8vw) 50%, transparent 52vh, rgba(240, 244, 248, .16) 52.2vh, rgba(240, 244, 248, .16) 52.9vh, transparent 53.1vh),
+    /* free-throw circles */
+    radial-gradient(circle at 9vw 50%, transparent 8.6vh, rgba(240, 244, 248, .13) 8.8vh, rgba(240, 244, 248, .13) 9.4vh, transparent 9.6vh),
+    radial-gradient(circle at calc(100% - 9vw) 50%, transparent 8.6vh, rgba(240, 244, 248, .13) 8.8vh, rgba(240, 244, 248, .13) 9.4vh, transparent 9.6vh),
+    /* arena lighting vignette */
+    radial-gradient(120vw 95vh at 50% 42%, transparent 42%, rgba(8, 11, 16, .62) 100%),
+    /* plank seams and tone variation */
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .16) 0 .25vw, transparent .25vw 4.5vw),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .028) 0 9vw, transparent 9vw 18vw),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .05) 0 1px, transparent 1px 22vh),
+    /* the wood itself */
+    linear-gradient(180deg, #4a3016 0%, #3c2712 55%, #331f0e 100%);
 }
 body.temmenmadness header {
   position: relative;
@@ -565,6 +582,11 @@ body.temmenmadness .row:first-child .bar {
 }
 body.temmenmadness .row:first-child .bar-wrap { border-color: rgba(251, 191, 36, .55); }
 body.temmenmadness .name { font-style: italic; font-weight: 800; padding-right: 17vw; }
+/* text that sits directly on the court gets lifted off the wood */
+body.temmenmadness .apps { text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .7); }
+body.temmenmadness .sub { color: #b8c4d4; text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .7); }
+body.temmenmadness .more { text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .7); }
+body.temmenmadness .widget h3 { text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .6); background: rgba(23, 28, 35, .55); padding: .4vh 1vw .5vh; border-radius: .5vh .5vh 0 0; }
 
 /* the hoop at the end of every agent lane — backboard, orange rim, net */
 body.temmenmadness .row:not(.noav) .bar-wrap::before {
@@ -771,7 +793,6 @@ footer {
   body.temmenmadness .name { padding-right: 100px; }
   body.temmenmadness .row:not(.noav) .bar-wrap::before { right: 4px; width: 5px; height: 26px; }
   body.temmenmadness .row:not(.noav) .bar-wrap::after { right: 9px; width: 15px; height: 15px; border-width: 3px; }
-  body.temmenmadness::after { background-size: auto, 100% 90px, 100% 90px, 100% 90px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
