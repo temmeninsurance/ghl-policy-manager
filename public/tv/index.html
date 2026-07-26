@@ -108,6 +108,76 @@ header {
 
 main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
 
+/* Goal bar with pace */
+.goal-bar {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh;
+  padding: 1.2vh 1.5vw; display: flex; flex-direction: column; gap: .8vh;
+}
+.goal-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 2vh; color: var(--dim); }
+.goal-head b { color: var(--text); font-variant-numeric: tabular-nums; }
+.pace-up { color: #22c55e; font-weight: 800; }
+.pace-down { color: #ef4444; font-weight: 800; }
+.goal-track { height: 2.2vh; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.goal-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  transition: width .9s cubic-bezier(.2,.8,.2,1);
+}
+
+/* rank-movement + streak chips beside names */
+.nchip {
+  font-size: 1.6vh; font-weight: 800; margin-left: .7vw;
+  font-variant-numeric: tabular-nums; font-style: normal;
+}
+.nchip.up { color: #22c55e; }
+.nchip.down { color: #ef4444; }
+.nchip.fire { color: #f97316; }
+
+/* Celebration takeover */
+.celebrate {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 6, 14, .85);
+  animation: celeb-fade .4s ease-out;
+  overflow: hidden;
+}
+.celebrate-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 1.6vh;
+  text-align: center;
+  animation: celeb-pop .55s cubic-bezier(.2, 1.4, .4, 1);
+}
+.c-avatar { width: 22vh; height: 22vh; font-size: 7vh; border-width: .6vh; border-color: var(--accent); box-shadow: 0 0 6vh rgba(45, 212, 191, .5); }
+.c-name { font-size: 5.5vh; font-weight: 900; letter-spacing: .04em; }
+.c-amount { font-size: 8vh; font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; text-shadow: 0 0 4vh rgba(251, 191, 36, .6); }
+.c-sub { font-size: 2.6vh; color: var(--dim); }
+.c-tag { font-size: 3.2vh; font-weight: 900; letter-spacing: .12em; color: var(--accent); }
+.confetti {
+  position: absolute; top: -6vh; width: 1.3vh; height: 2.6vh; border-radius: .3vh;
+  animation: confetti-fall 2.6s linear infinite;
+}
+.confetti:nth-child(1) { left: 4%; background: #ef4444; animation-delay: 0s; }
+.confetti:nth-child(2) { left: 11%; background: #38bdf8; animation-delay: .7s; }
+.confetti:nth-child(3) { left: 18%; background: #facc15; animation-delay: .2s; }
+.confetti:nth-child(4) { left: 25%; background: #22c55e; animation-delay: 1.1s; }
+.confetti:nth-child(5) { left: 32%; background: #a855f7; animation-delay: .5s; }
+.confetti:nth-child(6) { left: 39%; background: #f97316; animation-delay: 1.5s; }
+.confetti:nth-child(7) { left: 46%; background: #2dd4bf; animation-delay: .9s; }
+.confetti:nth-child(8) { left: 53%; background: #ef4444; animation-delay: 1.8s; }
+.confetti:nth-child(9) { left: 60%; background: #facc15; animation-delay: .3s; }
+.confetti:nth-child(10) { left: 67%; background: #38bdf8; animation-delay: 1.3s; }
+.confetti:nth-child(11) { left: 74%; background: #22c55e; animation-delay: .6s; }
+.confetti:nth-child(12) { left: 81%; background: #a855f7; animation-delay: 1.7s; }
+.confetti:nth-child(13) { left: 88%; background: #f97316; animation-delay: .1s; }
+.confetti:nth-child(14) { left: 95%; background: #2dd4bf; animation-delay: 1s; }
+.confetti:nth-child(15) { left: 8%; background: #facc15; animation-delay: 2s; }
+.confetti:nth-child(16) { left: 92%; background: #ef4444; animation-delay: 2.3s; }
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: .7; }
+}
+@keyframes celeb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes celeb-pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
 /* KPI tiles */
 .kpi-row { display: flex; gap: 1.2vw; }
 .kpi-row:empty { display: none; }
@@ -1217,9 +1287,11 @@ footer {
 .picker-head button { background: none; border: none; color: var(--dim); font-size: 3vh; cursor: pointer; }
 .picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.4vh 1.2vw; }
 .picker-grid label, .wrow label { display: flex; flex-direction: column; gap: .5vh; font-size: 1.7vh; color: var(--dim); text-transform: capitalize; }
-.picker select, .picker input[type="text"], .picker input[type="password"] {
+.picker select, .picker input[type="text"], .picker input[type="password"],
+.picker input[type="number"], .picker input[type="date"] {
   background: var(--bg); color: var(--text); border: 1px solid var(--line);
   border-radius: .8vh; padding: .9vh 1vw; font-size: 1.9vh; width: 100%;
+  color-scheme: dark;
 }
 .picker-actions { display: flex; gap: 1vw; align-items: center; border-top: 1px solid var(--line); padding-top: 1.8vh; }
 .picker-actions input { flex: 1; }
@@ -1375,9 +1447,27 @@ footer {
 </header>
 
 <main>
+  <div class="goal-bar hidden" id="goalBar">
+    <div class="goal-head"><span>🎯 <b id="goalLabel"></b></span><span id="goalPace"></span></div>
+    <div class="goal-track"><div class="goal-fill" id="goalFill"></div></div>
+  </div>
   <div class="kpi-row" id="kpiRow"></div>
   <div class="widgets" id="widgets"></div>
 </main>
+
+<div class="celebrate hidden" id="celebrate">
+  <span class="confetti"></span><span class="confetti"></span><span class="confetti"></span><span class="confetti"></span>
+  <span class="confetti"></span><span class="confetti"></span><span class="confetti"></span><span class="confetti"></span>
+  <span class="confetti"></span><span class="confetti"></span><span class="confetti"></span><span class="confetti"></span>
+  <span class="confetti"></span><span class="confetti"></span><span class="confetti"></span><span class="confetti"></span>
+  <div class="celebrate-inner">
+    <div class="avatar c-avatar" id="cAvatar"></div>
+    <div class="c-name" id="cName"></div>
+    <div class="c-amount" id="cAmount"></div>
+    <div class="c-sub" id="cSub"></div>
+    <div class="c-tag" id="cTag"></div>
+  </div>
+</div>
 
 <footer>
   <div class="dot" id="liveDot"></div>
@@ -1425,6 +1515,21 @@ footer {
         <select id="selScroll">
           <option value="off">Off</option>
           <option value="on">On — drift through the full list</option>
+        </select>
+      </label>
+      <label><span>Goal ($, optional)</span>
+        <input id="selGoal" type="number" min="0" step="1000" placeholder="e.g. 250000">
+      </label>
+      <label><span>Contest starts (optional)</span>
+        <input id="selCStart" type="date">
+      </label>
+      <label><span>Contest ends</span>
+        <input id="selCEnd" type="date">
+      </label>
+      <label><span>Celebrations</span>
+        <select id="selCele">
+          <option value="on">On — takeover on new sales</option>
+          <option value="off">Off</option>
         </select>
       </label>
       <label><span>Theme</span>
@@ -1490,7 +1595,8 @@ const VIEWS = {
   today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD",
   last_month: "Last Month", last_year: "Last Year", all: "All Time",
 };
-const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown" };
+const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown", rookies: "Rookie Leaderboard" };
+const ROOKIE_MONTHS = 6; // first sale within this window = rookie
 const METRICS = { revenue: "Revenue", apps: "Apps", avg: "Avg $ / App" };
 const DEFAULT_STATE = {
   title: CFG.TITLE,
@@ -1502,6 +1608,10 @@ const DEFAULT_STATE = {
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
+  out.celebrate = out.celebrate !== false;
+  out.goal = Number(out.goal) > 0 ? Number(out.goal) : 0;
+  out.contestStart = /^\d{4}-\d{2}-\d{2}$/.test(out.contestStart || "") ? out.contestStart : "";
+  out.contestEnd = /^\d{4}-\d{2}-\d{2}$/.test(out.contestEnd || "") ? out.contestEnd : "";
   out.theme = ["race", "opoly", "madness", "golf", "cup", "deal"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
@@ -1731,6 +1841,7 @@ onSnapshot(collection(db, "tvLeaderboard"),
     }
     latest = { ...(meta || {}), rows };
     overlay.classList.add("hidden");
+    detectCelebrations();
     render();
   },
   (err) => {
@@ -1738,6 +1849,90 @@ onSnapshot(collection(db, "tvLeaderboard"),
     overlayMsg.textContent = "Connection error: " + err.message;
   }
 );
+
+/* ── Celebrations ─────────────────────────────────────────────────────────
+   Each data sync is diffed against the previous one (per agent, today's
+   rows, company-wide). New sales trigger a full-screen takeover with the
+   rep's photo and amount; personal-best days and career-app milestones
+   upgrade the headline. First snapshot only sets the baseline. */
+const CELEB_HEADLINES = {
+  race: "🏁 FULL THROTTLE!", opoly: "🎩 PAYDAY!", madness: "🏀 BUCKETS!",
+  golf: "⛳ BIRDIE!", cup: "⚽ GOOOOAL!", deal: "💼 DEAL!", default: "🎉 NEW SALE!",
+};
+const MILESTONE_STEP = 250; // career apps
+let celebBaseline = null;
+const celebQueue = [];
+let celebShowing = false;
+
+function celebStats() {
+  const t = ymd(new Date());
+  const m = new Map();
+  for (const r of latest.rows || []) {
+    const a = r[CFG.agentField];
+    if (!a) continue;
+    let s = m.get(a);
+    if (!s) { s = { todayApps: 0, todayRev: 0, careerApps: 0, bestPrev: 0, days: new Map() }; m.set(a, s); }
+    const apps = Number(r[CFG.appsField]) || 0;
+    const rev = Number(r[CFG.revenueField]) || 0;
+    s.careerApps += apps;
+    const d = r[CFG.dateField];
+    if (d === t) { s.todayApps += apps; s.todayRev += rev; }
+    else s.days.set(d, (s.days.get(d) || 0) + rev);
+  }
+  for (const s of m.values()) {
+    for (const v of s.days.values()) if (v > s.bestPrev) s.bestPrev = v;
+    s.days = null; // free
+  }
+  return m;
+}
+
+function detectCelebrations() {
+  const stats = celebStats();
+  if (celebBaseline && state.celebrate !== false) {
+    for (const [agent, s] of stats) {
+      const b = celebBaseline.get(agent);
+      const prevApps = b ? b.todayApps : 0;
+      const prevRev = b ? b.todayRev : 0;
+      if (s.todayApps <= prevApps && s.todayRev <= prevRev + 0.5) continue;
+      const e = { agent, apps: Math.max(0, s.todayApps - prevApps), rev: Math.max(0, s.todayRev - prevRev), tag: "" };
+      if (s.bestPrev > 0 && s.todayRev > s.bestPrev && prevRev <= s.bestPrev) e.tag = "PERSONAL BEST DAY! 🏅";
+      const prevCareer = b ? b.careerApps : s.careerApps - e.apps;
+      if (Math.floor(s.careerApps / MILESTONE_STEP) > Math.floor(prevCareer / MILESTONE_STEP)) {
+        e.tag = `${(Math.floor(s.careerApps / MILESTONE_STEP) * MILESTONE_STEP).toLocaleString()} CAREER APPS! 🏆`;
+      }
+      if (celebQueue.length < 6) celebQueue.push(e);
+    }
+    showNextCeleb();
+  }
+  celebBaseline = stats;
+}
+
+function showNextCeleb() {
+  if (celebShowing || !celebQueue.length) return;
+  celebShowing = true;
+  const e = celebQueue.shift();
+  const el = document.getElementById("celebrate");
+  const av = document.getElementById("cAvatar");
+  av.innerHTML = "";
+  const photo = photoOf(e.agent);
+  if (photo) {
+    const img = document.createElement("img");
+    img.src = photo;
+    av.appendChild(img);
+  } else {
+    av.textContent = initialsOf(displayNameOf(e.agent));
+  }
+  document.getElementById("cName").textContent = displayNameOf(e.agent);
+  document.getElementById("cAmount").textContent = e.rev > 0 ? fmtMoney(e.rev) : `${fmt(e.apps)} app${e.apps === 1 ? "" : "s"}`;
+  document.getElementById("cSub").textContent = e.rev > 0 && e.apps > 0 ? `${fmt(e.apps)} app${e.apps === 1 ? "" : "s"}` : "";
+  document.getElementById("cTag").textContent = e.tag || CELEB_HEADLINES[state.theme] || CELEB_HEADLINES.default;
+  el.classList.remove("hidden");
+  setTimeout(() => {
+    el.classList.add("hidden");
+    celebShowing = false;
+    showNextCeleb();
+  }, 8000);
+}
 
 /* ── Aggregation ── */
 function ymd(d) {
@@ -1763,6 +1958,32 @@ function periodRange(v) {
   return [ymd(new Date(y, now.getMonth(), 1)), "9999"]; // mtd
 }
 
+// Active range: contest dates override the date frame when set.
+function currentRange() {
+  if (state.contestStart && state.contestEnd) return [state.contestStart, state.contestEnd];
+  return periodRange(state.view);
+}
+
+// Concrete [start, end] for pace math (null when unbounded, e.g. All Time).
+function concreteBounds() {
+  if (state.contestStart && state.contestEnd) return [state.contestStart, state.contestEnd];
+  const now = new Date();
+  const y = now.getFullYear();
+  const v = state.view;
+  if (v === "today") { const t = ymd(now); return [t, t]; }
+  if (v === "week") {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return [ymd(monday), ymd(sunday)];
+  }
+  if (v === "mtd") return [ymd(new Date(y, now.getMonth(), 1)), ymd(new Date(y, now.getMonth() + 1, 0))];
+  if (v === "ytd") return [`${y}-01-01`, `${y}-12-31`];
+  if (v === "last_month" || v === "last_year") return periodRange(v);
+  return null; // all time — pace is meaningless
+}
+
 function matchesFilter(r, field, value) {
   return String(r[field] || "").trim().toLowerCase() === String(value).trim().toLowerCase();
 }
@@ -1770,7 +1991,7 @@ function matchesFilter(r, field, value) {
 // Rows within the dashboard's date frame + filters, plus the widget's own
 // optional filter.
 function rowsFor(widget) {
-  const [start, end] = periodRange(state.view);
+  const [start, end] = currentRange();
   const fields = latest.filterFields || [];
   const out = [];
   for (const r of latest.rows || []) {
@@ -1823,12 +2044,86 @@ function widgetLabel(w) {
   const suffix = w.fvalue ? ` — ${w.fvalue}` : "";
   if (w.type === "kpi") return METRICS[w.metric] + suffix;
   if (w.type === "breakdown") return `${METRICS[w.metric]} by ${String(w.field || "").replace(/_/g, " ")}` + suffix;
+  if (w.type === "rookies") return "Rookie Leaderboard" + suffix;
   return "Leaderboard" + (w.metric === "apps" ? " — Apps" : "") + suffix;
+}
+
+function nameChip(cls, text) {
+  const s = document.createElement("span");
+  s.className = "nchip " + cls;
+  s.textContent = text;
+  return s;
+}
+
+// Company-wide per-agent career facts, recomputed per render: first sale
+// date (rookie window) and selling-day streaks (consecutive company-active
+// days with at least one sale).
+let firstSale = new Map();
+let streakMap = new Map();
+function computeCareerFacts() {
+  firstSale = new Map();
+  streakMap = new Map();
+  const agentDays = new Map();
+  const allDays = new Set();
+  for (const r of latest.rows || []) {
+    const a = r[CFG.agentField], d = r[CFG.dateField];
+    if (!a || !d) continue;
+    if (d < (firstSale.get(a) || "9999")) firstSale.set(a, d);
+    allDays.add(d);
+    let s = agentDays.get(a);
+    if (!s) { s = new Set(); agentDays.set(a, s); }
+    s.add(d);
+  }
+  const active = [...allDays].sort().reverse().slice(0, 60);
+  for (const [a, days] of agentDays) {
+    let n = 0;
+    for (const d of active) { if (days.has(d)) n++; else break; }
+    streakMap.set(a, n);
+  }
 }
 
 /* ── Rendering ── */
 function render() {
   if (!latest) return;
+  computeCareerFacts();
+
+  // Date-frame badge doubles as the contest countdown clock.
+  const badge = document.getElementById("viewBadge");
+  if (state.contestStart && state.contestEnd) {
+    const left = new Date(state.contestEnd + "T23:59:59").getTime() - Date.now();
+    if (left <= 0) badge.textContent = "🏁 FINAL";
+    else {
+      const d = Math.floor(left / 86400e3), h = Math.floor((left % 86400e3) / 3600e3), m = Math.floor((left % 3600e3) / 60e3);
+      badge.textContent = "⏱ " + (d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`) + " left";
+    }
+  } else {
+    badge.textContent = (VIEWS[state.view] || state.view).toUpperCase();
+  }
+
+  // Goal bar with on/behind-pace math.
+  const goalBar = document.getElementById("goalBar");
+  if (state.goal > 0) {
+    const rev = sumsOf(rowsFor(null)).revenue;
+    const pctG = Math.min(100, (rev / state.goal) * 100);
+    document.getElementById("goalLabel").textContent = `${fmtMoney(rev)} / ${fmtMoney(state.goal)} (${Math.round(pctG)}%)`;
+    document.getElementById("goalFill").style.width = pctG + "%";
+    const paceEl = document.getElementById("goalPace");
+    const bounds = concreteBounds();
+    if (bounds) {
+      const [bs, be] = bounds;
+      const dayMs = 86400e3;
+      const total = Math.max(1, (new Date(be + "T12:00") - new Date(bs + "T12:00")) / dayMs + 1);
+      const elapsed = Math.min(total, Math.max(1, (new Date(ymd(new Date()) + "T12:00") - new Date(bs + "T12:00")) / dayMs + 1));
+      const diff = rev - state.goal * (elapsed / total);
+      paceEl.textContent = diff >= 0 ? `▲ ${fmtMoney(diff)} ahead of pace` : `▼ ${fmtMoney(-diff)} behind pace`;
+      paceEl.className = diff >= 0 ? "pace-up" : "pace-down";
+    } else {
+      paceEl.textContent = "";
+    }
+    goalBar.classList.remove("hidden");
+  } else {
+    goalBar.classList.add("hidden");
+  }
 
   const kpis = state.widgets.filter((w) => w.type === "kpi");
   const boards = state.widgets.filter((w) => w.type !== "kpi");
@@ -1862,13 +2157,31 @@ function render() {
   const scrollPos = [...widgetsEl.querySelectorAll(".wboard")].map((el) => el.scrollTop);
   widgetsEl.innerHTML = "";
   widgetsEl.style.gridTemplateColumns = `repeat(${Math.max(1, boards.length)}, 1fr)`;
+  const todayS = ymd(new Date());
   for (const w of boards) {
     const rows = rowsFor(w);
-    const isAgents = w.type === "leaderboard";
-    const map = aggBy(rows, isAgents ? (r) => r[CFG.agentField] : (r) => r[w.field]);
-    const ranked = [...map.entries()]
+    const isAgents = w.type === "leaderboard" || w.type === "rookies";
+    const keyFn = isAgents ? (r) => r[CFG.agentField] : (r) => r[w.field];
+    const map = aggBy(rows, keyFn);
+    let ranked = [...map.entries()]
       .map(([key, m]) => ({ key, ...m }))
       .sort((a, b) => b[w.metric] - a[w.metric] || String(a.key).localeCompare(String(b.key)));
+
+    if (w.type === "rookies") {
+      const cut = new Date();
+      cut.setMonth(cut.getMonth() - ROOKIE_MONTHS);
+      const cutS = ymd(cut);
+      ranked = ranked.filter((e) => (firstSale.get(e.key) || "0000") >= cutS);
+    }
+
+    // Rank movement vs. yesterday's standings (same period minus today).
+    let prevRank = null;
+    if (isAgents && state.view !== "today") {
+      const prev = [...aggBy(rows.filter((r) => (r[CFG.dateField] || "") < todayS), keyFn).entries()]
+        .map(([key, m]) => ({ key, ...m }))
+        .sort((a, b) => b[w.metric] - a[w.metric] || String(a.key).localeCompare(String(b.key)));
+      prevRank = new Map(prev.map((e, idx) => [e.key, idx]));
+    }
 
     if (!headerSet) {
       const sums = sumsOf(rows);
@@ -1936,7 +2249,17 @@ function render() {
           <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div>${houses}</div>
           ${valueCell}`;
       }
-      row.querySelector(".name, .lane-name").textContent = isAgents ? displayNameOf(e.key) : e.key;
+      const nameEl = row.querySelector(".name, .lane-name");
+      nameEl.textContent = isAgents ? displayNameOf(e.key) : e.key;
+      if (isAgents) {
+        if (prevRank && prevRank.has(e.key)) {
+          const moved = prevRank.get(e.key) - i;
+          if (moved > 0) nameEl.appendChild(nameChip("up", "▲" + moved));
+          else if (moved < 0) nameEl.appendChild(nameChip("down", "▼" + Math.abs(moved)));
+        }
+        const st = streakMap.get(e.key) || 0;
+        if (st >= 2) nameEl.appendChild(nameChip("fire", "🔥" + st));
+      }
       if (isAgents) {
         const av = row.querySelector(".avatar");
         const photo = photoOf(e.key);
@@ -2182,6 +2505,10 @@ function openEditor(source, idx) {
   document.getElementById("selView").value = s.view;
   document.getElementById("selScroll").value = s.autoScroll ? "on" : "off";
   document.getElementById("selTheme").value = s.theme || "default";
+  document.getElementById("selGoal").value = s.goal || "";
+  document.getElementById("selCStart").value = s.contestStart || "";
+  document.getElementById("selCEnd").value = s.contestEnd || "";
+  document.getElementById("selCele").value = s.celebrate === false ? "off" : "on";
 
   // Parent choices: top-level saved dashboards (by id), excluding itself.
   const parentSel = document.getElementById("selParent");
@@ -2290,6 +2617,10 @@ function editorToState(title) {
     view: document.getElementById("selView").value,
     autoScroll: document.getElementById("selScroll").value === "on",
     theme: document.getElementById("selTheme").value,
+    goal: Number(document.getElementById("selGoal").value) || 0,
+    contestStart: document.getElementById("selCStart").value || "",
+    contestEnd: document.getElementById("selCEnd").value || "",
+    celebrate: document.getElementById("selCele").value !== "off",
     filters,
     widgets,
   });

@@ -1,0 +1,39 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - claude/tv-leaderboard-go-live-i2sv44
+      - main
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install function dependencies
+        run: npm --prefix functions ci || npm --prefix functions install
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Write service-account credentials
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+
+      - name: Deploy hosting, rules, and functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          firebase deploy \
+            --only hosting,firestore:rules,functions:tv-leaderboard \
+            --project temmen-leaderboard-2026 \
+            --force --non-interactive
