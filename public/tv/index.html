@@ -649,6 +649,147 @@ body.temmenmadness .dot { box-shadow: 0 0 1vh rgba(45, 212, 191, .8); }
   50% { filter: drop-shadow(0 0 1.6vh rgba(251, 191, 36, .95)); transform: translateY(-50%) scale(1.12); }
 }
 
+/* ── Temmen Classic full-page theme — championship golf tradition ───────────
+   Fairway green with mowing stripes, cream scorecard panels with serif
+   type, gold double-rule accents, flagstick and cup at the end of every
+   lane, birdie flags building toward the jacket. */
+body.temmengolf {
+  --bg: #0a3b2b;
+  --panel: #fffdf1;
+  --line: #0b4634;
+  --text: #143c2d;
+  --dim: #5c7365;
+  --accent: #0d7a4f;
+  --accent-dim: #0d7a4f;
+  background:
+    radial-gradient(75vw 45vh at 50% -10%, rgba(255, 255, 240, .10), transparent),
+    radial-gradient(40vw 22vh at 6% 100%, rgba(236, 110, 173, .10), transparent),
+    radial-gradient(40vw 22vh at 94% 100%, rgba(236, 110, 173, .09), transparent),
+    repeating-linear-gradient(98deg, rgba(255, 255, 255, .035) 0 7vw, transparent 7vw 14vw),
+    linear-gradient(180deg, #0d4a35 0%, #0a3b2b 60%, #072b1f 100%);
+  font-family: Georgia, "Times New Roman", serif;
+}
+body.temmengolf header {
+  background: linear-gradient(180deg, #0c4835, #093325);
+  border-bottom: 6px double #f5d547;
+  box-shadow: 0 .5vh 1.6vh rgba(0, 0, 0, .45);
+}
+body.temmengolf .brand {
+  color: #f5d547;
+  font-size: 3.2vh; font-weight: 700; font-style: italic;
+  letter-spacing: .08em;
+  text-shadow: 0 .25vh .6vh rgba(0, 0, 0, .5);
+}
+body.temmengolf .brand::before { content: "⛳ "; font-style: normal; }
+body.temmengolf .menu-btn, body.temmengolf .gear {
+  background: transparent; color: #d9e5d3; border: 1px solid rgba(245, 213, 71, .5); border-radius: .6vh;
+}
+body.temmengolf .view-badge {
+  background: #fffdf1; color: #0b4634; border: 2px solid #f5d547;
+  font-family: Georgia, serif; font-weight: 700; font-style: italic;
+}
+body.temmengolf .total-num { color: #f5d547; text-shadow: 0 .25vh .6vh rgba(0, 0, 0, .5); }
+body.temmengolf .total-lbl { color: #d9e5d3; }
+
+/* scorecards */
+body.temmengolf .kpi-tile {
+  background: #fffdf1;
+  border: 2px solid #0b4634; border-radius: .9vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: 0 .7vh 1.6vh rgba(0, 0, 0, .35), inset 0 0 0 .4vh rgba(245, 213, 71, .0);
+}
+body.temmengolf .kpi-lbl {
+  order: -1;
+  margin: 0 -1.5vw .9vh; padding: .6vh 1.5vw;
+  background: #0b4634; color: #f5d547;
+  border-bottom: 2px solid #f5d547;
+  font-family: Georgia, serif; font-style: italic; font-weight: 700; letter-spacing: .18em;
+}
+body.temmengolf .kpi-num { color: #0b4634; font-family: Georgia, serif; }
+
+body.temmengolf .widget h3 {
+  color: #f5d547; font-family: Georgia, serif; font-style: italic; font-weight: 700;
+  letter-spacing: .14em;
+  border-bottom: 1px solid rgba(245, 213, 71, .55);
+  padding-bottom: .5vh; align-self: flex-start;
+  text-shadow: 0 .2vh .5vh rgba(0, 0, 0, .5);
+}
+body.temmengolf .widget h3::before { content: "⛳ "; font-style: normal; }
+
+/* tee markers for standings */
+body.temmengolf .rank {
+  background: #0b4634; color: #f5d547; border: 2px solid #f5d547;
+  border-radius: 50%; width: 4.5vh; height: 4.5vh; line-height: 4.1vh;
+  font-family: Georgia, serif; font-size: 2.1vh; justify-self: center;
+  box-shadow: 0 .4vh .9vh rgba(0, 0, 0, .4);
+}
+body.temmengolf .rank.r1 { background: #f5d547; color: #0b4634; border-color: #0b4634; }
+body.temmengolf .rank.r2 { background: #e7e7e2; color: #0b4634; border-color: #0b4634; }
+body.temmengolf .rank.r3 { background: #d9a05b; color: #0b4634; border-color: #0b4634; }
+
+body.temmengolf .avatar { background: #fffdf1; border: 2px solid #fffdf1; box-shadow: 0 .4vh .9vh rgba(0, 0, 0, .4); }
+
+/* player name plates on the big board */
+body.temmengolf .bar-wrap {
+  background: #fffdf1; border: 2px solid #0b4634; border-radius: .7vh;
+  box-shadow: 0 .5vh 1.1vh rgba(0, 0, 0, .35);
+}
+body.temmengolf .bar {
+  background: linear-gradient(90deg, rgba(13, 122, 79, .34), rgba(13, 122, 79, .12));
+  border-right: 2px solid #0d7a4f;
+}
+body.temmengolf .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(245, 213, 71, .5), rgba(245, 213, 71, .18));
+  border-right-color: #c9a227;
+}
+body.temmengolf .row:first-child .bar-wrap { border-color: #c9a227; }
+body.temmengolf .name { color: #143c2d; font-family: Georgia, serif; font-weight: 700; padding-right: 17vw; }
+body.temmengolf .apps { color: #f5d547; font-family: Georgia, serif; text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .7); }
+body.temmengolf .sub { color: #d9e5d3; text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .7); }
+body.temmengolf .more { color: #d9e5d3; text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .7); }
+
+/* the flagstick and cup at the end of every lane */
+body.temmengolf .row:not(.noav) .bar-wrap::before {
+  content: ""; position: absolute; right: 1.5vw; top: 12%;
+  width: .16vw; height: 68%;
+  background: linear-gradient(180deg, #f2f2ee, #cfcfc6);
+  border-radius: .2vw;
+  box-shadow: .35vw 3.1vh 0 -.1vh rgba(11, 70, 52, .55); /* the cup shadow */
+}
+body.temmengolf .row:not(.noav) .bar-wrap::after {
+  content: ""; position: absolute; right: 1.6vw; top: 12%;
+  width: 0; height: 0;
+  border-right: 1.4vw solid #d23c3c;
+  border-top: .55vh solid transparent;
+  border-bottom: .9vh solid transparent;
+  transform-origin: right center;
+  animation: golf-wave 2.2s ease-in-out infinite;
+}
+/* birdie flags sway; the jacket gleams */
+body.temmengolf .houses {
+  position: absolute; right: 4.4vw; top: 50%; transform: translateY(-50%);
+  font-size: 2.3vh; letter-spacing: .2vw;
+  animation: golf-sway 2.6s ease-in-out infinite;
+}
+body.temmengolf .row:nth-child(2n) .houses { animation-delay: .6s; }
+body.temmengolf .row:first-child .houses {
+  animation: md-shine 2.4s ease-in-out infinite;
+}
+body.temmengolf footer {
+  background: #093325; border-top: 2px solid rgba(245, 213, 71, .5); color: #d9e5d3;
+}
+body.temmengolf .dot { background: #f5d547; }
+body.temmengolf .wboard::-webkit-scrollbar-thumb { background: rgba(255, 253, 241, .35); }
+
+@keyframes golf-wave {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(.82) skewY(-3deg); }
+}
+@keyframes golf-sway {
+  0%, 100% { transform: translateY(-50%) rotate(-4deg); }
+  50% { transform: translateY(-50%) rotate(4deg); }
+}
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -811,6 +952,12 @@ footer {
   body.temmenmadness .row:not(.noav) .bar-wrap::before { right: 4px; width: 5px; height: 26px; }
   body.temmenmadness .row:not(.noav) .bar-wrap::after { right: 9px; width: 15px; height: 15px; border-width: 3px; }
   body.temmenmadness::before { inset: 62px 6px 6px; border-width: 3px; border-radius: 8px; }
+  body.temmengolf .brand { font-size: 15px; }
+  body.temmengolf .rank { width: 26px; height: 26px; line-height: 22px; font-size: 12px; }
+  body.temmengolf .houses { font-size: 13px; right: 44px; }
+  body.temmengolf .name { padding-right: 100px; }
+  body.temmengolf .row:not(.noav) .bar-wrap::before { right: 14px; width: 2px; }
+  body.temmengolf .row:not(.noav) .bar-wrap::after { right: 15px; border-right-width: 12px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
@@ -928,6 +1075,7 @@ footer {
           <option value="race">TemmenKart 🏁</option>
           <option value="opoly">Temmenopoly 🎩</option>
           <option value="madness">Temmen Madness 🏀</option>
+          <option value="golf">Temmen Classic ⛳</option>
         </select>
       </label>
     </div>
@@ -994,7 +1142,7 @@ const DEFAULT_STATE = {
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
-  out.theme = ["race", "opoly", "madness"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness", "golf"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -1118,6 +1266,7 @@ function applyState() {
   document.body.classList.toggle("temmenkart", state.theme === "race");
   document.body.classList.toggle("temmenopoly", state.theme === "opoly");
   document.body.classList.toggle("temmenmadness", state.theme === "madness");
+  document.body.classList.toggle("temmengolf", state.theme === "golf");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -1366,6 +1515,9 @@ function render() {
           houses = `<div class="houses">${i === 0 ? "🏨" : "🏠".repeat(Math.min(4, Math.floor(pct / 25)))}</div>`;
         } else if (isAgents && state.theme === "madness") {
           houses = `<div class="houses">${i === 0 ? "🏆" : "🏀".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+        } else if (isAgents && state.theme === "golf") {
+          // birdies on the card; the leader wears the jacket
+          houses = `<div class="houses">${i === 0 ? "🧥" : "⛳".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         }
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
