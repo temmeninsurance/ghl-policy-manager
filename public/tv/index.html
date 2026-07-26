@@ -47,6 +47,10 @@ window.TV_CONFIG = {
   PROFILE_ENDPOINT: "https://us-central1-temmen-leaderboard-2026.cloudfunctions.net/updateAgentProfile",
   DASH_ENDPOINT: "https://us-central1-temmen-leaderboard-2026.cloudfunctions.net/updateDashboards",
 
+  // Every agent paces against this monthly revenue goal unless they have
+  // an individual goal set in the Agents editor.
+  DEFAULT_AGENT_GOAL: 20000,
+
   // Full page reload cadence — guards against stale JS, memory leaks,
   // and silent code updates on always-on TVs.
   PAGE_RELOAD_MS: 4 * 60 * 60_000,
@@ -1847,7 +1851,7 @@ function initialsOf(name) {
 let profiles = new Map(); // slug → {name, photo, goal}
 function displayNameOf(agent) { return profiles.get(slugOf(agent))?.name || agent; }
 function photoOf(agent) { return profiles.get(slugOf(agent))?.photo || null; }
-function goalOf(agent) { return Number(profiles.get(slugOf(agent))?.goal) || 0; }
+function goalOf(agent) { return Number(profiles.get(slugOf(agent))?.goal) || CFG.DEFAULT_AGENT_GOAL || 0; }
 
 /* ── Firestore live listeners ── */
 const db = getFirestore(initializeApp(FB));
