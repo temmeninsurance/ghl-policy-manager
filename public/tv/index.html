@@ -542,9 +542,25 @@ function persistState() {
 // the next save migrates them up for everyone.
 let sharedDashboards = null;
 
+// Every dashboard gets a stable id, and sub-dashboards link to their parent
+// by id — never by title, so renames can't break the nesting. Legacy
+// title-based `parent` links migrate here (persisted on the next save).
+function ensureIds(ds) {
+  const byTitle = new Map(ds.map((d) => [d.title, d]));
+  for (const d of ds) if (!d.id) d.id = crypto.randomUUID();
+  for (const d of ds) {
+    if (d.parent && !d.parentId) {
+      const p = byTitle.get(d.parent);
+      if (p && p !== d) d.parentId = p.id;
+    }
+    delete d.parent;
+  }
+  return ds;
+}
+
 function getDashboards() {
-  if (sharedDashboards !== null) return structuredClone(sharedDashboards);
-  try { return JSON.parse(localStorage.getItem("tvDashboards")) || []; } catch { return []; }
+  if (sharedDashboards !== null) return ensureIds(structuredClone(sharedDashboards));
+  try { return ensureIds(JSON.parse(localStorage.getItem("tvDashboards")) || []); } catch { return []; }
 }
 
 async function setDashboards(ds) {
@@ -906,14 +922,14 @@ function sideItem(it, isChild) {
 function renderSidebar() {
   const list = document.getElementById("sidebarList");
   list.innerHTML = "";
-  const ds = getDashboards().map((d, idx) => ({ name: d.title, state: d, idx, parent: d.parent }));
-  const topTitles = new Set(ds.filter((d) => !d.parent).map((d) => d.name));
-  // Orphans (parent was deleted/renamed) surface at top level rather than vanish.
-  const tops = ds.filter((d) => !d.parent || !topTitles.has(d.parent));
+  const ds = getDashboards().map((d, idx) => ({ name: d.title, state: d, idx, id: d.id, parentId: d.parentId }));
+  const topIds = new Set(ds.filter((d) => !d.parentId).map((d) => d.id));
+  // Orphans (parent was deleted) surface at top level rather than vanish.
+  const tops = ds.filter((d) => !d.parentId || !topIds.has(d.parentId));
   list.appendChild(sideItem({ name: CFG.TITLE, state: structuredClone(DEFAULT_STATE), idx: null }, false));
   for (const top of tops) {
     list.appendChild(sideItem(top, false));
-    for (const child of ds.filter((d) => d.parent && d.parent === top.name)) {
+    for (const child of ds.filter((d) => d.parentId && d.parentId === top.id)) {
       list.appendChild(sideItem(child, true));
     }
   }
@@ -979,7 +995,9 @@ sideKey.addEventListener("keydown", (e) => {
 const picker = document.getElementById("picker");
 let editorIdx = null; // index into saved dashboards, or null = save as new
 document.getElementById("gearBtn").addEventListener("click", () => {
-  const idx = getDashboards().findIndex((d) => d.title === state.title);
+  const ds = getDashboards();
+  let idx = state.id ? ds.findIndex((d) => d.id === state.id) : -1;
+  if (idx === -1) idx = ds.findIndex((d) => d.title === state.title);
   openEditor(state, idx === -1 ? null : idx);
 });
 document.getElementById("pickerClose").addEventListener("click", closeEditor);
@@ -1042,7 +1060,7 @@ function openEditor(source, idx) {
   document.getElementById("selView").value = s.view;
   document.getElementById("selScroll").value = s.autoScroll ? "on" : "off";
 
-  // Parent choices: top-level saved dashboards, excluding the one being edited.
+  // Parent choices: top-level saved dashboards (by id), excluding itself.
   const parentSel = document.getElementById("selParent");
   parentSel.replaceChildren();
   const none = document.createElement("option");
@@ -1050,14 +1068,14 @@ function openEditor(source, idx) {
   none.textContent = "None (top level)";
   parentSel.appendChild(none);
   for (const d of getDashboards()) {
-    if (d.parent || d.title === s.title) continue;
+    if (d.parentId || d.id === source.id) continue;
     const o = document.createElement("option");
-    o.value = d.title;
+    o.value = d.id;
     o.textContent = d.title;
     parentSel.appendChild(o);
   }
-  parentSel.value = source.parent || "";
-  if (parentSel.value !== (source.parent || "")) parentSel.value = "";
+  parentSel.value = source.parentId || "";
+  if (parentSel.value !== (source.parentId || "")) parentSel.value = "";
 
   // Dashboard-level filters
   const grid = document.getElementById("pickerGrid");
@@ -1151,9 +1169,9 @@ function editorToState(title) {
     filters,
     widgets,
   });
-  const parent = document.getElementById("selParent").value;
-  if (parent) out.parent = parent;
-  else delete out.parent;
+  const parentId = document.getElementById("selParent").value;
+  if (parentId) out.parentId = parentId;
+  else delete out.parentId;
   return out;
 }
 
@@ -1168,6 +1186,8 @@ document.getElementById("saveBtn").addEventListener("click", () => {
   if (!name) { nameInput.focus(); return; }
   const d = editorToState(name);
   const ds = getDashboards();
+  // Keep the stable id across edits; new dashboards mint one.
+  d.id = (editorIdx != null && ds[editorIdx]?.id) || crypto.randomUUID();
   if (editorIdx != null && ds[editorIdx]) ds[editorIdx] = d;
   else ds.push(d);
   setDashboards(ds);
