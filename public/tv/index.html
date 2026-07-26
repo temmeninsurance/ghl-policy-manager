@@ -302,6 +302,67 @@ footer {
   font-weight: 700; font-size: 1.8vh; padding: .9vh 1.4vw; cursor: pointer;
 }
 .agent-row button:disabled { opacity: .5; cursor: default; }
+
+/* ── Mobile (phones) — px-based compact layout instead of TV vh/vw ── */
+@media (max-width: 700px) {
+  body { overflow-y: auto; }
+  header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .menu-btn, .gear { font-size: 15px; padding: 6px 10px; border-radius: 8px; }
+  .brand { font-size: 16px; letter-spacing: .06em; flex: 1; min-width: 55%; }
+  .view-badge { font-size: 12px; padding: 4px 10px; min-width: 0; }
+  .chip { font-size: 12px; padding: 4px 9px; }
+  .total-box { display: none; } /* the KPI tiles carry the totals on phones */
+
+  main { flex: 1 0 auto; height: auto; padding: 10px 12px; gap: 12px; }
+  .kpi-row { flex-wrap: wrap; gap: 8px; }
+  .kpi-tile { padding: 12px 14px; border-radius: 12px; flex: 1 1 40%; gap: 4px; }
+  .kpi-num { font-size: 27px; }
+  .kpi-lbl { font-size: 11px; letter-spacing: .08em; }
+
+  .widgets { grid-template-columns: 1fr !important; gap: 16px; min-height: auto; }
+  .widget { gap: 8px; }
+  .widget h3 { font-size: 12px; }
+  .widget .wboard { overflow: visible; padding-right: 0; gap: 8px; } /* page scrolls instead */
+
+  .row { grid-template-columns: 24px 42px 1fr auto; height: 52px; gap: 8px; }
+  .row.noav { grid-template-columns: 24px 1fr auto; }
+  .rank { font-size: 16px; }
+  .avatar { width: 42px; height: 42px; font-size: 14px; }
+  .bar-wrap { border-radius: 10px; }
+  .name { font-size: 15px; padding-left: 10px; }
+  .apps { font-size: 16px; }
+  .sub { font-size: 10px; }
+  .more { font-size: 13px; }
+  footer { font-size: 11px; padding: 8px 12px; }
+  .dot { width: 8px; height: 8px; }
+
+  .sidebar { width: 86vw; padding: 16px 14px; }
+  .sidebar-head h2 { font-size: 19px; }
+  .side-item { padding: 12px 10px; }
+  .side-item .side-name { font-size: 16px; }
+  .side-child .side-name { font-size: 14px; }
+  .side-new, .side-lock { font-size: 15px; padding: 12px; }
+  .sidebar input#sideKey { font-size: 15px; padding: 10px; }
+
+  .picker { align-items: flex-start; }
+  .picker-panel { width: 94vw; max-height: 92vh; padding: 16px 14px; margin-top: 4vh; gap: 14px; }
+  .picker-head h2 { font-size: 18px; }
+  .picker-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .picker-grid label, .wrow label { font-size: 12px; }
+  .picker select, .picker input[type="text"], .picker input[type="password"] { font-size: 14px; padding: 8px; }
+  .picker-actions { flex-wrap: wrap; gap: 8px; padding-top: 12px; }
+  .picker-actions button { font-size: 14px; padding: 9px 14px; }
+  .section-title { font-size: 13px; }
+  .wrow { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wrow .w-del { font-size: 18px; justify-self: end; }
+  .add-widget { font-size: 14px; padding: 8px 12px; }
+  .agent-row { display: flex; flex-wrap: wrap; gap: 8px; font-size: 14px; }
+  .agent-row .avatar { width: 40px; height: 40px; }
+  .agent-row .orig { flex: 1 1 100%; }
+  .agent-row input[type="text"] { flex: 1 1 55%; font-size: 14px; padding: 8px; }
+  .agent-row input[type="file"] { max-width: none; flex: 1 1 100%; font-size: 12px; }
+  .agent-row button { font-size: 14px; padding: 8px 14px; }
+}
 </style>
 </head>
 <body>
