@@ -35,7 +35,7 @@ initializeApp();
 const SHEET_ID = "1Q_UveDxIZ8-NokXp_umtoiiEC0Gs_MZvt4ZmFjbmly8";
 
 // Exact tab (worksheet) name holding the submission rows.
-const SHEET_TAB = "REPLACE_WITH_TAB_NAME";
+const SHEET_TAB = "All Apps";
 
 // Maps output field → exact header-row text in the sheet (case/whitespace
 // insensitive match). `agent` and `date` are required. `apps` is optional —
