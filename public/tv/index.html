@@ -233,9 +233,6 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 /* Board widgets */
 .widgets { flex: 1; display: grid; gap: 1.4vw; min-height: 0; }
 .widget { display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
-.whead { display: flex; align-items: center; justify-content: space-between; gap: 1vw; }
-.wdates input[type="date"] { font-size: 1.5vh; padding: .3vh .5vw; }
-.wdates button { font-size: 1.5vh; padding: .25vh .6vw; }
 .widget h3 { font-size: 2vh; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; font-weight: 700; }
 .widget .wboard {
   flex: 1; display: flex; flex-direction: column; gap: 1vh;
@@ -1387,9 +1384,6 @@ footer {
   .daterange { font-size: 12px; }
   .daterange input[type="date"] { font-size: 12px; padding: 4px 6px; max-width: 118px; }
   .daterange button { font-size: 12px; padding: 3px 8px; }
-  .whead { flex-wrap: wrap; }
-  .wdates input[type="date"] { font-size: 11px; padding: 3px 5px; max-width: 108px; }
-  .wdates button { font-size: 11px; padding: 2px 6px; }
   .total-box { display: none; } /* the KPI tiles carry the totals on phones */
 
   main { flex: 1 0 auto; height: auto; padding: 10px 12px; gap: 12px; }
@@ -2088,10 +2082,6 @@ function matchesFilter(r, field, value) {
 
 // Rows within the dashboard's date frame + filters, plus the widget's own
 // optional filter.
-// Per-widget date overrides from each board's own picker (per device).
-let widgetDates = {};
-try { widgetDates = JSON.parse(localStorage.getItem("tvWidgetDates")) || {}; } catch { /* ignore */ }
-
 function rowsFor(widget, range) {
   const [start, end] = range || currentRange();
   const fields = latest.filterFields || [];
@@ -2262,9 +2252,6 @@ function render() {
   const todayS = ymd(new Date());
   for (let bi = 0; bi < boards.length; bi++) {
     const w = boards[bi];
-    const wkey = (state.id || state.title || "d") + "|" + bi;
-    const wd = widgetDates[wkey] || null;
-
     // Pace board: each rep against their own monthly goal (set in the
     // Agents editor), ranked by attainment, always MTD.
     if (w.type === "pace") {
@@ -2291,12 +2278,9 @@ function render() {
       panel.className = "widget";
       const h = document.createElement("h3");
       h.textContent = widgetLabel(w);
-      const head = document.createElement("div");
-      head.className = "whead";
-      head.append(h);
       const boardEl = document.createElement("div");
       boardEl.className = "wboard";
-      panel.append(head, boardEl);
+      panel.append(h, boardEl);
 
       for (let i = 0; i < ranked.length; i++) {
         const e = ranked[i];
@@ -2338,7 +2322,7 @@ function render() {
       continue;
     }
 
-    const rows = rowsFor(w, wd ? [wd.start || "0000", wd.end || "9999"] : null);
+    const rows = rowsFor(w);
     const isAgents = w.type === "leaderboard" || w.type === "rookies";
     const keyFn = isAgents ? (r) => r[CFG.agentField] : (r) => r[w.field];
     const map = aggBy(rows, keyFn);
@@ -2374,41 +2358,9 @@ function render() {
     panel.className = "widget";
     const h = document.createElement("h3");
     h.textContent = (race ? "🏁 " : "") + widgetLabel(w);
-
-    // This board's own date picker — overrides the dashboard range here only.
-    const wdates = document.createElement("div");
-    wdates.className = "daterange wdates";
-    const fi = document.createElement("input");
-    fi.type = "date";
-    fi.value = wd?.start || "";
-    const sep = document.createElement("span");
-    sep.textContent = "–";
-    const ti = document.createElement("input");
-    ti.type = "date";
-    ti.value = wd?.end || "";
-    const clr = document.createElement("button");
-    clr.textContent = "✕";
-    clr.title = "Clear this board's date filter";
-    clr.classList.toggle("hidden", !wd);
-    const applyWD = () => {
-      const start = fi.value || "", end = ti.value || "";
-      if (!start && !end) delete widgetDates[wkey];
-      else if (start && end && start > end) return;
-      else widgetDates[wkey] = { start, end };
-      localStorage.setItem("tvWidgetDates", JSON.stringify(widgetDates));
-      render();
-    };
-    fi.addEventListener("change", applyWD);
-    ti.addEventListener("change", applyWD);
-    clr.addEventListener("click", () => { fi.value = ""; ti.value = ""; applyWD(); });
-    wdates.append(fi, sep, ti, clr);
-
-    const head = document.createElement("div");
-    head.className = "whead";
-    head.append(h, wdates);
     const boardEl = document.createElement("div");
     boardEl.className = "wboard";
-    panel.append(head, boardEl);
+    panel.append(h, boardEl);
 
     const ITEMS = ["👑", "🚀", "🍄", "⭐", "🐢", "🍌"];
     const max = ranked.length ? ranked[0][w.metric] : 1;
