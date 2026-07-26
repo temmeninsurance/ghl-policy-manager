@@ -479,32 +479,44 @@ body.temmenmadness {
     repeating-linear-gradient(135deg, transparent 0 3.2vh, rgba(255, 255, 255, .018) 3.2vh 6.4vh),
     var(--bg);
 }
-/* the court: the whole backdrop is a dark-stained hardwood floor with
-   painted markings — center circle & dot, halfcourt line, three-point
-   arcs sweeping in from the baselines, free-throw circles — dimmed at
-   the edges like arena lighting. Panels float over it. */
+/* the arena: a navy apron around the whole page (::after, bottom layer)
+   with a bright honey-wood court inset into it (::before, above),
+   bounded by a bold white line — filled teal center circle, bracket-blue
+   painted zones at the baselines, white halfcourt line, 3-point arcs and
+   free-throw circles. Panels float over it like broadcast graphics. */
 body.temmenmadness::after {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
   background:
-    /* center circle + dot */
-    radial-gradient(circle at 50% 50%, transparent 13.6vh, rgba(45, 212, 191, .30) 13.8vh, rgba(45, 212, 191, .30) 14.5vh, transparent 14.7vh),
-    radial-gradient(circle at 50% 50%, rgba(45, 212, 191, .14) 0, rgba(45, 212, 191, .14) 2.2vh, transparent 2.4vh),
-    /* halfcourt line */
-    linear-gradient(90deg, transparent calc(50% - .16vw), rgba(45, 212, 191, .26) calc(50% - .16vw), rgba(45, 212, 191, .26) calc(50% + .16vw), transparent calc(50% + .16vw)),
-    /* three-point arcs from each baseline */
-    radial-gradient(circle at -8vw 50%, transparent 52vh, rgba(240, 244, 248, .16) 52.2vh, rgba(240, 244, 248, .16) 52.9vh, transparent 53.1vh),
-    radial-gradient(circle at calc(100% + 8vw) 50%, transparent 52vh, rgba(240, 244, 248, .16) 52.2vh, rgba(240, 244, 248, .16) 52.9vh, transparent 53.1vh),
-    /* free-throw circles */
-    radial-gradient(circle at 9vw 50%, transparent 8.6vh, rgba(240, 244, 248, .13) 8.8vh, rgba(240, 244, 248, .13) 9.4vh, transparent 9.6vh),
-    radial-gradient(circle at calc(100% - 9vw) 50%, transparent 8.6vh, rgba(240, 244, 248, .13) 8.8vh, rgba(240, 244, 248, .13) 9.4vh, transparent 9.6vh),
-    /* arena lighting vignette */
-    radial-gradient(120vw 95vh at 50% 42%, transparent 42%, rgba(8, 11, 16, .62) 100%),
-    /* plank seams and tone variation */
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, .16) 0 .25vw, transparent .25vw 4.5vw),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, .028) 0 9vw, transparent 9vw 18vw),
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, .05) 0 1px, transparent 1px 22vh),
-    /* the wood itself */
-    linear-gradient(180deg, #4a3016 0%, #3c2712 55%, #331f0e 100%);
+    radial-gradient(60vw 30vh at 12% 0%, rgba(45, 212, 191, .18), transparent),
+    radial-gradient(60vw 30vh at 88% 100%, rgba(29, 111, 209, .20), transparent),
+    repeating-linear-gradient(135deg, transparent 0 3vh, rgba(255, 255, 255, .02) 3vh 6vh),
+    linear-gradient(180deg, #0f2233, #0a1522);
+}
+body.temmenmadness::before {
+  content: ""; position: fixed; inset: 8.5vh 2vw 5vh; z-index: -1; pointer-events: none;
+  border: .55vh solid rgba(240, 244, 248, .9);
+  border-radius: 1.2vh;
+  box-shadow: 0 1.5vh 5vh rgba(0, 0, 0, .55), inset 0 0 6vh rgba(0, 0, 0, .28);
+  background:
+    /* filled teal center circle with bold ring + dot */
+    radial-gradient(circle at 50% 50%, rgba(20, 184, 166, .55) 0 2.2vh, transparent 2.4vh),
+    radial-gradient(circle at 50% 50%, rgba(45, 212, 191, .38) 0 13.4vh, rgba(13, 148, 136, .95) 13.6vh, rgba(13, 148, 136, .95) 14.6vh, transparent 14.8vh),
+    /* white halfcourt line */
+    linear-gradient(90deg, transparent calc(50% - .18vw), rgba(240, 244, 248, .85) calc(50% - .18vw), rgba(240, 244, 248, .85) calc(50% + .18vw), transparent calc(50% + .18vw)),
+    /* bracket-blue painted zones at each baseline */
+    radial-gradient(circle at 0% 50%, rgba(29, 111, 209, .50) 0 22vh, rgba(240, 244, 248, .7) 22.2vh, rgba(240, 244, 248, .7) 22.9vh, transparent 23.1vh),
+    radial-gradient(circle at 100% 50%, rgba(29, 111, 209, .50) 0 22vh, rgba(240, 244, 248, .7) 22.2vh, rgba(240, 244, 248, .7) 22.9vh, transparent 23.1vh),
+    /* three-point arcs */
+    radial-gradient(circle at -6vw 50%, transparent 50vh, rgba(240, 244, 248, .55) 50.2vh, rgba(240, 244, 248, .55) 50.9vh, transparent 51.1vh),
+    radial-gradient(circle at calc(100% + 6vw) 50%, transparent 50vh, rgba(240, 244, 248, .55) 50.2vh, rgba(240, 244, 248, .55) 50.9vh, transparent 51.1vh),
+    /* soft light sheen down the middle */
+    radial-gradient(70vw 60vh at 50% 35%, rgba(255, 255, 255, .10), transparent 60%),
+    /* plank seams and tone runs */
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 .22vw, transparent .22vw 4.2vw),
+    repeating-linear-gradient(90deg, rgba(255, 240, 200, .05) 0 8.4vw, transparent 8.4vw 16.8vw),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .05) 0 1px, transparent 1px 20vh),
+    /* honey-gold hardwood */
+    linear-gradient(180deg, #c1802f 0%, #a86a26 55%, #93591f 100%);
 }
 body.temmenmadness header {
   position: relative;
@@ -583,10 +595,15 @@ body.temmenmadness .row:first-child .bar {
 body.temmenmadness .row:first-child .bar-wrap { border-color: rgba(251, 191, 36, .55); }
 body.temmenmadness .name { font-style: italic; font-weight: 800; padding-right: 17vw; }
 /* text that sits directly on the court gets lifted off the wood */
-body.temmenmadness .apps { text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .7); }
-body.temmenmadness .sub { color: #b8c4d4; text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .7); }
-body.temmenmadness .more { text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .7); }
-body.temmenmadness .widget h3 { text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .6); background: rgba(23, 28, 35, .55); padding: .4vh 1vw .5vh; border-radius: .5vh .5vh 0 0; }
+body.temmenmadness .apps { text-shadow: 0 .3vh 1vh rgba(0, 0, 0, .9), 0 0 .4vh rgba(0, 0, 0, .8); }
+body.temmenmadness .sub { color: #e4ebf3; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .9), 0 0 .3vh rgba(0, 0, 0, .8); }
+body.temmenmadness .more { color: #e4ebf3; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .9); }
+body.temmenmadness .widget h3 {
+  text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .6);
+  background: rgba(16, 21, 27, .82);
+  padding: .4vh 1.2vw .5vh; border-radius: .5vh;
+  border-left: .4vw solid #1d6fd1;
+}
 
 /* the hoop at the end of every agent lane — backboard, orange rim, net */
 body.temmenmadness .row:not(.noav) .bar-wrap::before {
@@ -793,6 +810,7 @@ footer {
   body.temmenmadness .name { padding-right: 100px; }
   body.temmenmadness .row:not(.noav) .bar-wrap::before { right: 4px; width: 5px; height: 26px; }
   body.temmenmadness .row:not(.noav) .bar-wrap::after { right: 9px; width: 15px; height: 15px; border-width: 3px; }
+  body.temmenmadness::before { inset: 62px 6px 6px; border-width: 3px; border-radius: 8px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
