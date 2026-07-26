@@ -79,9 +79,12 @@ firebase deploy --only hosting
 
 ## URL options
 
-- `/tv/` — rotating MTD/YTD, all data
+- `/tv/` — rotating MTD/YTD, all data, ranked by **revenue** (default KPI)
+- `/tv/?metric=apps` — rank/total by app count instead
 - `/tv/?view=mtd` or `?view=ytd` — lock the view
-- `/tv/?product=Life` (etc.) — filter by any field in `filterFields`
+- `/tv/?carrier=Humana Choice PPO&policy_type=PPO` — filter by any sheet
+  column (header slugified: "Policy Type" → `policy_type`); params AND
+  together, one leaderboard per URL/widget
 
 ## Custom domain
 

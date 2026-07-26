@@ -41,9 +41,19 @@ const SHEET_TAB = "All Apps";
 // insensitive match). `agent` and `date` are required. `apps` is optional —
 // leave it null and every row counts as 1 app.
 const COLUMN_MAP = {
-  agent: "REPLACE_WITH_AGENT_HEADER", // required
-  date: "REPLACE_WITH_DATE_HEADER",   // required
-  apps: null,                          // optional — null = 1 app per row
+  agent: "Employee email", // required
+  date: "Date Sold",       // required
+  apps: "App Count",       // optional — null = 1 app per row
+  revenue: "Revenue",      // optional numeric KPI ("$1,234.56" → 1234.56)
+};
+
+// email (lowercase) → display name/nickname shown on the TV. The public doc
+// only ever contains the display name, never the raw email. Emails not
+// listed fall back to a prettified local part ("jordan.tully@…" → "Jordan
+// Tully").
+const AGENT_PROFILES = {
+  // "corey@temmeninsurance.com": "Corey",
+  // "jordan.tully@temmeninsurance.com": "JT",
 };
 
 // When true, every sheet column NOT mapped above is also synced as a
@@ -53,8 +63,7 @@ const COLUMN_MAP = {
 // stay private (client names, phones, premiums, …) in EXCLUDE_COLUMNS.
 const SYNC_ALL_COLUMNS = true;
 const EXCLUDE_COLUMNS = [
-  // "Client Name",
-  // "Premium",
+  "Annual Premium", // premium data — never public
 ];
 
 // Rows-this-year threshold above which we warn about the 1 MB Firestore
@@ -69,6 +78,19 @@ const REQUIRED_FIELDS = ["agent", "date"];
 
 function normalizeHeader(h) {
   return String(h ?? "").trim().toLowerCase();
+}
+
+// Public display name for an agent cell. Profile match first; otherwise a
+// prettified email local part; non-email values pass through as-is.
+function displayName(raw) {
+  const key = String(raw ?? "").trim().toLowerCase();
+  if (AGENT_PROFILES[key]) return AGENT_PROFILES[key];
+  if (!key.includes("@")) return String(raw).trim();
+  return key.split("@")[0]
+    .split(/[._\-]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ") || key;
 }
 
 // Normalize a sheet date cell to "yyyy-mm-dd", or null if unparseable.
@@ -127,7 +149,24 @@ async function syncSheetToFirestore() {
     throw new Error(`Sheet tab '${SHEET_TAB}' returned ${values.length} row(s) — expected a header row plus data.`);
   }
 
-  const headers = values[0].map(normalizeHeader);
+  // The header row is not necessarily row 1 — find the first row containing
+  // both required headers.
+  const agentHeader = normalizeHeader(COLUMN_MAP.agent);
+  const dateHeader = normalizeHeader(COLUMN_MAP.date);
+  let headerRow = -1;
+  for (let i = 0; i < Math.min(values.length, 20); i++) {
+    const h = (values[i] || []).map(normalizeHeader);
+    if (h.includes(agentHeader) && h.includes(dateHeader)) { headerRow = i; break; }
+  }
+  if (headerRow === -1) {
+    throw new Error(
+      `Could not find a header row containing "${COLUMN_MAP.agent}" and "${COLUMN_MAP.date}" ` +
+      `in the first 20 rows of tab '${SHEET_TAB}'. First non-empty row seen: ` +
+      `[${(values.find((r) => r && r.length) || []).join(" | ")}]`
+    );
+  }
+
+  const headers = values[headerRow].map(normalizeHeader);
   const colIndex = {};
   const missing = [];
   for (const [field, headerText] of Object.entries(COLUMN_MAP)) {
@@ -146,7 +185,7 @@ async function syncSheetToFirestore() {
   if (SYNC_ALL_COLUMNS) {
     const excluded = new Set(EXCLUDE_COLUMNS.map(normalizeHeader));
     const used = new Set(Object.values(colIndex));
-    const reserved = new Set(["agent", "date", "apps"]);
+    const reserved = new Set(["agent", "date", "apps", "revenue"]);
     for (let idx = 0; idx < headers.length; idx++) {
       if (used.has(idx) || excluded.has(headers[idx]) || !headers[idx]) continue;
       let key = headers[idx].replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -161,9 +200,9 @@ async function syncSheetToFirestore() {
   let skippedInvalid = 0;
   let skippedOtherYears = 0;
 
-  for (let i = 1; i < values.length; i++) {
+  for (let i = headerRow + 1; i < values.length; i++) {
     const raw = values[i];
-    const agent = String(raw[colIndex.agent] ?? "").trim();
+    const agent = displayName(raw[colIndex.agent]);
     const date = normalizeDate(raw[colIndex.date]);
     if (!agent || !date) { skippedInvalid++; continue; }
     // The TV page only shows MTD/YTD, so only the current year is synced —
@@ -179,8 +218,13 @@ async function syncSheetToFirestore() {
       row.apps = 1;
     }
 
+    if (colIndex.revenue != null) {
+      const n = Number(String(raw[colIndex.revenue] ?? "").replace(/[^0-9.\-]/g, ""));
+      row.revenue = Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+    }
+
     for (const field of Object.keys(colIndex)) {
-      if (field === "agent" || field === "date" || field === "apps") continue;
+      if (["agent", "date", "apps", "revenue"].includes(field)) continue;
       const v = String(raw[colIndex[field]] ?? "").trim();
       if (v) row[field] = v;
     }
@@ -203,7 +247,7 @@ async function syncSheetToFirestore() {
     skippedInvalid,
     skippedOtherYears,
     fields: [...new Set([...Object.keys(colIndex), "apps"])],
-    filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps"].includes(f)),
+    filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps", "revenue"].includes(f)),
     warnings,
     rows,
   };

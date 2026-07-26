@@ -39,6 +39,11 @@ window.TV_CONFIG = {
   agentField: "agent",
   dateField: "date",
   appsField: "apps",
+  revenueField: "revenue",
+
+  // Main KPI to rank/total by: "revenue" or "apps".
+  // Override per TV with /tv/?metric=apps
+  DEFAULT_METRIC: "revenue",
 
   // Filterable fields are read from the synced doc automatically (every
   // sheet column becomes filterable via SYNC_ALL_COLUMNS in the function).
@@ -120,7 +125,7 @@ main { flex: 1; padding: 1.6vh 2.2vw; display: flex; flex-direction: column; min
 
 .row {
   display: grid;
-  grid-template-columns: 4.5vw 1fr 8vw;
+  grid-template-columns: 4.5vw 1fr 11vw;
   align-items: center;
   gap: 1.2vw;
   flex: 1;
@@ -144,7 +149,8 @@ main { flex: 1; padding: 1.6vh 2.2vw; display: flex; flex-direction: column; min
   font-size: 3vh; font-weight: 700;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.apps { font-size: 3.4vh; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+.apps { font-size: 3.2vh; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+.sub { font-size: 1.6vh; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
 
 .more { text-align: center; color: var(--dim); font-size: 2vh; padding: .6vh 0; }
 
@@ -216,6 +222,8 @@ if (FB.apiKey.startsWith("REPLACE_")) {
 const params = new URLSearchParams(location.search);
 const lockedView = ["mtd", "ytd"].includes((params.get("view") || "").toLowerCase())
   ? params.get("view").toLowerCase() : null;
+const metric = ["apps", "revenue"].includes((params.get("metric") || "").toLowerCase())
+  ? params.get("metric").toLowerCase() : CFG.DEFAULT_METRIC;
 
 // Built on the first snapshot, from the field list the sync function
 // publishes in the doc — so any URL param matching a sheet column filters.
@@ -278,49 +286,57 @@ function render() {
   const start = periodStart(view);
 
   const byAgent = new Map();
-  let total = 0;
+  const totals = { apps: 0, revenue: 0 };
   for (const r of rows) {
     if ((r[CFG.dateField] || "") < start) continue;
     let keep = true;
-    for (const [k, v] of Object.entries(filters)) {
+    for (const [k, v] of Object.entries(filters || {})) {
       if (String(r[k] || "").trim().toLowerCase() !== v) { keep = false; break; }
     }
     if (!keep) continue;
     const apps = Number(r[CFG.appsField]) || 0;
-    total += apps;
+    const revenue = Number(r[CFG.revenueField]) || 0;
+    totals.apps += apps;
+    totals.revenue += revenue;
     const agent = r[CFG.agentField] || "Unknown";
-    byAgent.set(agent, (byAgent.get(agent) || 0) + apps);
+    const acc = byAgent.get(agent) || { apps: 0, revenue: 0 };
+    acc.apps += apps;
+    acc.revenue += revenue;
+    byAgent.set(agent, acc);
   }
 
   const ranked = [...byAgent.entries()]
-    .map(([agent, apps]) => ({ agent, apps }))
-    .sort((a, b) => b.apps - a.apps || a.agent.localeCompare(b.agent));
+    .map(([agent, m]) => ({ agent, ...m }))
+    .sort((a, b) => b[metric] - a[metric] || a.agent.localeCompare(b.agent));
 
   document.getElementById("viewBadge").textContent = view.toUpperCase();
-  document.getElementById("totalNum").textContent = fmt(total);
+  document.getElementById("totalNum").textContent = fmtMetric(totals[metric]);
+  document.getElementById("totalLbl").textContent = metric === "revenue" ? "Revenue" : "Apps";
 
   const board = document.getElementById("board");
   board.innerHTML = "";
-  const max = ranked.length ? ranked[0].apps : 1;
+  const max = ranked.length ? ranked[0][metric] : 1;
   const shown = ranked.slice(0, CFG.MAX_ROWS);
 
   for (let i = 0; i < shown.length; i++) {
-    const { agent, apps } = shown[i];
+    const { agent, apps, revenue } = shown[i];
+    const main = metric === "revenue" ? revenue : apps;
+    const sub = metric === "revenue" ? `${fmt(apps)} apps` : fmtMoney(revenue);
     const row = document.createElement("div");
     row.className = "row";
-    const pct = max > 0 ? Math.max(4, (apps / max) * 100) : 4;
+    const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
     row.innerHTML = `
       <div class="rank r${i + 1}">${i + 1}</div>
       <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
-      <div class="apps">${fmt(apps)}</div>`;
+      <div><div class="apps">${fmtMetric(main)}</div><div class="sub">${sub}</div></div>`;
     row.querySelector(".name").textContent = agent;
     board.appendChild(row);
   }
   if (ranked.length > CFG.MAX_ROWS) {
     const more = document.createElement("div");
     more.className = "more";
-    const rest = ranked.slice(CFG.MAX_ROWS).reduce((s, r) => s + r.apps, 0);
-    more.textContent = `+ ${ranked.length - CFG.MAX_ROWS} more agents · ${fmt(rest)} apps`;
+    const rest = ranked.slice(CFG.MAX_ROWS).reduce((s, r) => s + r[metric], 0);
+    more.textContent = `+ ${ranked.length - CFG.MAX_ROWS} more agents · ${fmtMetric(rest)}`;
     board.appendChild(more);
   }
   if (!ranked.length) {
@@ -335,6 +351,14 @@ function render() {
 
 function fmt(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function fmtMoney(n) {
+  return "$" + Math.round(n).toLocaleString();
+}
+
+function fmtMetric(n) {
+  return metric === "revenue" ? fmtMoney(n) : fmt(n);
 }
 
 function updateStatus() {
