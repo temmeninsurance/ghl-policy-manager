@@ -1668,6 +1668,105 @@ body.temmenhallow .dot { background: #ff7a1a; box-shadow: 0 0 1vh rgba(255, 122,
   50% { transform: translateY(calc(-50% - 1.2vh)); }
 }
 
+/* ── Mueller Insurance full-page theme — clean corporate brand ──────────────
+   Soft lavender-white workspace, deep-indigo header with the chevron
+   M mark, vivid violet accents, white cards with airy shadows. A
+   professional skin — no trinkets, no game props. */
+body.temmenmueller {
+  --bg: #f4f2fb;
+  --panel: #ffffff;
+  --line: #ded8f0;
+  --text: #1e1b4b;
+  --dim: #6b6394;
+  --accent: #7c3aed;
+  --accent-dim: #5b21b6;
+  background:
+    linear-gradient(115deg, rgba(124, 58, 237, .07) 0 28%, transparent 28.5%),
+    linear-gradient(245deg, rgba(30, 27, 75, .05) 0 22%, transparent 22.5%),
+    var(--bg);
+}
+body.temmenmueller header {
+  background: linear-gradient(180deg, #241f5e, #1a1642);
+  border-bottom: .4vh solid #7c3aed;
+  box-shadow: 0 .4vh 1.6vh rgba(30, 27, 75, .35);
+}
+body.temmenmueller .brand {
+  color: #fff; font-size: 2.6vh; letter-spacing: .1em;
+  display: inline-flex; align-items: center; gap: .8vw;
+}
+/* the chevron M mark */
+body.temmenmueller .brand::before {
+  content: ""; display: inline-block;
+  width: 3.4vh; height: 3vh;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 55%, #312e81 100%);
+  clip-path: polygon(0 100%, 0 22%, 26% 0, 50% 52%, 74% 0, 100% 22%, 100% 100%, 72% 100%, 72% 48%, 50% 88%, 28% 48%, 28% 100%);
+}
+body.temmenmueller .menu-btn, body.temmenmueller .gear {
+  background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
+}
+body.temmenmueller .view-badge {
+  background: #7c3aed; color: #fff; border: none; font-weight: 800;
+}
+body.temmenmueller .sync-chip { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .3); }
+body.temmenmueller .sync-chip #syncTime { color: #fff; }
+body.temmenmueller .sync-chip #syncRows { color: rgba(255, 255, 255, .7); }
+body.temmenmueller .total-num { color: #c4b0f7; }
+body.temmenmueller .total-lbl { color: rgba(255, 255, 255, .75); }
+
+body.temmenmueller .kpi-tile {
+  background: #fff;
+  border: 1px solid #ded8f0; border-radius: 1.1vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: 0 .6vh 1.8vh rgba(30, 27, 75, .10);
+}
+body.temmenmueller .kpi-lbl {
+  order: -1;
+  margin: 0 -1.5vw .9vh; padding: .6vh 1.5vw;
+  background: linear-gradient(90deg, #7c3aed, #5b21b6);
+  color: #fff; font-weight: 800; letter-spacing: .16em;
+}
+body.temmenmueller .kpi-num { color: #1e1b4b; }
+body.temmenmueller .kpi-delta.up { color: #16a34a; }
+body.temmenmueller .kpi-delta.down { color: #dc2626; }
+
+body.temmenmueller .widget h3 {
+  color: #1e1b4b; letter-spacing: .12em;
+  border-left: .4vw solid #7c3aed;
+  padding-left: .8vw; align-self: flex-start;
+}
+body.temmenmueller .rank {
+  background: #1e1b4b; color: #fff; border: none;
+  border-radius: .7vh; width: 4.4vh; height: 4.4vh; line-height: 4.4vh;
+  font-weight: 800; font-size: 2vh; justify-self: center;
+  box-shadow: 0 .3vh .8vh rgba(30, 27, 75, .25);
+}
+body.temmenmueller .rank.r1 { background: linear-gradient(135deg, #8b5cf6, #5b21b6); box-shadow: 0 0 1.4vh rgba(124, 58, 237, .5); }
+body.temmenmueller .rank.r2 { background: #6b6394; }
+body.temmenmueller .rank.r3 { background: #9d8fc9; }
+
+body.temmenmueller .avatar { background: #f4f2fb; border: 2px solid #7c3aed; color: #6b6394; box-shadow: 0 .3vh .8vh rgba(30, 27, 75, .18); }
+body.temmenmueller .bar-wrap {
+  background: #fff; border: 1px solid #ded8f0; border-radius: .9vh;
+  box-shadow: 0 .4vh 1vh rgba(30, 27, 75, .08);
+}
+body.temmenmueller .bar {
+  background: linear-gradient(90deg, rgba(124, 58, 237, .5), rgba(124, 58, 237, .15));
+  border-right: 2px solid #7c3aed;
+}
+body.temmenmueller .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(91, 33, 182, .65), rgba(139, 92, 246, .25));
+  border-right-color: #312e81;
+}
+body.temmenmueller .row:first-child .bar-wrap { border-color: #7c3aed; box-shadow: 0 0 1.4vh rgba(124, 58, 237, .25); }
+body.temmenmueller .name { color: #1e1b4b; }
+body.temmenmueller .apps { color: #1e1b4b; }
+body.temmenmueller .sub { color: #6b6394; }
+body.temmenmueller .more { color: #6b6394; }
+body.temmenmueller .tbar { background: linear-gradient(180deg, #8b5cf6, #5b21b6); }
+body.temmenmueller .pstrip { background: #f4f2fb; }
+body.temmenmueller .dot { background: #7c3aed; box-shadow: 0 0 1vh rgba(124, 58, 237, .7); }
+body.temmenmueller .daterange input[type="date"] { color-scheme: light; }
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -2071,6 +2170,7 @@ footer {
           <option value="deal">Temmen Deal 💼</option>
           <option value="xmas">Temmen Wonderland 🎄</option>
           <option value="hallow">Temmen Frightnight 🎃</option>
+          <option value="mueller">Mueller Insurance 💜</option>
         </select>
       </label>
     </div>
@@ -2157,7 +2257,7 @@ function normalizeState(s) {
     }
     out.filters = nf;
   }
-  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow", "mueller"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -2324,6 +2424,7 @@ function applyState() {
   document.body.classList.toggle("temmendeal", state.theme === "deal");
   document.body.classList.toggle("temmenxmas", state.theme === "xmas");
   document.body.classList.toggle("temmenhallow", state.theme === "hallow");
+  document.body.classList.toggle("temmenmueller", state.theme === "mueller");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -2416,7 +2517,8 @@ onSnapshot(collection(db, "tvLeaderboard"),
 const CELEB_HEADLINES = {
   race: "🏁 FULL THROTTLE!", opoly: "🎩 PAYDAY!", madness: "🏀 BUCKETS!",
   golf: "⛳ BIRDIE!", cup: "⚽ GOOOOAL!", deal: "💼 DEAL!",
-  xmas: "🎄 HO HO SOLD!", hallow: "🎃 TRICK OR TREAT!", default: "🎉 NEW SALE!",
+  xmas: "🎄 HO HO SOLD!", hallow: "🎃 TRICK OR TREAT!",
+  mueller: "💜 NEW SALE!", default: "🎉 NEW SALE!",
 };
 const MILESTONE_STEP = 250; // career apps
 let celebBaseline = null;
