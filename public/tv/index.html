@@ -463,8 +463,9 @@ body.temmenopoly .dot.stale { background: #ed1b24; }
 body.temmenopoly .wboard::-webkit-scrollbar-thumb { background: rgba(22, 19, 14, .3); }
 
 /* ── Temmen Madness full-page theme — tournament broadcast look ─────────────
-   Charcoal shield + teal from the logo, bracket-blue accents, scoreboard
-   KPI tiles, seed badges, and baskets that build toward the trophy. */
+   Charcoal shield + teal from the logo, bracket-blue accents, a hardwood
+   court painted along the floor, scoreboard KPI tiles, seed badges, hoops
+   at the end of every lane, and dribbling baskets toward the trophy. */
 body.temmenmadness {
   --bg: #171c23;
   --panel: #232a34;
@@ -477,6 +478,16 @@ body.temmenmadness {
     radial-gradient(70vw 40vh at 50% -12%, rgba(45, 212, 191, .14), transparent),
     repeating-linear-gradient(135deg, transparent 0 3.2vh, rgba(255, 255, 255, .018) 3.2vh 6.4vh),
     var(--bg);
+}
+/* the court: hardwood planks rising from the floor, halfcourt line and
+   center circle in arena paint — visible through the page's open areas */
+body.temmenmadness::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 100%, transparent 17.8vh, rgba(45, 212, 191, .22) 18vh, rgba(45, 212, 191, .22) 18.7vh, transparent 18.9vh),
+    linear-gradient(90deg, transparent calc(50% - .15vw), rgba(45, 212, 191, .16) calc(50% - .15vw), rgba(45, 212, 191, .16) calc(50% + .15vw), transparent calc(50% + .15vw)) 0 100% / 100% 26vh no-repeat,
+    repeating-linear-gradient(90deg, rgba(139, 87, 42, .14) 0 5vw, rgba(160, 104, 50, .14) 5vw 10vw) 0 100% / 100% 26vh no-repeat,
+    linear-gradient(180deg, transparent 0%, rgba(101, 62, 28, .30) 100%) 0 100% / 100% 26vh no-repeat;
 }
 body.temmenmadness header {
   position: relative;
@@ -506,16 +517,23 @@ body.temmenmadness .view-badge {
 }
 body.temmenmadness .total-num { color: #fff; text-shadow: 0 0 2.4vh rgba(45, 212, 191, .5); }
 
-/* scoreboard tiles */
+/* scoreboard tiles: bracket-blue broadcast strip on top, neon numbers */
 body.temmenmadness .kpi-tile {
   background: linear-gradient(180deg, #10151b, #171d25);
   border: 2px solid #2dd4bf; border-radius: .8vh;
+  padding-top: 0; overflow: hidden;
   box-shadow: 0 0 1.6vh rgba(45, 212, 191, .18), inset 0 .3vh 0 rgba(255, 255, 255, .06);
 }
 body.temmenmadness .kpi-num {
   color: #fff; text-shadow: 0 0 2vh rgba(45, 212, 191, .55);
 }
-body.temmenmadness .kpi-lbl { color: #2dd4bf; font-style: italic; font-weight: 800; }
+body.temmenmadness .kpi-lbl {
+  order: -1;
+  margin: 0 -1.5vw .9vh; padding: .6vh 1.5vw;
+  background: linear-gradient(90deg, #1d6fd1, #123f78);
+  border-bottom: 2px solid #2dd4bf;
+  color: #fff; font-style: italic; font-weight: 800; letter-spacing: .16em;
+}
 
 body.temmenmadness .widget h3 {
   color: #fff; font-style: italic; transform: skewX(-6deg); transform-origin: left;
@@ -546,16 +564,51 @@ body.temmenmadness .row:first-child .bar {
   border-right-color: var(--gold);
 }
 body.temmenmadness .row:first-child .bar-wrap { border-color: rgba(251, 191, 36, .55); }
-body.temmenmadness .name { font-style: italic; font-weight: 800; padding-right: 13vw; }
+body.temmenmadness .name { font-style: italic; font-weight: 800; padding-right: 17vw; }
+
+/* the hoop at the end of every agent lane — backboard, orange rim, net */
+body.temmenmadness .row:not(.noav) .bar-wrap::before {
+  content: ""; position: absolute; right: .5vw; top: 50%;
+  transform: translateY(-62%);
+  width: .5vw; height: 4.6vh;
+  background: rgba(240, 244, 248, .25);
+  border: 1px solid rgba(240, 244, 248, .35); border-radius: .3vh;
+}
+body.temmenmadness .row:not(.noav) .bar-wrap::after {
+  content: ""; position: absolute; right: .9vw; top: 50%;
+  transform: translateY(-50%);
+  width: 2.5vh; height: 2.5vh;
+  border: .5vh solid #f97316; border-radius: 50%;
+  background:
+    repeating-linear-gradient(90deg, rgba(240, 244, 248, .5) 0 1px, transparent 1px .5vh) 50% 100% / 70% 45% no-repeat;
+  box-shadow: 0 .3vh .8vh rgba(0, 0, 0, .45);
+}
+/* the ball(s) dribble toward the hoop; the trophy shines */
 body.temmenmadness .houses {
-  position: absolute; right: 1vw; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 4.2vw; top: 50%; transform: translateY(-50%);
   font-size: 2.3vh; letter-spacing: .15vw;
   filter: drop-shadow(0 0 .8vh rgba(45, 212, 191, .4));
+  animation: md-dribble 1.3s ease-in-out infinite;
+}
+body.temmenmadness .row:nth-child(2n) .houses { animation-delay: .3s; }
+body.temmenmadness .row:nth-child(3n) .houses { animation-delay: .6s; }
+body.temmenmadness .row:first-child .houses {
+  animation: md-shine 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 1.2vh rgba(251, 191, 36, .8));
 }
 body.temmenmadness footer {
   background: #1d242d; border-top: 1px solid #3a4553;
 }
 body.temmenmadness .dot { box-shadow: 0 0 1vh rgba(45, 212, 191, .8); }
+
+@keyframes md-dribble {
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(calc(-50% - 1vh)); }
+}
+@keyframes md-shine {
+  0%, 100% { filter: drop-shadow(0 0 .6vh rgba(251, 191, 36, .5)); transform: translateY(-50%) scale(1); }
+  50% { filter: drop-shadow(0 0 1.6vh rgba(251, 191, 36, .95)); transform: translateY(-50%) scale(1.12); }
+}
 
 footer {
   display: flex; align-items: center; gap: 1vw;
@@ -714,8 +767,11 @@ footer {
   body.temmenkart .lane-name { left: 14px; }
   body.temmenmadness .brand { font-size: 15px; }
   body.temmenmadness .rank { width: 26px; height: 26px; line-height: 24px; font-size: 12px; }
-  body.temmenmadness .houses { font-size: 13px; right: 8px; }
-  body.temmenmadness .name { padding-right: 80px; }
+  body.temmenmadness .houses { font-size: 13px; right: 40px; }
+  body.temmenmadness .name { padding-right: 100px; }
+  body.temmenmadness .row:not(.noav) .bar-wrap::before { right: 4px; width: 5px; height: 26px; }
+  body.temmenmadness .row:not(.noav) .bar-wrap::after { right: 9px; width: 15px; height: 15px; border-width: 3px; }
+  body.temmenmadness::after { background-size: auto, 100% 90px, 100% 90px, 100% 90px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
