@@ -775,6 +775,11 @@ body.temmengolf .row:nth-child(2n) .houses { animation-delay: .6s; }
 body.temmengolf .row:first-child .houses {
   animation: md-shine 2.4s ease-in-out infinite;
 }
+/* dye the coat emoji Masters green */
+body.temmengolf .jacket {
+  display: inline-block;
+  filter: hue-rotate(95deg) saturate(2.2) brightness(.82);
+}
 body.temmengolf footer {
   background: #093325; border-top: 2px solid rgba(245, 213, 71, .5); color: #d9e5d3;
 }
@@ -1516,8 +1521,8 @@ function render() {
         } else if (isAgents && state.theme === "madness") {
           houses = `<div class="houses">${i === 0 ? "🏆" : "🏀".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         } else if (isAgents && state.theme === "golf") {
-          // birdies on the card; the leader wears the jacket
-          houses = `<div class="houses">${i === 0 ? "🧥" : "⛳".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+          // birdies on the card; the leader wears the green jacket
+          houses = `<div class="houses">${i === 0 ? '<span class="jacket">🧥</span>' : "⛳".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         }
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
