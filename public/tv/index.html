@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sales Leaderboard</title>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  TEMMEN — SALES FLOOR TV LEADERBOARD                                      ║
+  ║                                                                            ║
+  ║  Public, unauthenticated page for office TVs. Reads the Firestore doc     ║
+  ║  tvLeaderboard/current (written by the syncLeaderboard Cloud Function)    ║
+  ║  via a real-time onSnapshot listener. Contains only agent names, dates,   ║
+  ║  label fields, and app counts.                                            ║
+  ║                                                                            ║
+  ║  URL options:                                                              ║
+  ║    /tv/?product=Life        filter by any field in CONFIG.filterFields    ║
+  ║    /tv/?view=mtd            lock to MTD (or ytd) instead of rotating      ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+-->
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   CONFIG — edit this block
+   ════════════════════════════════════════════════════════════════════════ */
+
+// From Firebase Console → Project settings → Your apps → Web app,
+// or `firebase apps:sdkconfig web`. Only these three keys are needed.
+window.FIREBASE_CONFIG = {
+  apiKey: "REPLACE_WITH_API_KEY",
+  authDomain: "REPLACE_WITH_PROJECT_ID.firebaseapp.com",
+  projectId: "REPLACE_WITH_PROJECT_ID",
+};
+
+window.TV_CONFIG = {
+  // Must match the output field names produced by COLUMN_MAP in
+  // functions/index.js.
+  agentField: "agent",
+  dateField: "date",
+  appsField: "apps",
+
+  // Exactly the optional filterable fields mapped in COLUMN_MAP,
+  // e.g. ["product", "carrier", "source"].
+  filterFields: [],
+
+  // Rotate between MTD and YTD views this often (ms).
+  ROTATE_MS: 25_000,
+
+  // Full page reload cadence — guards against stale JS, memory leaks,
+  // and silent code updates on always-on TVs.
+  PAGE_RELOAD_MS: 4 * 60 * 60_000,
+
+  // How many agents to show before collapsing into "+ N more".
+  MAX_ROWS: 14,
+
+  TITLE: "TEMMEN LEADERBOARD",
+};
+</script>
+
+<style>
+:root {
+  --bg: #0b1220;
+  --panel: #111a2e;
+  --line: #1f2b45;
+  --text: #f1f5f9;
+  --dim: #8ea0bd;
+  --accent: #2dd4bf;
+  --accent-dim: #14b8a6;
+  --gold: #fbbf24;
+  --silver: #cbd5e1;
+  --bronze: #d97706;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1.2vw;
+  padding: 1.6vh 2.2vw;
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-size: 2.4vh; font-weight: 800; letter-spacing: .14em; color: var(--dim); }
+.view-badge {
+  font-size: 2.6vh; font-weight: 800; letter-spacing: .06em;
+  color: var(--accent);
+  padding: .4vh 1.2vw;
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  min-width: 9vw;
+  text-align: center;
+}
+.chips { display: flex; gap: .6vw; flex-wrap: wrap; }
+.chip {
+  font-size: 1.8vh; font-weight: 600;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: .5vh 1vw;
+}
+.chip b { color: var(--accent); font-weight: 700; }
+.spacer { flex: 1; }
+.total-box { text-align: right; }
+.total-num { font-size: 5.2vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.total-lbl { font-size: 1.6vh; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; margin-top: .4vh; }
+
+main { flex: 1; padding: 1.6vh 2.2vw; display: flex; flex-direction: column; min-height: 0; }
+#board { flex: 1; display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
+
+.row {
+  display: grid;
+  grid-template-columns: 4.5vw 1fr 8vw;
+  align-items: center;
+  gap: 1.2vw;
+  flex: 1;
+  min-height: 0;
+  max-height: 9vh;
+}
+.rank { font-size: 3vh; font-weight: 800; color: var(--dim); text-align: center; font-variant-numeric: tabular-nums; }
+.rank.r1 { color: var(--gold); } .rank.r2 { color: var(--silver); } .rank.r3 { color: var(--bronze); }
+.bar-wrap { position: relative; height: 100%; max-height: 7.4vh; background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh; overflow: hidden; }
+.bar {
+  position: absolute; inset: 0 auto 0 0;
+  background: linear-gradient(90deg, rgba(20,184,166,.55), rgba(45,212,191,.25));
+  border-right: 2px solid var(--accent);
+  transition: width .9s cubic-bezier(.2,.8,.2,1);
+}
+.row:nth-child(1) .bar { background: linear-gradient(90deg, rgba(251,191,36,.45), rgba(251,191,36,.15)); border-right-color: var(--gold); }
+.name {
+  position: absolute; inset: 0;
+  display: flex; align-items: center;
+  padding-left: 1.4vw;
+  font-size: 3vh; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.apps { font-size: 3.4vh; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+
+.more { text-align: center; color: var(--dim); font-size: 2vh; padding: .6vh 0; }
+
+footer {
+  display: flex; align-items: center; gap: 1vw;
+  padding: 1.2vh 2.2vw;
+  border-top: 1px solid var(--line);
+  color: var(--dim); font-size: 1.7vh;
+}
+.dot { width: 1.1vh; height: 1.1vh; border-radius: 50%; background: var(--accent); }
+.dot.stale { background: #ef4444; }
+
+.overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 2vh;
+  background: var(--bg);
+  text-align: center; padding: 4vw;
+}
+.overlay h1 { font-size: 4vh; }
+.overlay p { color: var(--dim); font-size: 2.2vh; max-width: 70vw; line-height: 1.5; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand" id="brand"></div>
+  <div class="view-badge" id="viewBadge">—</div>
+  <div class="chips" id="chips"></div>
+  <div class="spacer"></div>
+  <div class="total-box">
+    <div class="total-num" id="totalNum">0</div>
+    <div class="total-lbl" id="totalLbl">Apps</div>
+  </div>
+</header>
+
+<main><div id="board"></div></main>
+
+<footer>
+  <div class="dot" id="liveDot"></div>
+  <div id="statusText">Connecting…</div>
+</footer>
+
+<div class="overlay" id="overlay">
+  <h1>Sales Leaderboard</h1>
+  <p id="overlayMsg">Connecting to live data…</p>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const CFG = window.TV_CONFIG;
+const FB = window.FIREBASE_CONFIG;
+
+document.getElementById("brand").textContent = CFG.TITLE;
+document.title = CFG.TITLE;
+
+const overlay = document.getElementById("overlay");
+const overlayMsg = document.getElementById("overlayMsg");
+
+if (FB.apiKey.startsWith("REPLACE_")) {
+  overlayMsg.textContent = "firebaseConfig is not filled in yet — edit the CONFIG block in tv/index.html.";
+  throw new Error("firebaseConfig placeholder");
+}
+
+/* ── URL filters & view lock ── */
+const params = new URLSearchParams(location.search);
+const filters = {};
+for (const f of CFG.filterFields) {
+  const v = params.get(f);
+  if (v) filters[f] = v.trim().toLowerCase();
+}
+const lockedView = ["mtd", "ytd"].includes((params.get("view") || "").toLowerCase())
+  ? params.get("view").toLowerCase() : null;
+
+const chipsEl = document.getElementById("chips");
+for (const [k, v] of Object.entries(filters)) {
+  const c = document.createElement("div");
+  c.className = "chip";
+  c.innerHTML = `${k}: <b></b>`;
+  c.querySelector("b").textContent = params.get(k);
+  chipsEl.appendChild(c);
+}
+
+/* ── Firestore live listener ── */
+const db = getFirestore(initializeApp(FB));
+let latest = null;
+let lastUpdateMs = 0;
+
+onSnapshot(doc(db, "tvLeaderboard", "current"),
+  (snap) => {
+    if (!snap.exists()) {
+      overlay.classList.remove("hidden");
+      overlayMsg.textContent = "No leaderboard data yet — run the sync function once, then this page updates automatically.";
+      return;
+    }
+    latest = snap.data();
+    lastUpdateMs = Date.now();
+    overlay.classList.add("hidden");
+    render();
+  },
+  (err) => {
+    overlay.classList.remove("hidden");
+    overlayMsg.textContent = "Connection error: " + err.message;
+  }
+);
+
+/* ── View rotation ── */
+let view = lockedView || "mtd";
+if (!lockedView) {
+  setInterval(() => { view = view === "mtd" ? "ytd" : "mtd"; render(); }, CFG.ROTATE_MS);
+}
+
+/* ── Rendering ── */
+function periodStart(v) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  return v === "mtd" ? `${y}-${m}-01` : `${y}-01-01`;
+}
+
+function render() {
+  if (!latest) return;
+  const rows = latest.rows || [];
+  const start = periodStart(view);
+
+  const byAgent = new Map();
+  let total = 0;
+  for (const r of rows) {
+    if ((r[CFG.dateField] || "") < start) continue;
+    let keep = true;
+    for (const [k, v] of Object.entries(filters)) {
+      if (String(r[k] || "").trim().toLowerCase() !== v) { keep = false; break; }
+    }
+    if (!keep) continue;
+    const apps = Number(r[CFG.appsField]) || 0;
+    total += apps;
+    const agent = r[CFG.agentField] || "Unknown";
+    byAgent.set(agent, (byAgent.get(agent) || 0) + apps);
+  }
+
+  const ranked = [...byAgent.entries()]
+    .map(([agent, apps]) => ({ agent, apps }))
+    .sort((a, b) => b.apps - a.apps || a.agent.localeCompare(b.agent));
+
+  document.getElementById("viewBadge").textContent = view.toUpperCase();
+  document.getElementById("totalNum").textContent = fmt(total);
+
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  const max = ranked.length ? ranked[0].apps : 1;
+  const shown = ranked.slice(0, CFG.MAX_ROWS);
+
+  for (let i = 0; i < shown.length; i++) {
+    const { agent, apps } = shown[i];
+    const row = document.createElement("div");
+    row.className = "row";
+    const pct = max > 0 ? Math.max(4, (apps / max) * 100) : 4;
+    row.innerHTML = `
+      <div class="rank r${i + 1}">${i + 1}</div>
+      <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
+      <div class="apps">${fmt(apps)}</div>`;
+    row.querySelector(".name").textContent = agent;
+    board.appendChild(row);
+  }
+  if (ranked.length > CFG.MAX_ROWS) {
+    const more = document.createElement("div");
+    more.className = "more";
+    const rest = ranked.slice(CFG.MAX_ROWS).reduce((s, r) => s + r.apps, 0);
+    more.textContent = `+ ${ranked.length - CFG.MAX_ROWS} more agents · ${fmt(rest)} apps`;
+    board.appendChild(more);
+  }
+  if (!ranked.length) {
+    const empty = document.createElement("div");
+    empty.className = "more";
+    empty.textContent = "No apps in this period yet.";
+    board.appendChild(empty);
+  }
+
+  updateStatus();
+}
+
+function fmt(n) {
+  return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function updateStatus() {
+  const dot = document.getElementById("liveDot");
+  const txt = document.getElementById("statusText");
+  const parts = [];
+  if (latest?.updatedAt?.toDate) {
+    const t = latest.updatedAt.toDate();
+    parts.push(`Data synced ${t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`);
+    // Sync runs every 5 min — flag if the doc is > 20 min old.
+    dot.classList.toggle("stale", Date.now() - t.getTime() > 20 * 60_000);
+  }
+  if (latest?.rowCount != null) parts.push(`${latest.rowCount.toLocaleString()} rows`);
+  if (latest?.warnings?.length) parts.push("⚠ " + latest.warnings[0]);
+  txt.textContent = parts.join(" · ") || "Live";
+}
+
+// Refresh MTD boundary / staleness even when no new snapshot arrives.
+setInterval(render, 60_000);
+
+// Periodic hard reload for always-on TVs.
+setTimeout(() => location.reload(), CFG.PAGE_RELOAD_MS);
+</script>
+</body>
+</html>

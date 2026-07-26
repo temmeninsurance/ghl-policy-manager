@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  WARNING — READ BEFORE DEPLOYING                                          ║
+// ║                                                                            ║
+// ║  Deploying this file REPLACES the project's entire Firestore ruleset.     ║
+// ║  If the target Firebase project already has rules deployed (e.g. from    ║
+// ║  the temmen-portal app), copy them from Firebase Console → Firestore →   ║
+// ║  Rules and paste them where indicated below BEFORE running               ║
+// ║  `firebase deploy --only firestore:rules`. Otherwise every other          ║
+// ║  collection will be locked to deny-all and the portal will break.         ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // TV leaderboard: public read-only. The doc contains only agent names,
+    // dates, product/carrier/source labels, and app counts — no PHI, no
+    // client data, no revenue. Written exclusively by the Cloud Function
+    // via the Admin SDK (which bypasses rules), so client writes are denied.
+    match /tvLeaderboard/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // >>> PASTE ANY EXISTING PROJECT RULES HERE (from Firebase Console) <<<
+
+    // Default: everything not matched above is private.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
