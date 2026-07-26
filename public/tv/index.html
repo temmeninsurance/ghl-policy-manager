@@ -2315,6 +2315,7 @@ footer {
   <div id="sidebarList" style="display:flex;flex-direction:column;gap:1vh"></div>
   <div class="spacer"></div>
   <button class="side-new hidden" id="newDashBtn">＋ New dashboard</button>
+  <button class="side-lock hidden" id="repsBtn">👤 Edit reps — names, photos, goals</button>
   <div id="editLock" style="display:flex;flex-direction:column;gap:1vh">
     <input id="sideKey" type="password" placeholder="Edit key" class="hidden">
     <button class="side-lock" id="editUnlockBtn">🔒 Edit dashboards</button>
@@ -3525,6 +3526,20 @@ document.getElementById("newDashBtn").addEventListener("click", () => {
   openEditor({ ...structuredClone(DEFAULT_STATE), title: "" }, null);
 });
 
+// Direct route to the rep editor (it lives at the bottom of the dashboard
+// editor): open the editor for the current board with Agents expanded.
+document.getElementById("repsBtn").addEventListener("click", () => {
+  closeSidebar();
+  const ds = getDashboards();
+  let idx = state.id ? ds.findIndex((d) => d.id === state.id) : -1;
+  if (idx === -1) idx = ds.findIndex((d) => d.title === state.title);
+  openEditor(state, idx === -1 ? null : idx);
+  const ed = document.getElementById("agentsEditor");
+  ed.classList.remove("hidden");
+  renderAgentsEditor();
+  ed.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 /* ── Edit unlock (bottom of sidebar) ── */
 let editMode = false;
 const sideKey = document.getElementById("sideKey");
@@ -3552,6 +3567,7 @@ async function tryUnlock(key) {
     unlockBtn.textContent = "🔓 Editing unlocked";
     unlockBtn.disabled = true;
     document.getElementById("newDashBtn").classList.remove("hidden");
+    document.getElementById("repsBtn").classList.remove("hidden");
     document.getElementById("gearBtn").classList.remove("hidden");
     renderSidebar();
   } else {
