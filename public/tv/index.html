@@ -144,6 +144,35 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .nchip.down { color: #ef4444; }
 .nchip.fire { color: #f97316; }
 
+/* Pacing: business-day projections. The strip under each rep's line shows
+   period progress (or goal progress when a goal is set); the dashed marker
+   is where they should be today. */
+.bar.pahead, .pfill.pahead { background: linear-gradient(90deg, rgba(34, 197, 94, .55), rgba(34, 197, 94, .2)); border-right-color: #22c55e; }
+.bar.pbehind, .pfill.pbehind { background: linear-gradient(90deg, rgba(239, 68, 68, .5), rgba(239, 68, 68, .18)); border-right-color: #ef4444; }
+.bar.pdone, .pfill.pdone { background: linear-gradient(90deg, rgba(251, 191, 36, .55), rgba(251, 191, 36, .22)); border-right-color: var(--gold); }
+.pace-mark {
+  position: absolute; top: 8%; bottom: 8%; width: 0;
+  border-left: .25vw dashed rgba(241, 245, 249, .55);
+}
+.row.paced { height: 9.2vh; }
+.bcell { display: flex; flex-direction: column; gap: .5vh; height: 100%; min-width: 0; }
+.bcell .bar-wrap { flex: 1; }
+.pstrip {
+  position: relative; height: 1.8vh; flex: 0 0 auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  overflow: hidden;
+}
+.pfill {
+  position: absolute; inset: 0 auto 0 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  opacity: .85;
+}
+.ptext {
+  position: absolute; right: .9vw; top: 50%; transform: translateY(-50%);
+  font-size: 1.3vh; font-weight: 700; color: var(--dim);
+  white-space: nowrap; letter-spacing: .02em;
+}
+
 /* Celebration takeover */
 .celebrate {
   position: fixed; inset: 0; z-index: 40;
@@ -1332,8 +1361,12 @@ footer {
 
 #agentsList { display: flex; flex-direction: column; }
 .agent-row {
-  display: grid; grid-template-columns: 6vh 1fr 1fr auto auto; gap: 1vw;
+  display: grid; grid-template-columns: 6vh 1.1fr 1fr .7fr auto auto; gap: 1vw;
   align-items: center; padding: 1vh 0; border-bottom: 1px solid var(--line); font-size: 2vh;
+}
+.agent-row input[type="number"] {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: .8vh; padding: .8vh 1vw; font-size: 2vh; width: 100%;
 }
 .agent-row .avatar { width: 5.5vh; height: 5.5vh; font-size: 1.8vh; }
 .agent-row .orig { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1447,6 +1480,10 @@ footer {
   .agent-row .avatar { width: 40px; height: 40px; }
   .agent-row .orig { flex: 1 1 100%; }
   .agent-row input[type="text"] { flex: 1 1 55%; font-size: 14px; padding: 8px; }
+  .agent-row input[type="number"] { flex: 1 1 35%; font-size: 14px; padding: 8px; }
+  .row.paced { height: 62px; }
+  .pstrip { height: 11px; }
+  .ptext { font-size: 9px; right: 8px; }
   .agent-row input[type="file"] { max-width: none; flex: 1 1 100%; font-size: 12px; }
   .agent-row button { font-size: 14px; padding: 8px 14px; }
 }
@@ -1621,7 +1658,7 @@ const VIEWS = {
   today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD",
   last_month: "Last Month", last_year: "Last Year", all: "All Time",
 };
-const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown", rookies: "Rookie Leaderboard" };
+const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown", rookies: "Rookie Leaderboard", pace: "Pace board (rep goals)" };
 const ROOKIE_MONTHS = 6; // first sale within this window = rookie
 const METRICS = { revenue: "Revenue", apps: "Apps", avg: "Avg $ / App" };
 const DEFAULT_STATE = {
@@ -1813,9 +1850,10 @@ function slugOf(name) {
 function initialsOf(name) {
   return String(name).split(/\s+/).slice(0, 2).map((w) => (w[0] || "").toUpperCase()).join("").replace(/[^A-Z]/g, "");
 }
-let profiles = new Map(); // slug → {name, photo}
+let profiles = new Map(); // slug → {name, photo, goal}
 function displayNameOf(agent) { return profiles.get(slugOf(agent))?.name || agent; }
 function photoOf(agent) { return profiles.get(slugOf(agent))?.photo || null; }
+function goalOf(agent) { return Number(profiles.get(slugOf(agent))?.goal) || 0; }
 
 /* ── Firestore live listeners ── */
 const db = getFirestore(initializeApp(FB));
@@ -2019,6 +2057,31 @@ function concreteBounds() {
   return null; // all time — pace is meaningless
 }
 
+/* ── Business-day pacing (the floor works Mon–Fri) ── */
+function bizDaysBetween(startS, endS) { // inclusive yyyy-mm-dd range
+  let n = 0;
+  const d = new Date(startS + "T12:00");
+  const end = new Date(endS + "T12:00");
+  while (d <= end) {
+    const wd = d.getDay();
+    if (wd !== 0 && wd !== 6) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return n;
+}
+
+// Elapsed/total business days for the active bounded period; null when
+// the period is unbounded (All Time).
+function paceFraction() {
+  const b = concreteBounds();
+  if (!b) return null;
+  const today = ymd(new Date());
+  const upTo = today > b[1] ? b[1] : today;
+  const total = Math.max(1, bizDaysBetween(b[0], b[1]));
+  const elapsed = today < b[0] ? 1 : Math.max(1, bizDaysBetween(b[0], upTo));
+  return { elapsed, total, frac: Math.min(1, elapsed / total) };
+}
+
 function matchesFilter(r, field, value) {
   return String(r[field] || "").trim().toLowerCase() === String(value).trim().toLowerCase();
 }
@@ -2084,6 +2147,7 @@ function widgetLabel(w) {
   if (w.type === "kpi") return METRICS[w.metric] + suffix;
   if (w.type === "breakdown") return `${METRICS[w.metric]} by ${String(w.field || "").replace(/_/g, " ")}` + suffix;
   if (w.type === "rookies") return "Rookie Leaderboard" + suffix;
+  if (w.type === "pace") return "Goal Pace — MTD" + suffix;
   return "Leaderboard" + (w.metric === "apps" ? " — Apps" : "") + suffix;
 }
 
@@ -2150,13 +2214,9 @@ function render() {
     document.getElementById("goalLabel").textContent = `${fmtMoney(rev)} / ${fmtMoney(state.goal)} (${Math.round(pctG)}%)`;
     document.getElementById("goalFill").style.width = pctG + "%";
     const paceEl = document.getElementById("goalPace");
-    const bounds = concreteBounds();
-    if (bounds) {
-      const [bs, be] = bounds;
-      const dayMs = 86400e3;
-      const total = Math.max(1, (new Date(be + "T12:00") - new Date(bs + "T12:00")) / dayMs + 1);
-      const elapsed = Math.min(total, Math.max(1, (new Date(ymd(new Date()) + "T12:00") - new Date(bs + "T12:00")) / dayMs + 1));
-      const diff = rev - state.goal * (elapsed / total);
+    const pfG = paceFraction();
+    if (pfG) {
+      const diff = rev - state.goal * pfG.frac;
       paceEl.textContent = diff >= 0 ? `▲ ${fmtMoney(diff)} ahead of pace` : `▼ ${fmtMoney(-diff)} behind pace`;
       paceEl.className = diff >= 0 ? "pace-up" : "pace-down";
     } else {
@@ -2204,6 +2264,80 @@ function render() {
     const w = boards[bi];
     const wkey = (state.id || state.title || "d") + "|" + bi;
     const wd = widgetDates[wkey] || null;
+
+    // Pace board: each rep against their own monthly goal (set in the
+    // Agents editor), ranked by attainment, always MTD.
+    if (w.type === "pace") {
+      const now = new Date();
+      const mtdStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+      const mEnd = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      const frac = Math.min(1, Math.max(1, bizDaysBetween(mtdStart, ymd(now))) / Math.max(1, bizDaysBetween(mtdStart, mEnd)));
+      const agg = aggBy(rowsFor(w, [mtdStart, "9999"]), (r) => r[CFG.agentField]);
+      const bySlug = new Map();
+      for (const [agent, m] of agg) {
+        const goal = goalOf(agent);
+        if (goal > 0) bySlug.set(slugOf(agent), { agent, rev: m.revenue, goal });
+      }
+      for (const [slug, p] of profiles) {
+        if (Number(p.goal) > 0 && !bySlug.has(slug) && p.agent) {
+          bySlug.set(slug, { agent: p.agent, rev: 0, goal: Number(p.goal) });
+        }
+      }
+      const ranked = [...bySlug.values()]
+        .map((e) => ({ ...e, pct: (e.rev / e.goal) * 100, diff: e.rev - e.goal * frac }))
+        .sort((a, b) => b.pct - a.pct);
+
+      const panel = document.createElement("div");
+      panel.className = "widget";
+      const h = document.createElement("h3");
+      h.textContent = widgetLabel(w);
+      const head = document.createElement("div");
+      head.className = "whead";
+      head.append(h);
+      const boardEl = document.createElement("div");
+      boardEl.className = "wboard";
+      panel.append(head, boardEl);
+
+      for (let i = 0; i < ranked.length; i++) {
+        const e = ranked[i];
+        const cls = e.pct >= 100 ? "pdone" : e.diff >= 0 ? "pahead" : "pbehind";
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+          <div class="rank r${i + 1}">${i + 1}</div>
+          <div class="avatar"></div>
+          <div class="bar-wrap">
+            <div class="bar ${cls}" style="width:${Math.max(2, Math.min(100, e.pct))}%"></div>
+            <div class="pace-mark" style="left:${(frac * 100).toFixed(1)}%"></div>
+            <div class="name"></div>
+          </div>
+          <div><div class="apps">${Math.round(e.pct)}%</div><div class="sub">${fmtMoney(e.rev)} / ${fmtMoney(e.goal)}</div></div>`;
+        const nameEl = row.querySelector(".name");
+        nameEl.textContent = displayNameOf(e.agent);
+        nameEl.appendChild(nameChip(e.diff >= 0 ? "up" : "down",
+          (e.diff >= 0 ? "▲" : "▼") + fmtMoney(Math.abs(e.diff))));
+        const av = row.querySelector(".avatar");
+        const photo = photoOf(e.agent);
+        if (photo) {
+          const img = document.createElement("img");
+          img.src = photo;
+          img.alt = "";
+          av.appendChild(img);
+        } else {
+          av.textContent = initialsOf(displayNameOf(e.agent));
+        }
+        boardEl.appendChild(row);
+      }
+      if (!ranked.length) {
+        const empty = document.createElement("div");
+        empty.className = "more";
+        empty.textContent = "No rep goals set yet — add them under Agents → Edit names & photos.";
+        boardEl.appendChild(empty);
+      }
+      widgetsEl.appendChild(panel);
+      continue;
+    }
+
     const rows = rowsFor(w, wd ? [wd.start || "0000", wd.end || "9999"] : null);
     const isAgents = w.type === "leaderboard" || w.type === "rookies";
     const keyFn = isAgents ? (r) => r[CFG.agentField] : (r) => r[w.field];
@@ -2301,7 +2435,26 @@ function render() {
           </div>
           ${valueCell}`;
       } else {
-        row.className = "row" + (isAgents ? "" : " noav");
+        // Pacing strip under each rep's line: projection from business-day
+        // run rate; if they have a goal it becomes progress-to-goal with
+        // an expected-today marker.
+        const pf = isAgents ? paceFraction() : null;
+        let pstrip = "";
+        if (pf) {
+          const proj = (main / pf.elapsed) * pf.total;
+          const goal = w.metric === "revenue" ? goalOf(e.key) : 0;
+          if (goal > 0) {
+            const gp = Math.max(2, Math.min(100, (main / goal) * 100));
+            const cls = main >= goal ? "pdone" : main >= goal * pf.frac ? "pahead" : "pbehind";
+            pstrip = `<div class="pstrip"><div class="pfill ${cls}" style="width:${gp}%"></div>` +
+              `<div class="pace-mark" style="left:${(pf.frac * 100).toFixed(1)}%"></div>` +
+              `<span class="ptext">pacing ${fmtBy(w.metric, proj)} · goal ${fmtMoney(goal)}</span></div>`;
+          } else {
+            pstrip = `<div class="pstrip"><div class="pfill" style="width:${(pf.frac * 100).toFixed(1)}%"></div>` +
+              `<span class="ptext">pacing ${fmtBy(w.metric, proj)}</span></div>`;
+          }
+        }
+        row.className = "row" + (isAgents ? "" : " noav") + (pstrip ? " paced" : "");
         const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
         // Theme trinkets: Temmenopoly builds houses toward the hotel;
         // Temmen Madness racks up baskets toward the trophy.
@@ -2323,7 +2476,7 @@ function render() {
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
           ${isAgents ? '<div class="avatar"></div>' : ""}
-          <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div>${houses}</div>
+          <div class="bcell"><div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div>${houses}</div>${pstrip}</div>
           ${valueCell}`;
       }
       const nameEl = row.querySelector(".name, .lane-name");
@@ -2770,7 +2923,7 @@ function resizePhoto(file) {
   });
 }
 
-async function saveProfile(agent, name, photo, btn) {
+async function saveProfile(agent, name, photo, goal, btn) {
   const key = adminKeyInput.value.trim();
   if (!key) { adminKeyInput.focus(); return; }
   btn.disabled = true;
@@ -2779,7 +2932,7 @@ async function saveProfile(agent, name, photo, btn) {
     const resp = await fetch(CFG.PROFILE_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, agent, name, photo }),
+      body: JSON.stringify({ key, agent, name, photo, goal }),
     });
     const out = await resp.json();
     if (!out.ok) throw new Error(out.error || "Save failed");
@@ -2824,6 +2977,12 @@ function renderAgentsEditor() {
     nameInput.placeholder = "Display name / nickname";
     nameInput.value = profiles.get(slugOf(agent))?.name || "";
 
+    const goalInput = document.createElement("input");
+    goalInput.type = "number";
+    goalInput.min = "0";
+    goalInput.placeholder = "Goal $/mo (optional)";
+    goalInput.value = profiles.get(slugOf(agent))?.goal || "";
+
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "image/*";
@@ -2843,9 +3002,9 @@ function renderAgentsEditor() {
     const btn = document.createElement("button");
     btn.textContent = "Save";
     btn.addEventListener("click", () =>
-      saveProfile(agent, nameInput.value.trim(), pendingPhoto, btn));
+      saveProfile(agent, nameInput.value.trim(), pendingPhoto, Number(goalInput.value) || 0, btn));
 
-    rowEl.append(av, orig, nameInput, fileInput, btn);
+    rowEl.append(av, orig, nameInput, goalInput, fileInput, btn);
     list.appendChild(rowEl);
   }
 }

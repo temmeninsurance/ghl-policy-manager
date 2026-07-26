@@ -360,7 +360,7 @@ exports.updateAgentProfile = onRequest(
         res.status(405).json({ ok: false, error: "POST only" });
         return;
       }
-      const { key, agent, name, photo } = req.body || {};
+      const { key, agent, name, photo, goal } = req.body || {};
       if (!key || key !== TV_ADMIN_KEY.value()) {
         res.status(403).json({ ok: false, error: "Invalid admin key" });
         return;
@@ -381,6 +381,14 @@ exports.updateAgentProfile = onRequest(
           return;
         }
         update.photo = photo;
+      }
+      if (goal !== undefined) {
+        const g = Number(goal);
+        if (!Number.isFinite(g) || g < 0 || g > 10_000_000) {
+          res.status(400).json({ ok: false, error: "Goal must be a number between 0 and 10,000,000" });
+          return;
+        }
+        update.goal = g > 0 ? g : FieldValue.delete(); // 0 clears the goal
       }
       await getFirestore().doc(`tvProfiles/${slug}`).set(update, { merge: true });
       res.json({ ok: true, slug });
