@@ -45,13 +45,9 @@ window.TV_CONFIG = {
   // Override per TV with /tv/?metric=apps
   DEFAULT_METRIC: "revenue",
 
-  // Filterable fields are read from the synced doc automatically (every
-  // sheet column becomes filterable via SYNC_ALL_COLUMNS in the function).
-  // This list is only a fallback for docs that predate that feature.
-  filterFields: [],
-
-  // Rotate between MTD and YTD views this often (ms).
-  ROTATE_MS: 25_000,
+  // Endpoint of the updateAgentProfile Cloud Function (in-app editing of
+  // agent names/photos, guarded by the admin key).
+  PROFILE_ENDPOINT: "https://us-central1-temmen-leaderboard-2026.cloudfunctions.net/updateAgentProfile",
 
   // Full page reload cadence — guards against stale JS, memory leaks,
   // and silent code updates on always-on TVs.
@@ -183,6 +179,71 @@ footer {
 .overlay h1 { font-size: 4vh; }
 .overlay p { color: var(--dim); font-size: 2.2vh; max-width: 70vw; line-height: 1.5; }
 .hidden { display: none !important; }
+
+/* ── Dashboard picker ── */
+.brand { cursor: pointer; }
+.gear {
+  background: none; border: 1px solid var(--line); border-radius: .8vh;
+  color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: .4vh 1vw;
+}
+.gear:hover { color: var(--accent); border-color: var(--accent-dim); }
+.picker {
+  position: fixed; inset: 0; z-index: 10;
+  background: rgba(4, 8, 18, .8);
+  display: flex; align-items: center; justify-content: center;
+}
+.picker-panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 1.6vh;
+  padding: 3vh 2.5vw; width: min(80vw, 1100px); max-height: 85vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2.2vh;
+}
+.picker-head { display: flex; align-items: center; justify-content: space-between; }
+.picker-head h2 { font-size: 2.8vh; letter-spacing: .06em; }
+.picker-head button {
+  background: none; border: none; color: var(--dim); font-size: 3vh; cursor: pointer;
+}
+.saved { display: flex; flex-wrap: wrap; gap: 1vh; }
+.dash-card {
+  display: inline-flex; align-items: center; gap: .8vw;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+  color: var(--text); font-size: 2.1vh; font-weight: 600;
+  padding: 1.1vh 1.6vw; cursor: pointer;
+}
+.dash-card:hover { border-color: var(--accent); color: var(--accent); }
+.dash-del { color: var(--dim); font-size: 1.8vh; padding-left: .4vw; }
+.dash-del:hover { color: #ef4444; }
+.picker-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.6vh 1.5vw;
+}
+.picker-grid label { display: flex; flex-direction: column; gap: .6vh; font-size: 1.8vh; color: var(--dim); text-transform: capitalize; }
+.picker-grid select, .picker-actions input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: .8vh; padding: 1vh 1vw; font-size: 2vh; width: 100%;
+}
+.picker-actions { display: flex; gap: 1vw; align-items: center; border-top: 1px solid var(--line); padding-top: 2vh; }
+.picker-actions input { flex: 1; }
+.picker-actions button {
+  background: var(--accent-dim); border: none; border-radius: .8vh; color: #04121a;
+  font-size: 2.1vh; font-weight: 700; padding: 1.1vh 2vw; cursor: pointer; white-space: nowrap;
+}
+.picker-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+#agentsList { display: flex; flex-direction: column; }
+.agent-row {
+  display: grid; grid-template-columns: 6vh 1fr 1fr auto auto; gap: 1vw;
+  align-items: center; padding: 1vh 0; border-bottom: 1px solid var(--line); font-size: 2vh;
+}
+.agent-row .avatar { width: 5.5vh; height: 5.5vh; font-size: 1.8vh; }
+.agent-row .orig { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-row input[type="text"] {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: .8vh; padding: .8vh 1vw; font-size: 2vh; width: 100%;
+}
+.agent-row input[type="file"] { color: var(--dim); font-size: 1.6vh; max-width: 16vw; }
+.agent-row button {
+  background: var(--accent-dim); border: none; border-radius: .8vh; color: #04121a;
+  font-weight: 700; font-size: 1.8vh; padding: .9vh 1.4vw; cursor: pointer;
+}
+.agent-row button:disabled { opacity: .5; cursor: default; }
 </style>
 </head>
 <body>
@@ -192,6 +253,7 @@ footer {
   <div class="view-badge" id="viewBadge">—</div>
   <div class="chips" id="chips"></div>
   <div class="spacer"></div>
+  <button class="gear" id="gearBtn" title="Dashboards">⚙ Dashboards</button>
   <div class="total-box">
     <div class="total-num" id="totalNum">0</div>
     <div class="total-lbl" id="totalLbl">Apps</div>
@@ -208,6 +270,41 @@ footer {
 <div class="overlay" id="overlay">
   <h1>Sales Leaderboard</h1>
   <p id="overlayMsg">Connecting to live data…</p>
+</div>
+
+<div class="picker hidden" id="picker">
+  <div class="picker-panel">
+    <div class="picker-head"><h2>Dashboards</h2><button id="pickerClose" title="Close">✕</button></div>
+    <div class="saved" id="savedList"></div>
+    <div class="picker-grid" id="pickerGrid">
+      <label><span>KPI</span>
+        <select id="selMetric">
+          <option value="revenue">Revenue</option>
+          <option value="apps">Apps</option>
+        </select>
+      </label>
+      <label><span>Date frame</span>
+        <select id="selView">
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="mtd">MTD</option>
+          <option value="ytd">YTD</option>
+        </select>
+      </label>
+    </div>
+    <div class="picker-actions">
+      <input id="saveName" placeholder="Name this dashboard (e.g. Ancillary — This Week)">
+      <button id="saveBtn">Save as dashboard</button>
+      <button id="applyBtn">Apply</button>
+    </div>
+    <div class="picker-head"><h2>Agents</h2><button class="gear" id="agentsToggle">Edit names &amp; photos</button></div>
+    <div id="agentsEditor" class="hidden">
+      <div class="picker-actions" style="border-top:none;padding-top:0">
+        <input id="adminKey" type="password" placeholder="Admin key (set once — saved on this device)">
+      </div>
+      <div id="agentsList"></div>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -231,35 +328,95 @@ if (FB.apiKey.startsWith("REPLACE_")) {
   throw new Error("firebaseConfig placeholder");
 }
 
-/* ── URL filters & view lock ── */
+/* ── Dashboard state ──────────────────────────────────────────────────────
+   A "dashboard" is {title, metric, view, filters}. The active one lives in
+   localStorage (so each TV keeps its board across reloads); URL params
+   still work and take precedence for shareable links. Saved dashboards
+   are picked from the on-screen panel (click the title or ⚙). */
 const params = new URLSearchParams(location.search);
-const lockedView = ["mtd", "ytd"].includes((params.get("view") || "").toLowerCase())
-  ? params.get("view").toLowerCase() : null;
-const metric = ["apps", "revenue"].includes((params.get("metric") || "").toLowerCase())
-  ? params.get("metric").toLowerCase() : CFG.DEFAULT_METRIC;
+const NON_FILTER_PARAMS = ["title", "metric", "view", "retry"];
+const DEFAULT_STATE = { title: CFG.TITLE, metric: CFG.DEFAULT_METRIC, view: "mtd", filters: {} };
+const VIEWS = { today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD" };
 
-// Built on the first snapshot, from the field list the sync function
-// publishes in the doc — so any URL param matching a sheet column filters.
-let filters = null;
-function initFilters(fieldList) {
-  filters = {};
+function stateFromURL() {
+  if (![...params.keys()].filter((k) => k !== "retry").length) return null;
+  const s = structuredClone(DEFAULT_STATE);
+  if (params.get("title")) s.title = params.get("title");
+  const m = (params.get("metric") || "").toLowerCase();
+  if (["apps", "revenue"].includes(m)) s.metric = m;
+  const v = (params.get("view") || "").toLowerCase();
+  if (VIEWS[v]) s.view = v;
+  for (const [k, val] of params.entries()) {
+    if (NON_FILTER_PARAMS.includes(k) || !val) continue;
+    s.filters[k] = val;
+  }
+  return s;
+}
+
+function loadState() {
+  const fromUrl = stateFromURL();
+  if (fromUrl) return fromUrl;
+  try {
+    const saved = JSON.parse(localStorage.getItem("tvState"));
+    if (saved && saved.metric) return { ...structuredClone(DEFAULT_STATE), ...saved };
+  } catch { /* corrupted state — fall through to default */ }
+  return structuredClone(DEFAULT_STATE);
+}
+
+let state = loadState();
+
+function persistState() {
+  localStorage.setItem("tvState", JSON.stringify(state));
+  const p = new URLSearchParams();
+  if (state.title && state.title !== CFG.TITLE) p.set("title", state.title);
+  if (state.metric !== CFG.DEFAULT_METRIC) p.set("metric", state.metric);
+  if (state.view !== DEFAULT_STATE.view) p.set("view", state.view);
+  for (const [k, v] of Object.entries(state.filters)) p.set(k, v);
+  history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : ""));
+}
+
+function updateChips() {
   const chipsEl = document.getElementById("chips");
-  for (const f of fieldList || []) {
-    const v = params.get(f);
-    if (!v) continue;
-    filters[f] = v.trim().toLowerCase();
+  chipsEl.innerHTML = "";
+  for (const [k, v] of Object.entries(state.filters)) {
     const c = document.createElement("div");
     c.className = "chip";
-    c.innerHTML = `${f.replace(/_/g, " ")}: <b></b>`;
-    c.querySelector("b").textContent = v;
+    const b = document.createElement("b");
+    b.textContent = v;
+    c.append(k.replace(/_/g, " ") + ": ", b);
     chipsEl.appendChild(c);
   }
 }
 
-/* ── Firestore live listener ── */
+function applyState() {
+  document.getElementById("brand").textContent = state.title || CFG.TITLE;
+  document.title = state.title || CFG.TITLE;
+  updateChips();
+  render();
+}
+
+/* ── Agent profiles (names + photos, edited in-app) ── */
+function slugOf(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function initialsOf(name) {
+  return String(name).split(/\s+/).slice(0, 2).map((w) => (w[0] || "").toUpperCase()).join("").replace(/[^A-Z]/g, "");
+}
+let profiles = new Map(); // slug → {name, photo}
+function displayNameOf(agent) { return profiles.get(slugOf(agent))?.name || agent; }
+function photoOf(agent) { return profiles.get(slugOf(agent))?.photo || null; }
+
+/* ── Firestore live listeners ── */
 const db = getFirestore(initializeApp(FB));
 let latest = null;
 let lastUpdateMs = 0;
+
+onSnapshot(collection(db, "tvProfiles"), (snap) => {
+  const next = new Map();
+  snap.forEach((d) => next.set(d.id, d.data()));
+  profiles = next;
+  render();
+});
 
 // Data is split across docs: tvLeaderboard/current holds metadata, and
 // tvLeaderboard/<yyyy-mm> docs each hold one month of rows. Merge them.
@@ -279,7 +436,6 @@ onSnapshot(collection(db, "tvLeaderboard"),
     }
     latest = { ...(meta || {}), rows };
     lastUpdateMs = Date.now();
-    if (filters === null) initFilters(latest.filterFields?.length ? latest.filterFields : CFG.filterFields);
     overlay.classList.add("hidden");
     render();
   },
@@ -289,32 +445,40 @@ onSnapshot(collection(db, "tvLeaderboard"),
   }
 );
 
-/* ── View rotation ── */
-let view = lockedView || "mtd";
-if (!lockedView) {
-  setInterval(() => { view = view === "mtd" ? "ytd" : "mtd"; render(); }, CFG.ROTATE_MS);
+/* ── Rendering ── */
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/* ── Rendering ── */
+// First day (inclusive, yyyy-mm-dd) of the selected date frame.
 function periodStart(v) {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  return v === "mtd" ? `${y}-${m}-01` : `${y}-01-01`;
+  if (v === "today") return ymd(now);
+  if (v === "week") {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    return ymd(monday);
+  }
+  if (v === "ytd") return `${now.getFullYear()}-01-01`;
+  return ymd(new Date(now.getFullYear(), now.getMonth(), 1)); // mtd
 }
 
 function render() {
   if (!latest) return;
   const rows = latest.rows || [];
+  const view = state.view;
+  const metric = state.metric;
   const start = periodStart(view);
+  const fields = latest.filterFields || [];
 
   const byAgent = new Map();
   const totals = { apps: 0, revenue: 0 };
   for (const r of rows) {
     if ((r[CFG.dateField] || "") < start) continue;
     let keep = true;
-    for (const [k, v] of Object.entries(filters || {})) {
-      if (String(r[k] || "").trim().toLowerCase() !== v) { keep = false; break; }
+    for (const [k, v] of Object.entries(state.filters)) {
+      if (fields.length && !fields.includes(k)) continue; // stale/unknown filter key
+      if (String(r[k] || "").trim().toLowerCase() !== String(v).trim().toLowerCase()) { keep = false; break; }
     }
     if (!keep) continue;
     const apps = Number(r[CFG.appsField]) || 0;
@@ -332,7 +496,7 @@ function render() {
     .map(([agent, m]) => ({ agent, ...m }))
     .sort((a, b) => b[metric] - a[metric] || a.agent.localeCompare(b.agent));
 
-  document.getElementById("viewBadge").textContent = view.toUpperCase();
+  document.getElementById("viewBadge").textContent = (VIEWS[view] || view).toUpperCase();
   document.getElementById("totalNum").textContent = fmtMetric(totals[metric]);
   document.getElementById("totalLbl").textContent = metric === "revenue" ? "Revenue" : "Apps";
 
@@ -348,18 +512,22 @@ function render() {
     const row = document.createElement("div");
     row.className = "row";
     const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
-    // Photo convention: /tv/agents/<slug-of-display-name>.jpg (or .png);
-    // falls back to initials when no file exists. Slug/initials are
-    // sanitized to [a-z0-9-] / letters so they are safe in markup.
-    const slug = agent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    const initials = agent.split(/\s+/).slice(0, 2).map((w) => (w[0] || "").toUpperCase()).join("").replace(/[^A-Z]/g, "");
     row.innerHTML = `
       <div class="rank r${i + 1}">${i + 1}</div>
-      <div class="avatar">${initials}<img src="agents/${slug}.jpg" alt=""
-        onerror="if(this.src.endsWith('.jpg')){this.src=this.src.replace('.jpg','.png')}else{this.remove()}"></div>
+      <div class="avatar"></div>
       <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
       <div><div class="apps">${fmtMetric(main)}</div><div class="sub">${sub}</div></div>`;
-    row.querySelector(".name").textContent = agent;
+    row.querySelector(".name").textContent = displayNameOf(agent);
+    const av = row.querySelector(".avatar");
+    const photo = photoOf(agent);
+    if (photo) {
+      const img = document.createElement("img");
+      img.src = photo;
+      img.alt = "";
+      av.appendChild(img);
+    } else {
+      av.textContent = initialsOf(displayNameOf(agent));
+    }
     board.appendChild(row);
   }
   if (ranked.length > CFG.MAX_ROWS) {
@@ -388,7 +556,7 @@ function fmtMoney(n) {
 }
 
 function fmtMetric(n) {
-  return metric === "revenue" ? fmtMoney(n) : fmt(n);
+  return state.metric === "revenue" ? fmtMoney(n) : fmt(n);
 }
 
 function updateStatus() {
@@ -406,7 +574,255 @@ function updateStatus() {
   txt.textContent = parts.join(" · ") || "Live";
 }
 
-// Refresh MTD boundary / staleness even when no new snapshot arrives.
+/* ── Dashboard picker ── */
+const picker = document.getElementById("picker");
+document.getElementById("brand").addEventListener("click", openPicker);
+document.getElementById("gearBtn").addEventListener("click", openPicker);
+document.getElementById("pickerClose").addEventListener("click", () => picker.classList.add("hidden"));
+
+function uniqueValues(field) {
+  const seen = new Map();
+  for (const r of latest?.rows || []) {
+    const v = String(r[field] ?? "").trim();
+    if (v) seen.set(v.toLowerCase(), v);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b)).slice(0, 300);
+}
+
+function openPicker() {
+  document.getElementById("selMetric").value = state.metric;
+  document.getElementById("selView").value = state.view;
+  const grid = document.getElementById("pickerGrid");
+  grid.querySelectorAll("label.dyn").forEach((el) => el.remove());
+  for (const f of latest?.filterFields || []) {
+    const label = document.createElement("label");
+    label.className = "dyn";
+    const span = document.createElement("span");
+    span.textContent = f.replace(/_/g, " ");
+    const sel = document.createElement("select");
+    sel.dataset.field = f;
+    const all = document.createElement("option");
+    all.value = "";
+    all.textContent = "All";
+    sel.appendChild(all);
+    for (const v of uniqueValues(f)) {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = v;
+      sel.appendChild(o);
+    }
+    const active = state.filters[f];
+    if (active) {
+      sel.value = active;
+      if (sel.value !== active) { // value casing differs from options — add it
+        const o = document.createElement("option");
+        o.value = active;
+        o.textContent = active;
+        sel.appendChild(o);
+        sel.value = active;
+      }
+    }
+    label.append(span, sel);
+    grid.appendChild(label);
+  }
+  renderSaved();
+  document.getElementById("agentsEditor").classList.add("hidden");
+  picker.classList.remove("hidden");
+}
+
+function pickerToState(title) {
+  const filters = {};
+  document.querySelectorAll("#pickerGrid select[data-field]").forEach((s) => {
+    if (s.value) filters[s.dataset.field] = s.value;
+  });
+  return {
+    title: title || CFG.TITLE,
+    metric: document.getElementById("selMetric").value,
+    view: document.getElementById("selView").value,
+    filters,
+  };
+}
+
+document.getElementById("applyBtn").addEventListener("click", () => {
+  state = pickerToState(state.title);
+  persistState();
+  applyState();
+  picker.classList.add("hidden");
+});
+
+function getDashboards() {
+  try { return JSON.parse(localStorage.getItem("tvDashboards")) || []; } catch { return []; }
+}
+
+document.getElementById("saveBtn").addEventListener("click", () => {
+  const name = document.getElementById("saveName").value.trim();
+  if (!name) { document.getElementById("saveName").focus(); return; }
+  const d = pickerToState(name);
+  const ds = getDashboards();
+  ds.push(d);
+  localStorage.setItem("tvDashboards", JSON.stringify(ds));
+  document.getElementById("saveName").value = "";
+  state = d;
+  persistState();
+  applyState();
+  picker.classList.add("hidden");
+});
+
+function renderSaved() {
+  const list = document.getElementById("savedList");
+  list.innerHTML = "";
+  const cards = [
+    { name: CFG.TITLE + " (default)", state: structuredClone(DEFAULT_STATE) },
+    ...getDashboards().map((d, idx) => ({ name: d.title, state: d, idx })),
+  ];
+  for (const c of cards) {
+    const card = document.createElement("button");
+    card.className = "dash-card";
+    card.append(c.name);
+    if (c.idx != null) {
+      const del = document.createElement("span");
+      del.className = "dash-del";
+      del.textContent = "✕";
+      del.title = "Delete dashboard";
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const ds = getDashboards();
+        ds.splice(c.idx, 1);
+        localStorage.setItem("tvDashboards", JSON.stringify(ds));
+        renderSaved();
+      });
+      card.appendChild(del);
+    }
+    card.addEventListener("click", () => {
+      state = structuredClone(c.state);
+      persistState();
+      applyState();
+      picker.classList.add("hidden");
+    });
+    list.appendChild(card);
+  }
+}
+
+/* ── Agent editor (names + photos, saved to Firestore via the admin
+      endpoint — nothing hosted elsewhere) ── */
+const adminKeyInput = document.getElementById("adminKey");
+adminKeyInput.value = localStorage.getItem("tvAdminKey") || "";
+adminKeyInput.addEventListener("change", () => localStorage.setItem("tvAdminKey", adminKeyInput.value.trim()));
+
+document.getElementById("agentsToggle").addEventListener("click", () => {
+  const ed = document.getElementById("agentsEditor");
+  ed.classList.toggle("hidden");
+  if (!ed.classList.contains("hidden")) renderAgentsEditor();
+});
+
+function agentKeys() {
+  const set = new Map();
+  for (const r of latest?.rows || []) {
+    const a = r[CFG.agentField];
+    if (a) set.set(slugOf(a), a);
+  }
+  return [...set.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// Downscale to a small square JPEG data URI so profiles stay tiny.
+function resizePhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const S = 160;
+      const canvas = document.createElement("canvas");
+      canvas.width = S; canvas.height = S;
+      const scale = Math.max(S / img.width, S / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      canvas.getContext("2d").drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+      URL.revokeObjectURL(img.src);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => reject(new Error("Could not read that image file."));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function saveProfile(agent, name, photo, btn) {
+  const key = adminKeyInput.value.trim();
+  if (!key) { adminKeyInput.focus(); return; }
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const resp = await fetch(CFG.PROFILE_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, agent, name, photo }),
+    });
+    const out = await resp.json();
+    if (!out.ok) throw new Error(out.error || "Save failed");
+    btn.textContent = "Saved ✓";
+  } catch (e) {
+    btn.textContent = "Error";
+    alert("Save failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = "Save"; }, 2000);
+  }
+}
+
+function renderAgentsEditor() {
+  const list = document.getElementById("agentsList");
+  list.innerHTML = "";
+  for (const agent of agentKeys()) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "agent-row";
+
+    const av = document.createElement("div");
+    av.className = "avatar";
+    const photo = photoOf(agent);
+    if (photo) {
+      const img = document.createElement("img");
+      img.src = photo;
+      av.appendChild(img);
+    } else {
+      av.textContent = initialsOf(displayNameOf(agent));
+    }
+
+    const orig = document.createElement("div");
+    orig.className = "orig";
+    orig.title = agent;
+    orig.textContent = agent;
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.placeholder = "Display name / nickname";
+    nameInput.value = profiles.get(slugOf(agent))?.name || "";
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    let pendingPhoto = null;
+    fileInput.addEventListener("change", async () => {
+      if (!fileInput.files[0]) return;
+      try {
+        pendingPhoto = await resizePhoto(fileInput.files[0]);
+        av.textContent = "";
+        av.innerHTML = "";
+        const img = document.createElement("img");
+        img.src = pendingPhoto;
+        av.appendChild(img);
+      } catch (e) { alert(e.message); }
+    });
+
+    const btn = document.createElement("button");
+    btn.textContent = "Save";
+    btn.addEventListener("click", () =>
+      saveProfile(agent, nameInput.value.trim(), pendingPhoto, btn));
+
+    rowEl.append(av, orig, nameInput, fileInput, btn);
+    list.appendChild(rowEl);
+  }
+}
+
+applyState();
+
+// Refresh date-frame boundary / staleness even when no new snapshot arrives.
 setInterval(render, 60_000);
 
 // Periodic hard reload for always-on TVs.

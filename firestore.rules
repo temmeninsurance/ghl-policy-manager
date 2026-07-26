@@ -23,6 +23,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Agent display names/photos for the TV page. Written only by the
+    // updateAgentProfile Cloud Function (Admin SDK, admin-key guarded).
+    match /tvProfiles/{agentSlug} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // >>> PASTE ANY EXISTING PROJECT RULES HERE (from Firebase Console) <<<
 
     // Default: everything not matched above is private.

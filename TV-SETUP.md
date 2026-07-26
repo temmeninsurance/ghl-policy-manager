@@ -77,26 +77,24 @@ firebase deploy --only hosting
    `/tv/?<filterField>=<value>` filters, MTD/YTD rotation runs
    (lock with `/tv/?view=mtd`).
 
-## Dashboards (URL options)
+## Dashboards
 
-Every distinct URL is its own dashboard — point each TV at a different
-combination:
+Click the board title (or **⚙ Dashboards**) on the TV page to open the
+picker: choose the KPI (Revenue/Apps), the date frame (Today / This Week /
+MTD / YTD), and per-column filters built from live sheet values. **Apply**
+shows it; **Save as dashboard** names it for one-click switching later.
+The selection persists per device (localStorage) across reloads. URL params
+(`?metric=&view=&title=&<field>=`) still work for shareable links and
+override the saved selection.
 
-- `/tv/` — rotating MTD/YTD, all data, ranked by **revenue** (default KPI)
-- `/tv/?metric=apps` — rank/total by app count instead
-- `/tv/?view=mtd` or `?view=ytd` — lock the view
-- `/tv/?title=Ancillary Board` — custom title on that screen
-- `/tv/?carrier=Humana Choice PPO&policy_type=PPO` — filter by any sheet
-  column (header slugified: "Policy Type" → `policy_type`, "Company" →
-  `company`); params AND together
+## Agent names & photos (in-app)
 
-Example: `/tv/?title=Inbound Apps&metric=apps&inbound_outbound=Inbound&view=mtd`
-
-## Agent photos
-
-See `public/tv/agents/README.md` — drop `<display-name-slug>.jpg` files in
-that folder and redeploy hosting; initials are shown when no photo exists.
-Nicknames map in AGENT_PROFILES (functions/index.js).
+In the picker, **Agents → Edit names & photos**: set a display name and/or
+upload a photo per agent (resized to a 160px circle client-side). Requires
+the admin key (the `TV_ADMIN_KEY` secret value, asked for during the
+functions deploy); the key is remembered per device. Data lands in the
+public-read `tvProfiles` collection via the `updateAgentProfile` function —
+raw employee emails never appear there.
 
 ## Custom domain
 

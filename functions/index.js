@@ -20,6 +20,7 @@
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -329,6 +330,50 @@ exports.syncLeaderboardNow = onRequest(
       res.status(200).json({ ok: true, ...summary });
     } catch (err) {
       logger.error("Manual sync failed", err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  }
+);
+
+// In-app editing of agent display names/photos (tvProfiles collection),
+// guarded by the TV_ADMIN_KEY secret. The TV page never gets write access
+// to Firestore — it posts here and the Admin SDK does the write.
+const TV_ADMIN_KEY = defineSecret("TV_ADMIN_KEY");
+
+exports.updateAgentProfile = onRequest(
+  { region: "us-central1", invoker: "public", cors: true, secrets: [TV_ADMIN_KEY] },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).json({ ok: false, error: "POST only" });
+        return;
+      }
+      const { key, agent, name, photo } = req.body || {};
+      if (!key || key !== TV_ADMIN_KEY.value()) {
+        res.status(403).json({ ok: false, error: "Invalid admin key" });
+        return;
+      }
+      const agentStr = String(agent || "").trim();
+      const slug = agentStr.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      if (!slug || agentStr.length > 120) {
+        res.status(400).json({ ok: false, error: "Invalid agent" });
+        return;
+      }
+      const update = { agent: agentStr, updatedAt: FieldValue.serverTimestamp() };
+      if (typeof name === "string") {
+        update.name = name.trim().slice(0, 60) || FieldValue.delete();
+      }
+      if (typeof photo === "string" && photo) {
+        if (!/^data:image\/(jpeg|png|webp);base64,/.test(photo) || photo.length > 300_000) {
+          res.status(400).json({ ok: false, error: "Photo must be a small jpeg/png data URI" });
+          return;
+        }
+        update.photo = photo;
+      }
+      await getFirestore().doc(`tvProfiles/${slug}`).set(update, { merge: true });
+      res.json({ ok: true, slug });
+    } catch (err) {
+      logger.error("updateAgentProfile failed", err);
       res.status(500).json({ ok: false, error: err.message });
     }
   }
