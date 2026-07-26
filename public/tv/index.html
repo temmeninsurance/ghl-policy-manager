@@ -436,7 +436,7 @@ body.temmenkart header::after {
   background: linear-gradient(90deg, #38bdf8, #22c55e, #facc15, #ef4444, #2dd4bf, #38bdf8);
 }
 body.temmenkart .brand { font-size: 3.6vh; letter-spacing: .06em; }
-body.temmenkart .menu-btn, body.temmenkart .gear {
+body.temmenkart .menu-btn, body.temmenkart header .gear {
   background: #fff; color: #14285c; border: 2px solid #14285c;
   border-radius: 1vh; font-weight: 800;
   box-shadow: .25vh .35vh 0 rgba(20, 40, 92, .3);
@@ -586,7 +586,7 @@ body.temmenopoly .brand {
   text-shadow: 0 .3vh 0 rgba(0, 0, 0, .35);
 }
 body.temmenopoly .brand::before { content: "🎩 "; text-shadow: none; }
-body.temmenopoly .menu-btn, body.temmenopoly .gear {
+body.temmenopoly .menu-btn, body.temmenopoly header .gear {
   color: #fff; border-color: rgba(255, 255, 255, .55);
 }
 body.temmenopoly .view-badge {
@@ -729,7 +729,7 @@ body.temmenmadness .brand {
   text-shadow: .25vh .35vh 0 rgba(0, 0, 0, .6), 0 0 2.4vh rgba(45, 212, 191, .35);
 }
 body.temmenmadness .brand::before { content: "🏀 "; font-style: normal; text-shadow: none; }
-body.temmenmadness .menu-btn, body.temmenmadness .gear {
+body.temmenmadness .menu-btn, body.temmenmadness header .gear {
   background: #1d242d; border: 1px solid #3a4553; color: #8fa0b3; border-radius: .6vh;
 }
 body.temmenmadness .view-badge {
@@ -875,7 +875,7 @@ body.temmengolf .brand {
   text-shadow: 0 .25vh .6vh rgba(0, 0, 0, .5);
 }
 body.temmengolf .brand::before { content: "⛳ "; font-style: normal; }
-body.temmengolf .menu-btn, body.temmengolf .gear {
+body.temmengolf .menu-btn, body.temmengolf header .gear {
   background: transparent; color: #d9e5d3; border: 1px solid rgba(245, 213, 71, .5); border-radius: .6vh;
 }
 body.temmengolf .view-badge {
@@ -1056,7 +1056,7 @@ body.temmencup .brand {
   text-shadow: .25vh .35vh 0 rgba(0, 0, 0, .55), 0 0 2.4vh rgba(255, 201, 51, .35);
 }
 body.temmencup .brand::before { content: "⚽ "; font-style: normal; text-shadow: none; }
-body.temmencup .menu-btn, body.temmencup .gear {
+body.temmencup .menu-btn, body.temmencup header .gear {
   background: #0d1526; border: 1px solid #2c3d68; color: #93a1c4; border-radius: .6vh;
 }
 body.temmencup .view-badge {
@@ -1197,7 +1197,7 @@ body.temmendeal .brand {
   text-shadow: 0 .3vh 0 rgba(0, 0, 0, .6), 0 0 2.6vh rgba(255, 176, 46, .55);
 }
 body.temmendeal .brand::before { content: "💼 "; text-shadow: none; }
-body.temmendeal .menu-btn, body.temmendeal .gear {
+body.temmendeal .menu-btn, body.temmendeal header .gear {
   background: #170c2c; border: 1px solid #4a3a6e; color: #a795c9; border-radius: .6vh;
 }
 body.temmendeal .view-badge {
@@ -1383,7 +1383,7 @@ body.temmenxmas header::after {
 }
 body.temmenxmas .brand { font-size: 3.2vh; letter-spacing: .1em; }
 body.temmenxmas .brand::before { content: "🎄 "; }
-body.temmenxmas .menu-btn, body.temmenxmas .gear {
+body.temmenxmas .menu-btn, body.temmenxmas header .gear {
   background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .5); color: #fff; border-radius: .8vh;
 }
 body.temmenxmas .view-badge {
@@ -1554,7 +1554,7 @@ body.temmenhallow .brand {
   animation: hallow-flicker 4s ease-in-out infinite;
 }
 body.temmenhallow .brand::before { content: "🎃 "; }
-body.temmenhallow .menu-btn, body.temmenhallow .gear {
+body.temmenhallow .menu-btn, body.temmenhallow header .gear {
   background: #1a0d2c; border: 1px solid #4a2f6b; color: #a98fc9; border-radius: .8vh;
 }
 body.temmenhallow .view-badge {
@@ -1701,7 +1701,7 @@ body.temmenmueller .brand::before {
   background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 55%, #312e81 100%);
   clip-path: polygon(0 100%, 0 22%, 26% 0, 50% 52%, 74% 0, 100% 22%, 100% 100%, 72% 100%, 72% 48%, 50% 88%, 28% 48%, 28% 100%);
 }
-body.temmenmueller .menu-btn, body.temmenmueller .gear {
+body.temmenmueller .menu-btn, body.temmenmueller header .gear {
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
 }
 body.temmenmueller .view-badge {
@@ -1798,7 +1798,7 @@ body.temmenins .brand::before {
   width: 3.2vh; height: 3.2vh;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 4 Q6 4 6 14 L6 32 Q6 48 32 62 Q58 48 58 32 L58 14 Q58 4 50 4 Z' fill='%2312b2ab'/%3E%3Crect x='15' y='13' width='34' height='31' rx='10' fill='%23ffffff'/%3E%3Cpath d='M19 33 A13 13 0 0 1 45 33 L36.5 33 L36.5 31.5 Q36.5 27 32 27 Q27.5 27 27.5 31.5 L27.5 33 Z' fill='%2312b2ab'/%3E%3Crect x='28.6' y='30' width='6.8' height='19' rx='3.4' fill='%2312b2ab'/%3E%3C/svg%3E") no-repeat center / contain;
 }
-body.temmenins .menu-btn, body.temmenins .gear {
+body.temmenins .menu-btn, body.temmenins header .gear {
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
 }
 body.temmenins .view-badge { background: #12b2ab; color: #fff; border: none; font-weight: 800; }
