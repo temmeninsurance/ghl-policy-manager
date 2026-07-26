@@ -191,18 +191,24 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
   position: absolute; top: 50%; transform: translateY(-54%);
   display: flex; flex-direction: column; align-items: center;
   transition: left 1.2s cubic-bezier(.2, .8, .2, 1);
+  z-index: 2;
 }
 .kart .avatar { width: 4.2vh; height: 4.2vh; font-size: 1.6vh; border-color: var(--accent-dim); z-index: 1; }
 .kart-emoji { font-size: 2.8vh; line-height: 1; margin-top: -1.4vh; transform: scaleX(-1); }
 .kart .item { position: absolute; top: -1.9vh; font-size: 1.9vh; }
 .lane-name {
-  position: absolute; left: 1vw; top: 50%; transform: translateY(-50%);
-  color: rgba(241, 245, 249, .35);
-  font-size: 2.2vh; font-weight: 800; letter-spacing: .04em;
-  white-space: nowrap; overflow: hidden; max-width: 55%;
+  position: absolute; left: .8vw; top: 50%; transform: translateY(-50%);
+  z-index: 1;
+  color: var(--text);
+  background: rgba(11, 18, 32, .92);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: .5vh 1.2vw;
+  font-size: 2.1vh; font-weight: 800; letter-spacing: .04em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%;
 }
 .row.race:first-child .track { border-color: var(--gold); }
-.row.race:first-child .lane-name { color: rgba(251, 191, 36, .45); }
+.row.race:first-child .lane-name { color: var(--gold); border-color: rgba(251, 191, 36, .5); }
 
 /* ── TemmenKart full-page theme (active while a race dashboard shows) ── */
 .tk-letter {
@@ -419,7 +425,7 @@ footer {
   .kart .avatar { width: 26px; height: 26px; font-size: 10px; }
   .kart-emoji { font-size: 17px; margin-top: -8px; }
   .kart .item { top: -12px; font-size: 12px; }
-  .lane-name { font-size: 12px; left: 8px; }
+  .lane-name { font-size: 12px; left: 6px; padding: 3px 10px; }
   .track .finish { width: 14px; background-size: 10px 10px; }
   .rank { font-size: 16px; }
   .avatar { width: 42px; height: 42px; font-size: 14px; }
