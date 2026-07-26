@@ -77,14 +77,26 @@ firebase deploy --only hosting
    `/tv/?<filterField>=<value>` filters, MTD/YTD rotation runs
    (lock with `/tv/?view=mtd`).
 
-## URL options
+## Dashboards (URL options)
+
+Every distinct URL is its own dashboard — point each TV at a different
+combination:
 
 - `/tv/` — rotating MTD/YTD, all data, ranked by **revenue** (default KPI)
 - `/tv/?metric=apps` — rank/total by app count instead
 - `/tv/?view=mtd` or `?view=ytd` — lock the view
+- `/tv/?title=Ancillary Board` — custom title on that screen
 - `/tv/?carrier=Humana Choice PPO&policy_type=PPO` — filter by any sheet
-  column (header slugified: "Policy Type" → `policy_type`); params AND
-  together, one leaderboard per URL/widget
+  column (header slugified: "Policy Type" → `policy_type`, "Company" →
+  `company`); params AND together
+
+Example: `/tv/?title=Inbound Apps&metric=apps&inbound_outbound=Inbound&view=mtd`
+
+## Agent photos
+
+See `public/tv/agents/README.md` — drop `<display-name-slug>.jpg` files in
+that folder and redeploy hosting; initials are shown when no photo exists.
+Nicknames map in AGENT_PROFILES (functions/index.js).
 
 ## Custom domain
 

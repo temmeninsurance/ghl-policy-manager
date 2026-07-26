@@ -69,7 +69,8 @@ const EXCLUDE_COLUMNS = [
 
 // Any header matching one of these is also excluded — pattern-based so a
 // renamed/added client-data column can't leak by accident.
-const EXCLUDE_PATTERNS = [/customer/i, /phone/i, /company/i, /client/i];
+// ("Company" is intentionally synced — it's used as a TV filter.)
+const EXCLUDE_PATTERNS = [/customer/i, /phone/i, /client/i];
 
 // Rows are split into one Firestore doc per month (tvLeaderboard/<yyyy-mm>)
 // plus a small metadata doc (tvLeaderboard/current). A month doc
