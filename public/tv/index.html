@@ -99,16 +99,6 @@ header {
   border-radius: 999px;
   text-align: center;
 }
-.chips { display: flex; gap: .6vw; flex-wrap: wrap; }
-.chip {
-  font-size: 1.8vh; font-weight: 600;
-  color: var(--text);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: .5vh 1vw;
-}
-.chip b { color: var(--accent); font-weight: 700; }
 .spacer { flex: 1; }
 .total-box { text-align: right; }
 .total-num { font-size: 5vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -310,7 +300,6 @@ footer {
   .menu-btn, .gear { font-size: 15px; padding: 6px 10px; border-radius: 8px; }
   .brand { font-size: 16px; letter-spacing: .06em; flex: 1; min-width: 55%; }
   .view-badge { font-size: 12px; padding: 4px 10px; min-width: 0; }
-  .chip { font-size: 12px; padding: 4px 9px; }
   .total-box { display: none; } /* the KPI tiles carry the totals on phones */
 
   main { flex: 1 0 auto; height: auto; padding: 10px 12px; gap: 12px; }
@@ -371,7 +360,6 @@ footer {
   <button class="menu-btn" id="menuBtn" title="Dashboards">☰</button>
   <div class="brand" id="brand"></div>
   <div class="view-badge" id="viewBadge">—</div>
-  <div class="chips" id="chips"></div>
   <div class="spacer"></div>
   <button class="gear hidden" id="gearBtn" title="Edit this dashboard">✎ Edit</button>
   <div class="total-box">
@@ -582,24 +570,10 @@ async function setDashboards(ds) {
   }
 }
 
-function updateChips() {
-  const chipsEl = document.getElementById("chips");
-  chipsEl.innerHTML = "";
-  for (const [k, v] of Object.entries(state.filters)) {
-    const c = document.createElement("div");
-    c.className = "chip";
-    const b = document.createElement("b");
-    b.textContent = v;
-    c.append(k.replace(/_/g, " ") + ": ", b);
-    chipsEl.appendChild(c);
-  }
-}
-
 function applyState() {
   document.getElementById("brand").textContent = state.title || CFG.TITLE;
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
-  updateChips();
   render();
 }
 
