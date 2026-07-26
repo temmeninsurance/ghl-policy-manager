@@ -363,6 +363,12 @@ footer {
       <label><span>Sub-dashboard of</span>
         <select id="selParent"><option value="">None (top level)</option></select>
       </label>
+      <label><span>Auto-scroll boards</span>
+        <select id="selScroll">
+          <option value="off">Off</option>
+          <option value="on">On — drift through the full list</option>
+        </select>
+      </label>
     </div>
 
     <div class="section-title">Widgets</div>
@@ -423,6 +429,7 @@ const DEFAULT_STATE = {
 
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
+  out.autoScroll = !!out.autoScroll;
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -985,6 +992,7 @@ function openEditor(source, idx) {
   document.getElementById("editorTitle").textContent = idx == null ? "New dashboard" : "Edit dashboard";
   document.getElementById("saveName").value = idx == null ? (source.title === CFG.TITLE ? "" : source.title || "") : s.title;
   document.getElementById("selView").value = s.view;
+  document.getElementById("selScroll").value = s.autoScroll ? "on" : "off";
 
   // Parent choices: top-level saved dashboards, excluding the one being edited.
   const parentSel = document.getElementById("selParent");
@@ -1091,6 +1099,7 @@ function editorToState(title) {
   const out = normalizeState({
     title: title || CFG.TITLE,
     view: document.getElementById("selView").value,
+    autoScroll: document.getElementById("selScroll").value === "on",
     filters,
     widgets,
   });
@@ -1240,6 +1249,44 @@ function renderAgentsEditor() {
     list.appendChild(rowEl);
   }
 }
+
+/* ── Gentle auto-scroll (per-dashboard toggle) ──────────────────────────────
+   Pause at the top, drift down through the full list, pause at the bottom,
+   snap back, repeat. Any manual wheel/touch input pauses it briefly. */
+const scrollMemo = new WeakMap(); // board element → {pauseUntil, atBottom}
+let manualPauseUntil = 0;
+const SCROLL_STEP = 1.4;        // px per 50ms tick ≈ 28 px/s
+const TOP_PAUSE_MS = 6000;
+const BOTTOM_PAUSE_MS = 5000;
+const MANUAL_PAUSE_MS = 20_000;
+
+document.getElementById("widgets").addEventListener("wheel", () => { manualPauseUntil = Date.now() + MANUAL_PAUSE_MS; }, { passive: true });
+document.getElementById("widgets").addEventListener("touchstart", () => { manualPauseUntil = Date.now() + MANUAL_PAUSE_MS; }, { passive: true });
+
+setInterval(() => {
+  if (!state.autoScroll) return;
+  const now = Date.now();
+  if (now < manualPauseUntil) return;
+  for (const el of document.querySelectorAll(".wboard")) {
+    if (el.scrollHeight <= el.clientHeight + 4) continue; // everything fits
+    let st = scrollMemo.get(el);
+    if (!st) { st = { pauseUntil: now + TOP_PAUSE_MS, atBottom: false }; scrollMemo.set(el, st); }
+    if (now < st.pauseUntil) continue;
+    const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    if (atEnd) {
+      if (!st.atBottom) {
+        st.atBottom = true;
+        st.pauseUntil = now + BOTTOM_PAUSE_MS;
+      } else {
+        el.scrollTop = 0;
+        st.atBottom = false;
+        st.pauseUntil = now + TOP_PAUSE_MS;
+      }
+    } else {
+      el.scrollTop += SCROLL_STEP;
+    }
+  }
+}, 50);
 
 /* ── Init ── */
 applyState();
