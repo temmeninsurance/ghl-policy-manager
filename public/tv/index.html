@@ -419,6 +419,9 @@ footer {
           <option value="week">This Week</option>
           <option value="mtd">MTD</option>
           <option value="ytd">YTD</option>
+          <option value="last_month">Last Month</option>
+          <option value="last_year">Last Year</option>
+          <option value="all">All Time</option>
         </select>
       </label>
       <label><span>Sub-dashboard of</span>
@@ -478,7 +481,10 @@ if (FB.apiKey.startsWith("REPLACE_")) {
    localStorage (per device); ?d=<json> makes a shareable link. */
 const params = new URLSearchParams(location.search);
 const NON_FILTER_PARAMS = ["title", "metric", "view", "retry", "d"];
-const VIEWS = { today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD" };
+const VIEWS = {
+  today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD",
+  last_month: "Last Month", last_year: "Last Year", all: "All Time",
+};
 const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown" };
 const METRICS = { revenue: "Revenue", apps: "Apps", avg: "Avg $ / App" };
 const DEFAULT_STATE = {
@@ -663,17 +669,23 @@ function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// First day (inclusive, yyyy-mm-dd) of the selected date frame.
-function periodStart(v) {
+// Inclusive [start, end] (yyyy-mm-dd) of the selected date frame.
+function periodRange(v) {
   const now = new Date();
-  if (v === "today") return ymd(now);
+  const y = now.getFullYear();
+  if (v === "today") { const t = ymd(now); return [t, t]; }
   if (v === "week") {
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    return ymd(monday);
+    return [ymd(monday), "9999"];
   }
-  if (v === "ytd") return `${now.getFullYear()}-01-01`;
-  return ymd(new Date(now.getFullYear(), now.getMonth(), 1)); // mtd
+  if (v === "ytd") return [`${y}-01-01`, "9999"];
+  if (v === "last_month") {
+    return [ymd(new Date(y, now.getMonth() - 1, 1)), ymd(new Date(y, now.getMonth(), 0))];
+  }
+  if (v === "last_year") return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+  if (v === "all") return ["0000", "9999"];
+  return [ymd(new Date(y, now.getMonth(), 1)), "9999"]; // mtd
 }
 
 function matchesFilter(r, field, value) {
@@ -683,11 +695,12 @@ function matchesFilter(r, field, value) {
 // Rows within the dashboard's date frame + filters, plus the widget's own
 // optional filter.
 function rowsFor(widget) {
-  const start = periodStart(state.view);
+  const [start, end] = periodRange(state.view);
   const fields = latest.filterFields || [];
   const out = [];
   for (const r of latest.rows || []) {
-    if ((r[CFG.dateField] || "") < start) continue;
+    const d = r[CFG.dateField] || "";
+    if (d < start || d > end) continue;
     let keep = true;
     for (const [k, v] of Object.entries(state.filters)) {
       if (fields.length && !fields.includes(k)) continue; // stale filter key

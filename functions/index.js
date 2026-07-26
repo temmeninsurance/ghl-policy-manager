@@ -214,16 +214,16 @@ async function syncSheetToFirestore() {
   const currentYear = new Date().getFullYear();
   const rows = [];
   let skippedInvalid = 0;
-  let skippedOtherYears = 0;
 
   for (let i = headerRow + 1; i < values.length; i++) {
     const raw = values[i];
     const agent = displayName(raw[colIndex.agent]);
     const date = normalizeDate(raw[colIndex.date]);
     if (!agent || !date) { skippedInvalid++; continue; }
-    // The TV page only shows MTD/YTD, so only the current year is synced —
-    // this also keeps the doc well under the 1 MB limit.
-    if (Number(date.slice(0, 4)) !== currentYear) { skippedOtherYears++; continue; }
+    // All history is synced (one doc per month); only obviously bogus
+    // dates are dropped.
+    const year = Number(date.slice(0, 4));
+    if (year < 2000 || year > currentYear + 1) { skippedInvalid++; continue; }
 
     const row = { agent, date };
 
@@ -295,7 +295,6 @@ async function syncSheetToFirestore() {
     monthHashes,
     rowCount: rows.length,
     skippedInvalid,
-    skippedOtherYears,
     fields: [...new Set([...Object.keys(colIndex), "apps"])],
     filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps", "revenue"].includes(f)),
     warnings,
@@ -306,7 +305,6 @@ async function syncSheetToFirestore() {
     months: byMonth.size,
     monthsWritten,
     skippedInvalid,
-    skippedOtherYears,
     warnings,
   };
   logger.info("TV leaderboard synced", summary);
