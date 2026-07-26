@@ -1767,6 +1767,101 @@ body.temmenmueller .pstrip { background: #f4f2fb; }
 body.temmenmueller .dot { background: #7c3aed; box-shadow: 0 0 1vh rgba(124, 58, 237, .7); }
 body.temmenmueller .daterange input[type="date"] { color-scheme: light; }
 
+/* ── Temmen Insurance full-page theme — the house brand ─────────────────────
+   Shield teal + deep navy on a bright workspace, with the shield mark in
+   the header. Clean and professional — no trinkets. */
+body.temmenins {
+  --bg: #eef7f8;
+  --panel: #ffffff;
+  --line: #d3e6ea;
+  --text: #143a63;
+  --dim: #5a7a94;
+  --accent: #12b2ab;
+  --accent-dim: #0d8b86;
+  background:
+    linear-gradient(115deg, rgba(18, 178, 171, .08) 0 28%, transparent 28.5%),
+    linear-gradient(245deg, rgba(28, 78, 137, .06) 0 22%, transparent 22.5%),
+    var(--bg);
+}
+body.temmenins header {
+  background: linear-gradient(180deg, #1c4e89, #143a63);
+  border-bottom: .4vh solid #12b2ab;
+  box-shadow: 0 .4vh 1.6vh rgba(20, 58, 99, .35);
+}
+body.temmenins .brand {
+  color: #fff; font-size: 2.6vh; letter-spacing: .12em;
+  display: inline-flex; align-items: center; gap: .8vw;
+}
+/* the shield mark (same art as the favicon) */
+body.temmenins .brand::before {
+  content: ""; display: inline-block;
+  width: 3.2vh; height: 3.2vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 4 Q6 4 6 14 L6 32 Q6 48 32 62 Q58 48 58 32 L58 14 Q58 4 50 4 Z' fill='%2312b2ab'/%3E%3Crect x='15' y='13' width='34' height='31' rx='10' fill='%23ffffff'/%3E%3Cpath d='M19 33 A13 13 0 0 1 45 33 L36.5 33 L36.5 31.5 Q36.5 27 32 27 Q27.5 27 27.5 31.5 L27.5 33 Z' fill='%2312b2ab'/%3E%3Crect x='28.6' y='30' width='6.8' height='19' rx='3.4' fill='%2312b2ab'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+body.temmenins .menu-btn, body.temmenins .gear {
+  background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
+}
+body.temmenins .view-badge { background: #12b2ab; color: #fff; border: none; font-weight: 800; }
+body.temmenins .sync-chip { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .3); }
+body.temmenins .sync-chip #syncTime { color: #fff; }
+body.temmenins .sync-chip #syncRows { color: rgba(255, 255, 255, .7); }
+body.temmenins .total-num { color: #7fe0db; }
+body.temmenins .total-lbl { color: rgba(255, 255, 255, .75); }
+
+body.temmenins .kpi-tile {
+  background: #fff;
+  border: 1px solid #d3e6ea; border-radius: 1.1vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: 0 .6vh 1.8vh rgba(20, 58, 99, .10);
+}
+body.temmenins .kpi-lbl {
+  order: -1;
+  margin: 0 -1.5vw .9vh; padding: .6vh 1.5vw;
+  background: linear-gradient(90deg, #12b2ab, #0d8b86);
+  color: #fff; font-weight: 800; letter-spacing: .16em;
+}
+body.temmenins .kpi-num { color: #143a63; }
+body.temmenins .kpi-delta.up { color: #16a34a; }
+body.temmenins .kpi-delta.down { color: #dc2626; }
+
+body.temmenins .widget h3 {
+  color: #143a63; letter-spacing: .12em;
+  border-left: .4vw solid #12b2ab;
+  padding-left: .8vw; align-self: flex-start;
+}
+body.temmenins .rank {
+  background: #143a63; color: #fff; border: none;
+  border-radius: .7vh; width: 4.4vh; height: 4.4vh; line-height: 4.4vh;
+  font-weight: 800; font-size: 2vh; justify-self: center;
+  box-shadow: 0 .3vh .8vh rgba(20, 58, 99, .25);
+}
+body.temmenins .rank.r1 { background: linear-gradient(135deg, #16c9c1, #0d8b86); box-shadow: 0 0 1.4vh rgba(18, 178, 171, .5); }
+body.temmenins .rank.r2 { background: #5a7a94; }
+body.temmenins .rank.r3 { background: #8fa9be; }
+
+body.temmenins .avatar { background: #eef7f8; border: 2px solid #12b2ab; color: #5a7a94; box-shadow: 0 .3vh .8vh rgba(20, 58, 99, .18); }
+body.temmenins .bar-wrap {
+  background: #fff; border: 1px solid #d3e6ea; border-radius: .9vh;
+  box-shadow: 0 .4vh 1vh rgba(20, 58, 99, .08);
+}
+body.temmenins .bar {
+  background: linear-gradient(90deg, rgba(18, 178, 171, .5), rgba(18, 178, 171, .14));
+  border-right: 2px solid #12b2ab;
+}
+body.temmenins .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(28, 78, 137, .6), rgba(18, 178, 171, .3));
+  border-right-color: #1c4e89;
+}
+body.temmenins .row:first-child .bar-wrap { border-color: #12b2ab; box-shadow: 0 0 1.4vh rgba(18, 178, 171, .3); }
+body.temmenins .name { color: #143a63; }
+body.temmenins .apps { color: #143a63; }
+body.temmenins .sub { color: #5a7a94; }
+body.temmenins .more { color: #5a7a94; }
+body.temmenins .tbar { background: linear-gradient(180deg, #16c9c1, #0d8b86); }
+body.temmenins .pstrip { background: #eef7f8; }
+body.temmenins .dot { background: #12b2ab; box-shadow: 0 0 1vh rgba(18, 178, 171, .7); }
+body.temmenins .daterange input[type="date"] { color-scheme: light; }
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -2171,6 +2266,7 @@ footer {
           <option value="xmas">Temmen Wonderland 🎄</option>
           <option value="hallow">Temmen Frightnight 🎃</option>
           <option value="mueller">Mueller Insurance 💜</option>
+          <option value="temmen">Temmen Insurance 🛡️</option>
         </select>
       </label>
     </div>
@@ -2257,7 +2353,7 @@ function normalizeState(s) {
     }
     out.filters = nf;
   }
-  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow", "mueller"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow", "mueller", "temmen"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -2425,6 +2521,7 @@ function applyState() {
   document.body.classList.toggle("temmenxmas", state.theme === "xmas");
   document.body.classList.toggle("temmenhallow", state.theme === "hallow");
   document.body.classList.toggle("temmenmueller", state.theme === "mueller");
+  document.body.classList.toggle("temmenins", state.theme === "temmen");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -2518,7 +2615,7 @@ const CELEB_HEADLINES = {
   race: "🏁 FULL THROTTLE!", opoly: "🎩 PAYDAY!", madness: "🏀 BUCKETS!",
   golf: "⛳ BIRDIE!", cup: "⚽ GOOOOAL!", deal: "💼 DEAL!",
   xmas: "🎄 HO HO SOLD!", hallow: "🎃 TRICK OR TREAT!",
-  mueller: "💜 NEW SALE!", default: "🎉 NEW SALE!",
+  mueller: "💜 NEW SALE!", temmen: "🛡️ NEW SALE!", default: "🎉 NEW SALE!",
 };
 const MILESTONE_STEP = 250; // career apps
 let celebBaseline = null;
