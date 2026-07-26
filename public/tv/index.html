@@ -276,6 +276,107 @@ body.temmenkart footer { border-top-color: #2b3a5e; }
   50% { transform: translateY(-.6vh); }
 }
 
+/* ── Temmenopoly full-page theme — classic board-game look ──────────────────
+   Flips the palette to the cream board with a red banner header; KPI tiles
+   become property cards with color-group bands; ranks become color chips;
+   leaderboard progress builds houses (🏠) and the leader gets the hotel. */
+body.temmenopoly {
+  --bg: #e7f2e4;
+  --panel: #fffdf5;
+  --line: #16130e;
+  --text: #16130e;
+  --dim: #5f6f5c;
+  --accent: #14804a;
+  --accent-dim: #14804a;
+  background:
+    radial-gradient(80vw 50vh at 50% -10%, rgba(20, 128, 74, .10), transparent),
+    var(--bg);
+  font-family: "Futura", "Century Gothic", "Trebuchet MS", -apple-system, sans-serif;
+}
+body.temmenopoly header {
+  background: linear-gradient(180deg, #ef3340, #d61f2c);
+  border-bottom: .5vh solid #8f0e18;
+  box-shadow: inset 0 .4vh 0 rgba(255, 255, 255, .25), inset 0 -.6vh 0 rgba(0, 0, 0, .2);
+}
+body.temmenopoly .brand {
+  color: #fff;
+  font-weight: 900;
+  font-size: 3.2vh;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-shadow: 0 .3vh 0 rgba(0, 0, 0, .35);
+}
+body.temmenopoly .brand::before { content: "🎩 "; text-shadow: none; }
+body.temmenopoly .menu-btn, body.temmenopoly .gear {
+  color: #fff; border-color: rgba(255, 255, 255, .55);
+}
+body.temmenopoly .view-badge {
+  background: #fffdf5; color: #16130e; border: 2px solid #16130e;
+  font-weight: 900;
+}
+body.temmenopoly .total-num { color: #fff; text-shadow: 0 .3vh 0 rgba(0, 0, 0, .35); }
+body.temmenopoly .total-lbl { color: rgba(255, 255, 255, .85); }
+
+body.temmenopoly .kpi-tile {
+  border: 2px solid #16130e; border-radius: .8vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: .4vh .5vh 0 rgba(22, 19, 14, .18);
+}
+body.temmenopoly .kpi-tile::before {
+  content: ""; display: block;
+  height: 2vh; margin: 0 -1.5vw .6vh;
+  border-bottom: 2px solid #16130e;
+}
+body.temmenopoly .kpi-tile:nth-child(8n+1)::before { background: #0072bb; }
+body.temmenopoly .kpi-tile:nth-child(8n+2)::before { background: #1fb25a; }
+body.temmenopoly .kpi-tile:nth-child(8n+3)::before { background: #ed1b24; }
+body.temmenopoly .kpi-tile:nth-child(8n+4)::before { background: #fef200; }
+body.temmenopoly .kpi-tile:nth-child(8n+5)::before { background: #f7941d; }
+body.temmenopoly .kpi-tile:nth-child(8n+6)::before { background: #d93a96; }
+body.temmenopoly .kpi-tile:nth-child(8n+7)::before { background: #aae0fa; }
+body.temmenopoly .kpi-tile:nth-child(8n+8)::before { background: #955436; }
+body.temmenopoly .kpi-num { color: #16130e; }
+body.temmenopoly .kpi-lbl { color: #5f6f5c; font-weight: 800; }
+
+body.temmenopoly .widget h3 { color: #16130e; }
+body.temmenopoly .widget h3::before { content: "🎩 "; }
+body.temmenopoly .rank {
+  color: #fff; border-radius: .6vh; border: 2px solid #16130e;
+  font-size: 2.1vh; padding: .5vh 0; align-self: center;
+}
+body.temmenopoly .row .rank { background: #0072bb; }
+body.temmenopoly .row:nth-child(8n+2) .rank { background: #1fb25a; }
+body.temmenopoly .row:nth-child(8n+3) .rank { background: #ed1b24; }
+body.temmenopoly .row:nth-child(8n+4) .rank { background: #fef200; color: #16130e; }
+body.temmenopoly .row:nth-child(8n+5) .rank { background: #f7941d; }
+body.temmenopoly .row:nth-child(8n+6) .rank { background: #d93a96; }
+body.temmenopoly .row:nth-child(8n+7) .rank { background: #aae0fa; color: #16130e; }
+body.temmenopoly .row:nth-child(8n+8) .rank { background: #955436; }
+body.temmenopoly .avatar { background: #fffdf5; border: 2px solid #16130e; color: #5f6f5c; }
+body.temmenopoly .bar-wrap {
+  background: #fffdf5; border: 2px solid #16130e; border-radius: .8vh;
+  box-shadow: .3vh .4vh 0 rgba(22, 19, 14, .15);
+}
+body.temmenopoly .bar {
+  background: linear-gradient(90deg, rgba(31, 178, 90, .45), rgba(31, 178, 90, .2));
+  border-right: 2px solid #14804a;
+}
+body.temmenopoly .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(251, 191, 36, .5), rgba(251, 191, 36, .2));
+  border-right-color: #b8860b;
+}
+body.temmenopoly .name { color: #16130e; padding-right: 13vw; }
+body.temmenopoly .apps { color: #16130e; }
+body.temmenopoly .houses {
+  position: absolute; right: 1vw; top: 50%; transform: translateY(-50%);
+  font-size: 2.4vh; letter-spacing: .2vw;
+  filter: drop-shadow(0 .2vh 0 rgba(0, 0, 0, .25));
+}
+body.temmenopoly footer { color: #5f6f5c; border-top: 2px solid #16130e; background: #fffdf5; }
+body.temmenopoly .dot { background: #14804a; }
+body.temmenopoly .dot.stale { background: #ed1b24; }
+body.temmenopoly .wboard::-webkit-scrollbar-thumb { background: rgba(22, 19, 14, .3); }
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -427,6 +528,11 @@ footer {
   .kart .item { top: -12px; font-size: 12px; }
   .lane-name { font-size: 12px; left: 6px; padding: 3px 10px; }
   .track .finish { width: 14px; background-size: 10px 10px; }
+  body.temmenopoly .brand { font-size: 15px; }
+  body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
+  body.temmenopoly .name { padding-right: 80px; }
+  body.temmenopoly .rank { font-size: 13px; padding: 3px 0; }
+  body.temmenopoly .kpi-tile::before { margin: 0 -14px 6px; height: 12px; }
   .rank { font-size: 16px; }
   .avatar { width: 42px; height: 42px; font-size: 14px; }
   .bar-wrap { border-radius: 10px; }
@@ -537,6 +643,7 @@ footer {
         <select id="selTheme">
           <option value="default">Standard</option>
           <option value="race">TemmenKart 🏁</option>
+          <option value="opoly">Temmenopoly 🎩</option>
         </select>
       </label>
     </div>
@@ -603,7 +710,7 @@ const DEFAULT_STATE = {
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
-  out.theme = out.theme === "race" ? "race" : "default";
+  out.theme = ["race", "opoly"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -725,6 +832,7 @@ function setBrand(title) {
 
 function applyState() {
   document.body.classList.toggle("temmenkart", state.theme === "race");
+  document.body.classList.toggle("temmenopoly", state.theme === "opoly");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -966,10 +1074,14 @@ function render() {
       } else {
         row.className = "row" + (isAgents ? "" : " noav");
         const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
+        // Temmenopoly: houses build up with progress; the leader gets the hotel.
+        const houses = state.theme === "opoly" && isAgents
+          ? `<div class="houses">${i === 0 ? "🏨" : "🏠".repeat(Math.min(4, Math.floor(pct / 25)))}</div>`
+          : "";
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
           ${isAgents ? '<div class="avatar"></div>' : ""}
-          <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
+          <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div>${houses}</div>
           ${valueCell}`;
       }
       row.querySelector(".name, .lane-name").textContent = isAgents ? displayNameOf(e.key) : e.key;
