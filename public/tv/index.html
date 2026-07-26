@@ -250,7 +250,11 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .kpi-delta.down { color: #ef4444; }
 
 /* Trend chart */
-.wboard.trend { flex-direction: row; align-items: stretch; gap: .5vw; padding: .5vh .3vw; overflow: visible; }
+.widget .wboard.trend {
+  flex-direction: row; align-items: stretch;
+  gap: .5vw; padding: .5vh .3vw;
+  overflow: visible;
+}
 .tcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .5vh; }
 .tbar {
   width: 78%; min-height: 3px;
@@ -1811,6 +1815,11 @@ footer {
   .widget { gap: 8px; }
   .widget h3 { font-size: 12px; }
   .widget .wboard { overflow: visible; padding-right: 0; gap: 8px; } /* page scrolls instead */
+  /* trend needs a real height on phones, and scrolls sideways when dense */
+  .widget .wboard.trend { height: 190px; overflow-x: auto; overflow-y: hidden; gap: 3px; padding: 4px 2px; }
+  .tcol { min-width: 26px; flex: 1 0 26px; }
+  .tval { font-size: 9px; }
+  .tlbl { font-size: 9px; }
 
   .row { grid-template-columns: 24px 42px 1fr auto; height: 52px; gap: 8px; }
   .row.noav { grid-template-columns: 24px 1fr auto; }
@@ -2798,21 +2807,28 @@ function render() {
       boardEl.className = "wboard trend";
       panel.append(h, boardEl);
 
-      for (const key of keys) {
+      const dense = keys.length > 16; // label every other column when crowded
+      for (let ki = 0; ki < keys.length; ki++) {
+        const key = keys[ki];
+        const isLast = ki === keys.length - 1;
+        const labeled2 = !dense || ki % 2 === keys.length % 2 || isLast;
         const v = agg.get(key)[w.metric];
         const col = document.createElement("div");
-        col.className = "tcol" + (key === keys[keys.length - 1] ? " now" : "");
+        col.className = "tcol" + (isLast ? " now" : "");
         const tv = document.createElement("div");
         tv.className = "tval";
-        tv.textContent = fmtShort(w.metric, v);
+        tv.textContent = labeled2 ? fmtShort(w.metric, v) : " ";
         const bar = document.createElement("div");
         bar.className = "tbar";
         bar.style.height = Math.max(2, (v / maxV) * 100) + "%";
+        bar.title = key + " — " + fmtBy(w.metric, v);
         const tl = document.createElement("div");
         tl.className = "tlbl";
-        tl.textContent = monthly
-          ? MONTHS[Number(key.slice(5, 7)) - 1] + (key.slice(5, 7) === "01" || key === keys[0] ? " '" + key.slice(2, 4) : "")
-          : String(Number(key.slice(8, 10)));
+        tl.textContent = labeled2
+          ? (monthly
+            ? MONTHS[Number(key.slice(5, 7)) - 1] + (key.slice(5, 7) === "01" || key === keys[0] ? " '" + key.slice(2, 4) : "")
+            : String(Number(key.slice(8, 10))))
+          : " ";
         col.append(tv, bar, tl);
         boardEl.appendChild(col);
       }
