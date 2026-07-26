@@ -170,6 +170,40 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .sub { font-size: 1.5vh; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
 .more { text-align: center; color: var(--dim); font-size: 1.9vh; padding: .5vh 0; }
 
+/* ── Kart Race theme (leaderboard widgets) ── */
+.row.race { grid-template-columns: 3.2vw 1fr minmax(9vw, auto); }
+.track {
+  position: relative; height: 100%;
+  background: linear-gradient(180deg, #141c30, #0e1526);
+  border: 1px solid var(--line); border-radius: 1.2vh;
+  overflow: hidden;
+}
+.track::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  border-top: .4vh dashed rgba(255, 255, 255, .14);
+}
+.track .finish {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 1.8vw;
+  background: repeating-conic-gradient(#e2e8f0 0% 25%, #0b1220 0% 50%) 0 0 / 1.5vh 1.5vh;
+  opacity: .9;
+}
+.kart {
+  position: absolute; top: 50%; transform: translateY(-54%);
+  display: flex; flex-direction: column; align-items: center;
+  transition: left 1.2s cubic-bezier(.2, .8, .2, 1);
+}
+.kart .avatar { width: 4.2vh; height: 4.2vh; font-size: 1.6vh; border-color: var(--accent-dim); z-index: 1; }
+.kart-emoji { font-size: 2.8vh; line-height: 1; margin-top: -1.4vh; transform: scaleX(-1); }
+.kart .item { position: absolute; top: -1.9vh; font-size: 1.9vh; }
+.lane-name {
+  position: absolute; left: 1vw; top: 50%; transform: translateY(-50%);
+  color: rgba(241, 245, 249, .35);
+  font-size: 2.2vh; font-weight: 800; letter-spacing: .04em;
+  white-space: nowrap; overflow: hidden; max-width: 55%;
+}
+.row.race:first-child .track { border-color: var(--gold); }
+.row.race:first-child .lane-name { color: rgba(251, 191, 36, .45); }
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -315,6 +349,12 @@ footer {
 
   .row { grid-template-columns: 24px 42px 1fr auto; height: 52px; gap: 8px; }
   .row.noav { grid-template-columns: 24px 1fr auto; }
+  .row.race { grid-template-columns: 24px 1fr auto; }
+  .kart .avatar { width: 26px; height: 26px; font-size: 10px; }
+  .kart-emoji { font-size: 17px; margin-top: -8px; }
+  .kart .item { top: -12px; font-size: 12px; }
+  .lane-name { font-size: 12px; left: 8px; }
+  .track .finish { width: 14px; background-size: 10px 10px; }
   .rank { font-size: 16px; }
   .avatar { width: 42px; height: 42px; font-size: 14px; }
   .bar-wrap { border-radius: 10px; }
@@ -421,6 +461,12 @@ footer {
           <option value="on">On — drift through the full list</option>
         </select>
       </label>
+      <label><span>Theme</span>
+        <select id="selTheme">
+          <option value="default">Standard</option>
+          <option value="race">Kart Race 🏁</option>
+        </select>
+      </label>
     </div>
 
     <div class="section-title">Widgets</div>
@@ -485,6 +531,7 @@ const DEFAULT_STATE = {
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
+  out.theme = out.theme === "race" ? "race" : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -792,14 +839,16 @@ function render() {
       headerSet = true;
     }
 
+    const race = state.theme === "race" && isAgents;
     const panel = document.createElement("div");
     panel.className = "widget";
     const h = document.createElement("h3");
-    h.textContent = widgetLabel(w);
+    h.textContent = (race ? "🏁 " : "") + widgetLabel(w);
     const boardEl = document.createElement("div");
     boardEl.className = "wboard";
     panel.append(h, boardEl);
 
+    const ITEMS = ["👑", "🚀", "🍄", "⭐", "🐢", "🍌"];
     const max = ranked.length ? ranked[0][w.metric] : 1;
     const shown = ranked; // every matching entry — the board scrolls
     for (let i = 0; i < shown.length; i++) {
@@ -807,14 +856,32 @@ function render() {
       const main = e[w.metric];
       const sub = w.metric === "apps" ? fmtMoney(e.revenue) : `${fmt(e.apps)} apps`;
       const row = document.createElement("div");
-      row.className = "row" + (isAgents ? "" : " noav");
-      const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
-      row.innerHTML = `
-        <div class="rank r${i + 1}">${i + 1}</div>
-        ${isAgents ? '<div class="avatar"></div>' : ""}
-        <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
-        <div><div class="apps">${fmtBy(w.metric, main)}</div><div class="sub">${sub}</div></div>`;
-      row.querySelector(".name").textContent = isAgents ? displayNameOf(e.key) : e.key;
+      const valueCell = `<div><div class="apps">${fmtBy(w.metric, main)}</div><div class="sub">${sub}</div></div>`;
+      if (race) {
+        row.className = "row race";
+        const pct = max > 0 ? Math.max(2, (main / max) * 76) : 2;
+        row.innerHTML = `
+          <div class="rank r${i + 1}">${i + 1}</div>
+          <div class="track">
+            <div class="lane-name"></div>
+            <div class="finish"></div>
+            <div class="kart" style="left:${pct}%">
+              <span class="item">${ITEMS[Math.min(i, ITEMS.length - 1)]}</span>
+              <div class="avatar"></div>
+              <span class="kart-emoji">🏎️</span>
+            </div>
+          </div>
+          ${valueCell}`;
+      } else {
+        row.className = "row" + (isAgents ? "" : " noav");
+        const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
+        row.innerHTML = `
+          <div class="rank r${i + 1}">${i + 1}</div>
+          ${isAgents ? '<div class="avatar"></div>' : ""}
+          <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
+          ${valueCell}`;
+      }
+      row.querySelector(".name, .lane-name").textContent = isAgents ? displayNameOf(e.key) : e.key;
       if (isAgents) {
         const av = row.querySelector(".avatar");
         const photo = photoOf(e.key);
@@ -1059,6 +1126,7 @@ function openEditor(source, idx) {
   document.getElementById("saveName").value = idx == null ? (source.title === CFG.TITLE ? "" : source.title || "") : s.title;
   document.getElementById("selView").value = s.view;
   document.getElementById("selScroll").value = s.autoScroll ? "on" : "off";
+  document.getElementById("selTheme").value = s.theme || "default";
 
   // Parent choices: top-level saved dashboards (by id), excluding itself.
   const parentSel = document.getElementById("selParent");
@@ -1166,6 +1234,7 @@ function editorToState(title) {
     title: title || CFG.TITLE,
     view: document.getElementById("selView").value,
     autoScroll: document.getElementById("selScroll").value === "on",
+    theme: document.getElementById("selTheme").value,
     filters,
     widgets,
   });
