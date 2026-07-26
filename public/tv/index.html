@@ -227,6 +227,8 @@ footer {
 .side-item .side-act { background: none; border: none; color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: 0 .4vw; }
 .side-item .side-act:hover { color: var(--accent); }
 .side-item .side-act.del:hover { color: #ef4444; }
+.side-child { margin-left: 2vw; }
+.side-child .side-name { font-size: 2vh; font-weight: 600; }
 .side-new {
   background: var(--accent-dim); border: none; border-radius: 1vh; color: #04121a;
   font-size: 2.2vh; font-weight: 800; padding: 1.4vh; cursor: pointer;
@@ -340,6 +342,9 @@ footer {
           <option value="mtd">MTD</option>
           <option value="ytd">YTD</option>
         </select>
+      </label>
+      <label><span>Sub-dashboard of</span>
+        <select id="selParent"><option value="">None (top level)</option></select>
       </label>
     </div>
 
@@ -759,44 +764,53 @@ function closeSidebar() {
   if (picker.classList.contains("hidden")) backdrop.classList.add("hidden");
 }
 
+function sideItem(it, isChild) {
+  const el = document.createElement("div");
+  el.className = "side-item" + (isChild ? " side-child" : "") +
+    ((state.title || CFG.TITLE) === it.name ? " active" : "");
+
+  const nameBtn = document.createElement("button");
+  nameBtn.className = "side-name";
+  nameBtn.textContent = (isChild ? "↳ " : "") + it.name;
+  nameBtn.addEventListener("click", () => { switchTo(it.state); closeSidebar(); });
+  el.appendChild(nameBtn);
+
+  const edit = document.createElement("button");
+  edit.className = "side-act";
+  edit.textContent = "✎";
+  edit.title = it.idx == null ? "Customize (saves as a new dashboard)" : "Edit dashboard";
+  edit.addEventListener("click", () => { closeSidebar(); openEditor(it.state, it.idx); });
+  el.appendChild(edit);
+
+  if (it.idx != null) {
+    const del = document.createElement("button");
+    del.className = "side-act del";
+    del.textContent = "✕";
+    del.title = "Delete dashboard";
+    del.addEventListener("click", () => {
+      const ds = getDashboards();
+      ds.splice(it.idx, 1);
+      setDashboards(ds);
+      renderSidebar();
+    });
+    el.appendChild(del);
+  }
+  return el;
+}
+
 function renderSidebar() {
   const list = document.getElementById("sidebarList");
   list.innerHTML = "";
-  const items = [
-    { name: CFG.TITLE, state: structuredClone(DEFAULT_STATE), idx: null },
-    ...getDashboards().map((d, idx) => ({ name: d.title, state: d, idx })),
-  ];
-  for (const it of items) {
-    const el = document.createElement("div");
-    el.className = "side-item" + ((state.title || CFG.TITLE) === it.name ? " active" : "");
-
-    const nameBtn = document.createElement("button");
-    nameBtn.className = "side-name";
-    nameBtn.textContent = it.name;
-    nameBtn.addEventListener("click", () => { switchTo(it.state); closeSidebar(); });
-    el.appendChild(nameBtn);
-
-    const edit = document.createElement("button");
-    edit.className = "side-act";
-    edit.textContent = "✎";
-    edit.title = it.idx == null ? "Customize (saves as a new dashboard)" : "Edit dashboard";
-    edit.addEventListener("click", () => { closeSidebar(); openEditor(it.state, it.idx); });
-    el.appendChild(edit);
-
-    if (it.idx != null) {
-      const del = document.createElement("button");
-      del.className = "side-act del";
-      del.textContent = "✕";
-      del.title = "Delete dashboard";
-      del.addEventListener("click", () => {
-        const ds = getDashboards();
-        ds.splice(it.idx, 1);
-        setDashboards(ds);
-        renderSidebar();
-      });
-      el.appendChild(del);
+  const ds = getDashboards().map((d, idx) => ({ name: d.title, state: d, idx, parent: d.parent }));
+  const topTitles = new Set(ds.filter((d) => !d.parent).map((d) => d.name));
+  // Orphans (parent was deleted/renamed) surface at top level rather than vanish.
+  const tops = ds.filter((d) => !d.parent || !topTitles.has(d.parent));
+  list.appendChild(sideItem({ name: CFG.TITLE, state: structuredClone(DEFAULT_STATE), idx: null }, false));
+  for (const top of tops) {
+    list.appendChild(sideItem(top, false));
+    for (const child of ds.filter((d) => d.parent && d.parent === top.name)) {
+      list.appendChild(sideItem(child, true));
     }
-    list.appendChild(el);
   }
 }
 
@@ -870,6 +884,23 @@ function openEditor(source, idx) {
   document.getElementById("editorTitle").textContent = idx == null ? "New dashboard" : "Edit dashboard";
   document.getElementById("saveName").value = idx == null ? (source.title === CFG.TITLE ? "" : source.title || "") : s.title;
   document.getElementById("selView").value = s.view;
+
+  // Parent choices: top-level saved dashboards, excluding the one being edited.
+  const parentSel = document.getElementById("selParent");
+  parentSel.replaceChildren();
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "None (top level)";
+  parentSel.appendChild(none);
+  for (const d of getDashboards()) {
+    if (d.parent || d.title === s.title) continue;
+    const o = document.createElement("option");
+    o.value = d.title;
+    o.textContent = d.title;
+    parentSel.appendChild(o);
+  }
+  parentSel.value = source.parent || "";
+  if (parentSel.value !== (source.parent || "")) parentSel.value = "";
 
   // Dashboard-level filters
   const grid = document.getElementById("pickerGrid");
@@ -956,12 +987,16 @@ function editorToState(title) {
     if (s.value) filters[s.dataset.field] = s.value;
   });
   const widgets = [...document.querySelectorAll("#widgetsList .wrow")].map((r) => r._read());
-  return normalizeState({
+  const out = normalizeState({
     title: title || CFG.TITLE,
     view: document.getElementById("selView").value,
     filters,
     widgets,
   });
+  const parent = document.getElementById("selParent").value;
+  if (parent) out.parent = parent;
+  else delete out.parent;
+  return out;
 }
 
 document.getElementById("applyBtn").addEventListener("click", () => {
