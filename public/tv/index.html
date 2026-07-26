@@ -234,6 +234,15 @@ footer {
   background: var(--accent-dim); border: none; border-radius: 1vh; color: #04121a;
   font-size: 2.2vh; font-weight: 800; padding: 1.4vh; cursor: pointer;
 }
+.side-lock {
+  background: none; border: 1px solid var(--line); border-radius: 1vh;
+  color: var(--dim); font-size: 2vh; font-weight: 700; padding: 1.2vh; cursor: pointer;
+}
+.side-lock:hover { color: var(--accent); border-color: var(--accent-dim); }
+.sidebar input#sideKey {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: .8vh; padding: 1vh; font-size: 2vh;
+}
 
 /* ── Dashboard editor ── */
 .picker {
@@ -301,7 +310,7 @@ footer {
   <div class="view-badge" id="viewBadge">—</div>
   <div class="chips" id="chips"></div>
   <div class="spacer"></div>
-  <button class="gear" id="gearBtn" title="Edit this dashboard">✎ Edit</button>
+  <button class="gear hidden" id="gearBtn" title="Edit this dashboard">✎ Edit</button>
   <div class="total-box">
     <div class="total-num" id="totalNum">0</div>
     <div class="total-lbl" id="totalLbl">Revenue</div>
@@ -327,7 +336,12 @@ footer {
 <aside class="sidebar hidden" id="sidebar">
   <div class="sidebar-head"><h2>Dashboards</h2><button id="sidebarClose" title="Close">✕</button></div>
   <div id="sidebarList" style="display:flex;flex-direction:column;gap:1vh"></div>
-  <button class="side-new" id="newDashBtn">＋ New dashboard</button>
+  <div class="spacer"></div>
+  <button class="side-new hidden" id="newDashBtn">＋ New dashboard</button>
+  <div id="editLock" style="display:flex;flex-direction:column;gap:1vh">
+    <input id="sideKey" type="password" placeholder="Edit key" class="hidden">
+    <button class="side-lock" id="editUnlockBtn">🔒 Edit dashboards</button>
+  </div>
 </aside>
 
 <div class="picker hidden" id="picker">
@@ -809,14 +823,16 @@ function sideItem(it, isChild) {
   nameBtn.addEventListener("click", () => { switchTo(it.state); closeSidebar(); });
   el.appendChild(nameBtn);
 
-  const edit = document.createElement("button");
-  edit.className = "side-act";
-  edit.textContent = "✎";
-  edit.title = it.idx == null ? "Customize (saves as a new dashboard)" : "Edit dashboard";
-  edit.addEventListener("click", () => { closeSidebar(); openEditor(it.state, it.idx); });
-  el.appendChild(edit);
+  if (editMode) {
+    const edit = document.createElement("button");
+    edit.className = "side-act";
+    edit.textContent = "✎";
+    edit.title = it.idx == null ? "Customize (saves as a new dashboard)" : "Edit dashboard";
+    edit.addEventListener("click", () => { closeSidebar(); openEditor(it.state, it.idx); });
+    el.appendChild(edit);
+  }
 
-  if (it.idx != null) {
+  if (editMode && it.idx != null) {
     const del = document.createElement("button");
     del.className = "side-act del";
     del.textContent = "✕";
@@ -851,6 +867,57 @@ function renderSidebar() {
 document.getElementById("newDashBtn").addEventListener("click", () => {
   closeSidebar();
   openEditor({ ...structuredClone(DEFAULT_STATE), title: "" }, null);
+});
+
+/* ── Edit unlock (bottom of sidebar) ── */
+let editMode = false;
+const sideKey = document.getElementById("sideKey");
+const unlockBtn = document.getElementById("editUnlockBtn");
+
+async function verifyAdminKey(key) {
+  // Posting the current list back is a no-op write that doubles as a key
+  // check (and migrates any local-only dashboards up on first unlock).
+  const resp = await fetch(CFG.DASH_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, dashboards: getDashboards() }),
+  });
+  return (await resp.json()).ok === true;
+}
+
+async function tryUnlock(key) {
+  unlockBtn.textContent = "Checking…";
+  let ok = false;
+  try { ok = await verifyAdminKey(key); } catch { ok = false; }
+  if (ok) {
+    editMode = true;
+    localStorage.setItem("tvAdminKey", key);
+    sideKey.classList.add("hidden");
+    unlockBtn.textContent = "🔓 Editing unlocked";
+    unlockBtn.disabled = true;
+    document.getElementById("newDashBtn").classList.remove("hidden");
+    document.getElementById("gearBtn").classList.remove("hidden");
+    renderSidebar();
+  } else {
+    unlockBtn.textContent = "🔒 Wrong key — try again";
+    sideKey.classList.remove("hidden");
+    sideKey.focus();
+  }
+}
+
+unlockBtn.addEventListener("click", () => {
+  if (editMode) return;
+  const typed = sideKey.value.trim();
+  const stored = (localStorage.getItem("tvAdminKey") || "").trim();
+  if (typed) tryUnlock(typed);
+  else if (sideKey.classList.contains("hidden") && stored) tryUnlock(stored);
+  else {
+    sideKey.classList.remove("hidden");
+    sideKey.focus();
+  }
+});
+sideKey.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && sideKey.value.trim()) tryUnlock(sideKey.value.trim());
 });
 
 /* ── Dashboard editor ── */
