@@ -795,6 +795,169 @@ body.temmengolf .wboard::-webkit-scrollbar-thumb { background: rgba(255, 253, 24
   50% { transform: translateY(-50%) rotate(4deg); }
 }
 
+/* ── Temmen Cup full-page theme — World Cup night at the stadium ────────────
+   Floodlit pitch inset into a dark stadium bowl: mowing stripes, center
+   circle, halfway line, penalty boxes and arcs. Navy + trophy-gold
+   broadcast HUD, a goal with netting at the end of every lane, rolling
+   balls toward it, and the golden trophy for first place. */
+body.temmencup {
+  --bg: #0a0f1c;
+  --panel: #111c38;
+  --line: #2c3d68;
+  --text: #f2f5fb;
+  --dim: #93a1c4;
+  --accent: #ffc933;
+  --accent-dim: #d4a017;
+  background: var(--bg);
+  font-family: "Helvetica Neue", "Arial Narrow", Arial, sans-serif;
+}
+/* the stadium bowl: floodlights and crowd glow around the pitch */
+body.temmencup::after {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(46vw 30vh at 8% -4%, rgba(255, 255, 255, .16), transparent 60%),
+    radial-gradient(46vw 30vh at 92% -4%, rgba(255, 255, 255, .16), transparent 60%),
+    radial-gradient(30vw 16vh at 50% 104%, rgba(255, 201, 51, .12), transparent),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .022) 0 .5vw, transparent .5vw 1vw),
+    linear-gradient(180deg, #0d1526 0%, #080d18 60%, #05080f 100%);
+}
+/* the pitch: striped grass with full markings, floating in the bowl */
+body.temmencup::before {
+  content: ""; position: fixed; inset: 9vh 2vw 5vh; z-index: -1; pointer-events: none;
+  border: .45vh solid rgba(255, 255, 255, .85);
+  border-radius: .8vh;
+  box-shadow: 0 1.5vh 5vh rgba(0, 0, 0, .6), inset 0 0 8vh rgba(0, 0, 0, .35);
+  background:
+    /* center dot + circle */
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .8) 0 .7vh, transparent .9vh),
+    radial-gradient(circle at 50% 50%, transparent 12.8vh, rgba(255, 255, 255, .7) 13vh, rgba(255, 255, 255, .7) 13.6vh, transparent 13.8vh),
+    /* halfway line */
+    linear-gradient(90deg, transparent calc(50% - .14vw), rgba(255, 255, 255, .7) calc(50% - .14vw), rgba(255, 255, 255, .7) calc(50% + .14vw), transparent calc(50% + .14vw)),
+    /* left penalty box: front line + top/bottom edges + arc */
+    linear-gradient(rgba(255, 255, 255, .65), rgba(255, 255, 255, .65)) no-repeat 14vw 50% / .22vw 36vh,
+    linear-gradient(rgba(255, 255, 255, .65), rgba(255, 255, 255, .65)) no-repeat 0 calc(50% - 18vh) / 14.2vw .35vh,
+    linear-gradient(rgba(255, 255, 255, .65), rgba(255, 255, 255, .65)) no-repeat 0 calc(50% + 18vh) / 14.2vw .35vh,
+    radial-gradient(circle at 14vw 50%, transparent 7.6vh, rgba(255, 255, 255, .55) 7.8vh, rgba(255, 255, 255, .55) 8.4vh, transparent 8.6vh),
+    /* right penalty box */
+    linear-gradient(rgba(255, 255, 255, .65), rgba(255, 255, 255, .65)) no-repeat calc(100% - 14vw) 50% / .22vw 36vh,
+    linear-gradient(rgba(255, 255, 255, .65), rgba(255, 255, 255, .65)) no-repeat 100% calc(50% - 18vh) / 14.2vw .35vh,
+    linear-gradient(rgba(255, 255, 255, .65), rgba(255, 255, 255, .65)) no-repeat 100% calc(50% + 18vh) / 14.2vw .35vh,
+    radial-gradient(circle at calc(100% - 14vw) 50%, transparent 7.6vh, rgba(255, 255, 255, .55) 7.8vh, rgba(255, 255, 255, .55) 8.4vh, transparent 8.6vh),
+    /* floodlight sheen */
+    radial-gradient(70vw 55vh at 50% 30%, rgba(255, 255, 255, .10), transparent 65%),
+    /* mowing stripes + grass */
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .10) 0 6vw, rgba(255, 255, 255, .05) 6vw 12vw),
+    linear-gradient(180deg, #2f9e4a 0%, #23863b 60%, #1c7031 100%);
+}
+body.temmencup header {
+  position: relative;
+  background: linear-gradient(180deg, #14213f, #0d1526);
+  border-bottom: .45vh solid #ffc933;
+  box-shadow: 0 .5vh 1.6vh rgba(0, 0, 0, .55);
+}
+body.temmencup .brand {
+  color: #fff;
+  font-size: 3.2vh; font-weight: 900; font-style: italic;
+  letter-spacing: .1em; text-transform: uppercase;
+  text-shadow: .25vh .35vh 0 rgba(0, 0, 0, .55), 0 0 2.4vh rgba(255, 201, 51, .35);
+}
+body.temmencup .brand::before { content: "⚽ "; font-style: normal; text-shadow: none; }
+body.temmencup .menu-btn, body.temmencup .gear {
+  background: #0d1526; border: 1px solid #2c3d68; color: #93a1c4; border-radius: .6vh;
+}
+body.temmencup .view-badge {
+  background: #ffc933; color: #14213f; border: none;
+  font-style: italic; font-weight: 900;
+  clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%);
+  border-radius: 0; padding: .6vh 1.6vw;
+}
+body.temmencup .total-num { color: #ffc933; text-shadow: 0 .3vh .8vh rgba(0, 0, 0, .6); }
+
+/* scoreboard bugs */
+body.temmencup .kpi-tile {
+  background: linear-gradient(180deg, #14213f, #0d1526);
+  border: 1px solid #2c3d68; border-radius: .7vh;
+  padding-top: 0; overflow: hidden;
+  box-shadow: 0 .6vh 1.6vh rgba(0, 0, 0, .5);
+}
+body.temmencup .kpi-lbl {
+  order: -1;
+  margin: 0 -1.5vw .9vh; padding: .6vh 1.5vw;
+  background: linear-gradient(90deg, #ffc933, #e0a51f);
+  color: #14213f; font-style: italic; font-weight: 900; letter-spacing: .16em;
+}
+body.temmencup .kpi-num { color: #fff; text-shadow: 0 0 2vh rgba(255, 201, 51, .4); }
+
+body.temmencup .widget h3 {
+  color: #fff; font-style: italic; font-weight: 900; letter-spacing: .14em;
+  background: rgba(13, 21, 38, .85);
+  padding: .4vh 1.2vw .5vh; border-radius: .5vh;
+  border-left: .4vw solid #ffc933;
+  align-self: flex-start;
+  text-shadow: 0 .2vh .6vh rgba(0, 0, 0, .6);
+}
+body.temmencup .widget h3::before { content: "⚽ "; font-style: normal; }
+
+/* squad numbers */
+body.temmencup .rank {
+  background: #0d1526; color: #f2f5fb; border: 2px solid #2c3d68;
+  border-radius: 50%; width: 4.5vh; height: 4.5vh; line-height: 4.1vh;
+  font-style: italic; font-weight: 900; font-size: 2.1vh; justify-self: center;
+  box-shadow: 0 .4vh .9vh rgba(0, 0, 0, .5);
+}
+body.temmencup .rank.r1 { background: #ffc933; color: #14213f; border-color: #fff; box-shadow: 0 0 1.4vh rgba(255, 201, 51, .6); }
+body.temmencup .rank.r2 { background: #d7dee9; color: #14213f; border-color: #fff; }
+body.temmencup .rank.r3 { background: #d9832e; color: #14213f; border-color: #fff; }
+
+body.temmencup .avatar { background: #0d1526; border: 2px solid #fff; box-shadow: 0 .4vh .9vh rgba(0, 0, 0, .5); }
+body.temmencup .bar-wrap {
+  background: rgba(13, 21, 38, .92); border: 1px solid #2c3d68; border-radius: .7vh;
+  box-shadow: 0 .5vh 1.1vh rgba(0, 0, 0, .45);
+}
+body.temmencup .bar {
+  background: linear-gradient(90deg, rgba(47, 158, 74, .65), rgba(47, 158, 74, .25));
+  border-right: 2px solid #4ade80;
+}
+body.temmencup .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(255, 201, 51, .5), rgba(255, 201, 51, .18));
+  border-right-color: #ffc933;
+}
+body.temmencup .row:first-child .bar-wrap { border-color: rgba(255, 201, 51, .6); }
+body.temmencup .name { font-style: italic; font-weight: 800; padding-right: 17vw; }
+body.temmencup .apps { text-shadow: 0 .3vh 1vh rgba(0, 0, 0, .8); }
+body.temmencup .sub { color: #cfd9ea; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .8); }
+body.temmencup .more { color: #cfd9ea; text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .8); }
+
+/* the goal at the end of every lane — posts, crossbar, and net */
+body.temmencup .row:not(.noav) .bar-wrap::after {
+  content: ""; position: absolute; right: .7vw; top: 14%;
+  width: 2.2vw; height: 72%;
+  border: .3vh solid rgba(255, 255, 255, .85);
+  border-radius: .3vh;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .28) 0 1px, transparent 1px .5vw),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .28) 0 1px, transparent 1px 1vh);
+  box-shadow: 0 .3vh .8vh rgba(0, 0, 0, .4);
+}
+/* balls roll toward goal; the trophy gleams */
+body.temmencup .houses {
+  position: absolute; right: 4.4vw; top: 50%; transform: translateY(-50%);
+  font-size: 2.3vh; letter-spacing: .2vw;
+  animation: cup-roll 1.6s ease-in-out infinite;
+}
+body.temmencup .row:nth-child(2n) .houses { animation-delay: .4s; }
+body.temmencup .row:nth-child(3n) .houses { animation-delay: .8s; }
+body.temmencup .row:first-child .houses { animation: md-shine 2.2s ease-in-out infinite; }
+body.temmencup footer {
+  background: #0d1526; border-top: 1px solid #2c3d68;
+}
+body.temmencup .dot { background: #ffc933; box-shadow: 0 0 1vh rgba(255, 201, 51, .8); }
+
+@keyframes cup-roll {
+  0%, 100% { transform: translateY(-50%) rotate(-12deg); }
+  50% { transform: translateY(calc(-50% - .5vh)) rotate(12deg); }
+}
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -964,6 +1127,12 @@ footer {
   body.temmengolf .name { padding-right: 100px; }
   body.temmengolf .row:not(.noav) .bar-wrap::before { right: 14px; width: 2px; }
   body.temmengolf .row:not(.noav) .bar-wrap::after { right: 15px; border-right-width: 12px; }
+  body.temmencup .brand { font-size: 15px; }
+  body.temmencup .rank { width: 26px; height: 26px; line-height: 22px; font-size: 12px; }
+  body.temmencup .houses { font-size: 13px; right: 46px; }
+  body.temmencup .name { padding-right: 100px; }
+  body.temmencup .row:not(.noav) .bar-wrap::after { right: 6px; width: 24px; }
+  body.temmencup::before { inset: 62px 6px 6px; border-width: 3px; border-radius: 8px; }
   body.temmenopoly .brand { font-size: 15px; }
   body.temmenopoly .houses { font-size: 13px; right: 8px; letter-spacing: 1px; }
   body.temmenopoly .name { padding-right: 80px; }
@@ -1082,6 +1251,7 @@ footer {
           <option value="opoly">Temmenopoly 🎩</option>
           <option value="madness">Temmen Madness 🏀</option>
           <option value="golf">Temmen Classic ⛳</option>
+          <option value="cup">Temmen Cup ⚽</option>
         </select>
       </label>
     </div>
@@ -1148,7 +1318,7 @@ const DEFAULT_STATE = {
 function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
-  out.theme = ["race", "opoly", "madness", "golf"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness", "golf", "cup"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -1286,6 +1456,7 @@ function applyState() {
   document.body.classList.toggle("temmenopoly", state.theme === "opoly");
   document.body.classList.toggle("temmenmadness", state.theme === "madness");
   document.body.classList.toggle("temmengolf", state.theme === "golf");
+  document.body.classList.toggle("temmencup", state.theme === "cup");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -1537,6 +1708,9 @@ function render() {
         } else if (isAgents && state.theme === "golf") {
           // birdies on the card; the leader wears the green jacket
           houses = `<div class="houses">${i === 0 ? `<span class="jacket">${JACKET_SVG}</span>` : "⛳".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
+        } else if (isAgents && state.theme === "cup") {
+          // goals scored; the leader lifts the trophy
+          houses = `<div class="houses">${i === 0 ? "🏆" : "⚽".repeat(Math.min(3, Math.floor(pct / 33)))}</div>`;
         }
         row.innerHTML = `
           <div class="rank r${i + 1}">${i + 1}</div>
