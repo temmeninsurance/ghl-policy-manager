@@ -7,16 +7,17 @@
 
 <!--
   ╔══════════════════════════════════════════════════════════════════════════╗
-  ║  TEMMEN — SALES FLOOR TV LEADERBOARD                                      ║
+  ║  TEMMEN — SALES FLOOR TV DASHBOARDS                                       ║
   ║                                                                            ║
-  ║  Public, unauthenticated page for office TVs. Reads the Firestore doc     ║
-  ║  tvLeaderboard/current (written by the syncLeaderboard Cloud Function)    ║
-  ║  via a real-time onSnapshot listener. Contains only agent names, dates,   ║
-  ║  label fields, and app counts.                                            ║
+  ║  Public, unauthenticated page for office TVs. Reads Firestore:            ║
+  ║    tvLeaderboard/current      sync metadata (fields, counts, updatedAt)   ║
+  ║    tvLeaderboard/<yyyy-mm>    one doc of rows per month                   ║
+  ║    tvProfiles/<agent-slug>    display names + photos (edited in-app)      ║
   ║                                                                            ║
-  ║  URL options:                                                              ║
-  ║    /tv/?product=Life        filter by any field in CONFIG.filterFields    ║
-  ║    /tv/?view=mtd            lock to MTD (or ytd) instead of rotating      ║
+  ║  Dashboards are built on-screen (☰ sidebar → New/Edit): each holds a      ║
+  ║  date frame, filters, and any mix of widgets — agent leaderboards, KPI    ║
+  ║  tiles, and per-column breakdowns. Stored per device in localStorage.     ║
+  ║  Shareable links: /tv/?d=<json> (set automatically as you switch).       ║
   ╚══════════════════════════════════════════════════════════════════════════╝
 -->
 
@@ -25,8 +26,6 @@
    CONFIG — edit this block
    ════════════════════════════════════════════════════════════════════════ */
 
-// From Firebase Console → Project settings → Your apps → Web app,
-// or `firebase apps:sdkconfig web`. Only these three keys are needed.
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyAyHrDmgOIfF9bJ1GUFcUnTKnmmJ7-T2Qk",
   authDomain: "temmen-leaderboard-2026.firebaseapp.com",
@@ -41,10 +40,6 @@ window.TV_CONFIG = {
   appsField: "apps",
   revenueField: "revenue",
 
-  // Main KPI to rank/total by: "revenue" or "apps".
-  // Override per TV with /tv/?metric=apps
-  DEFAULT_METRIC: "revenue",
-
   // Endpoint of the updateAgentProfile Cloud Function (in-app editing of
   // agent names/photos, guarded by the admin key).
   PROFILE_ENDPOINT: "https://us-central1-temmen-leaderboard-2026.cloudfunctions.net/updateAgentProfile",
@@ -53,7 +48,7 @@ window.TV_CONFIG = {
   // and silent code updates on always-on TVs.
   PAGE_RELOAD_MS: 4 * 60 * 60_000,
 
-  // How many agents to show before collapsing into "+ N more".
+  // Max entries per board widget before collapsing into "+ N more".
   MAX_ROWS: 14,
 
   TITLE: "TEMMEN LEADERBOARD",
@@ -91,14 +86,19 @@ header {
   padding: 1.6vh 2.2vw;
   border-bottom: 1px solid var(--line);
 }
-.brand { font-size: 2.4vh; font-weight: 800; letter-spacing: .14em; color: var(--dim); }
+.menu-btn, .gear {
+  background: none; border: 1px solid var(--line); border-radius: .8vh;
+  color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: .4vh 1vw;
+  white-space: nowrap;
+}
+.menu-btn:hover, .gear:hover { color: var(--accent); border-color: var(--accent-dim); }
+.brand { font-size: 2.4vh; font-weight: 800; letter-spacing: .14em; color: var(--dim); cursor: pointer; }
 .view-badge {
-  font-size: 2.6vh; font-weight: 800; letter-spacing: .06em;
+  font-size: 2.4vh; font-weight: 800; letter-spacing: .06em;
   color: var(--accent);
   padding: .4vh 1.2vw;
   border: 1px solid var(--accent-dim);
   border-radius: 999px;
-  min-width: 9vw;
   text-align: center;
 }
 .chips { display: flex; gap: .6vw; flex-wrap: wrap; }
@@ -113,65 +113,69 @@ header {
 .chip b { color: var(--accent); font-weight: 700; }
 .spacer { flex: 1; }
 .total-box { text-align: right; }
-.total-num { font-size: 5.2vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.total-num { font-size: 5vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
 .total-lbl { font-size: 1.6vh; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; margin-top: .4vh; }
 
-.tabs {
-  display: flex; flex-wrap: wrap; gap: .8vw;
-  padding: 1.2vh 2.2vw 0;
-}
-.tabs:empty { display: none; }
-.tab {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
-  color: var(--dim); font-size: 2vh; font-weight: 700;
-  padding: .8vh 1.6vw; cursor: pointer;
-}
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--accent); border-color: var(--accent-dim); background: rgba(20, 184, 166, .08); }
+main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
 
-main { flex: 1; padding: 1.6vh 2.2vw; display: flex; flex-direction: column; min-height: 0; }
-#board { flex: 1; display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
+/* KPI tiles */
+.kpi-row { display: flex; gap: 1.2vw; }
+.kpi-row:empty { display: none; }
+.kpi-tile {
+  flex: 1;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh;
+  padding: 1.6vh 1.5vw;
+  display: flex; flex-direction: column; gap: .6vh;
+}
+.kpi-num { font-size: 5vh; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
+.kpi-lbl { font-size: 1.7vh; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
+
+/* Board widgets */
+.widgets { flex: 1; display: grid; gap: 1.4vw; min-height: 0; }
+.widget { display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
+.widget h3 { font-size: 2vh; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; font-weight: 700; }
+.widget .wboard { flex: 1; display: flex; flex-direction: column; gap: .9vh; min-height: 0; }
 
 .row {
   display: grid;
-  grid-template-columns: 4.5vw 6.8vh 1fr 11vw;
+  grid-template-columns: 3.2vw 6vh 1fr minmax(9vw, auto);
   align-items: center;
-  gap: 1.2vw;
+  gap: .9vw;
   flex: 1;
   min-height: 0;
-  max-height: 9vh;
+  max-height: 8.5vh;
 }
+.row.noav { grid-template-columns: 3.2vw 1fr minmax(9vw, auto); }
+.rank { font-size: 2.7vh; font-weight: 800; color: var(--dim); text-align: center; font-variant-numeric: tabular-nums; }
+.rank.r1 { color: var(--gold); } .rank.r2 { color: var(--silver); } .rank.r3 { color: var(--bronze); }
 .avatar {
-  width: 6.8vh; height: 6.8vh;
+  width: 6vh; height: 6vh;
   border-radius: 50%;
   background: var(--panel);
   border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  font-size: 2.4vh; font-weight: 800; color: var(--dim);
+  font-size: 2.2vh; font-weight: 800; color: var(--dim);
   overflow: hidden; position: relative;
 }
 .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.rank { font-size: 3vh; font-weight: 800; color: var(--dim); text-align: center; font-variant-numeric: tabular-nums; }
-.rank.r1 { color: var(--gold); } .rank.r2 { color: var(--silver); } .rank.r3 { color: var(--bronze); }
-.bar-wrap { position: relative; height: 100%; max-height: 7.4vh; background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh; overflow: hidden; }
+.bar-wrap { position: relative; height: 100%; max-height: 7vh; background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vh; overflow: hidden; }
 .bar {
   position: absolute; inset: 0 auto 0 0;
   background: linear-gradient(90deg, rgba(20,184,166,.55), rgba(45,212,191,.25));
   border-right: 2px solid var(--accent);
   transition: width .9s cubic-bezier(.2,.8,.2,1);
 }
-.row:nth-child(1) .bar { background: linear-gradient(90deg, rgba(251,191,36,.45), rgba(251,191,36,.15)); border-right-color: var(--gold); }
+.row:first-child .bar { background: linear-gradient(90deg, rgba(251,191,36,.45), rgba(251,191,36,.15)); border-right-color: var(--gold); }
 .name {
   position: absolute; inset: 0;
   display: flex; align-items: center;
-  padding-left: 1.4vw;
-  font-size: 3vh; font-weight: 700;
+  padding-left: 1.2vw;
+  font-size: 2.7vh; font-weight: 700;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.apps { font-size: 3.2vh; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
-.sub { font-size: 1.6vh; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
-
-.more { text-align: center; color: var(--dim); font-size: 2vh; padding: .6vh 0; }
+.apps { font-size: 2.9vh; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+.sub { font-size: 1.5vh; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+.more { text-align: center; color: var(--dim); font-size: 1.9vh; padding: .5vh 0; }
 
 footer {
   display: flex; align-items: center; gap: 1vw;
@@ -188,58 +192,89 @@ footer {
   flex-direction: column; gap: 2vh;
   background: var(--bg);
   text-align: center; padding: 4vw;
+  z-index: 5;
 }
 .overlay h1 { font-size: 4vh; }
 .overlay p { color: var(--dim); font-size: 2.2vh; max-width: 70vw; line-height: 1.5; }
 .hidden { display: none !important; }
 
-/* ── Dashboard picker ── */
-.brand { cursor: pointer; }
-.gear {
-  background: none; border: 1px solid var(--line); border-radius: .8vh;
-  color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: .4vh 1vw;
+/* ── Sidebar ── */
+.backdrop { position: fixed; inset: 0; background: rgba(4,8,18,.7); z-index: 15; }
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 16;
+  width: min(28vw, 420px);
+  background: var(--panel); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 1.6vh;
+  padding: 2.4vh 1.4vw;
+  overflow-y: auto;
 }
-.gear:hover { color: var(--accent); border-color: var(--accent-dim); }
+.sidebar-head { display: flex; align-items: center; justify-content: space-between; }
+.sidebar-head h2 { font-size: 2.6vh; letter-spacing: .08em; }
+.sidebar-head button { background: none; border: none; color: var(--dim); font-size: 3vh; cursor: pointer; }
+.side-item {
+  display: flex; align-items: center; gap: .6vw;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 1vh;
+  padding: 1.4vh 1vw;
+}
+.side-item.active { border-color: var(--accent-dim); }
+.side-item .side-name {
+  flex: 1; text-align: left;
+  background: none; border: none; color: var(--text);
+  font-size: 2.2vh; font-weight: 700; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.side-item.active .side-name { color: var(--accent); }
+.side-item .side-act { background: none; border: none; color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: 0 .4vw; }
+.side-item .side-act:hover { color: var(--accent); }
+.side-item .side-act.del:hover { color: #ef4444; }
+.side-new {
+  background: var(--accent-dim); border: none; border-radius: 1vh; color: #04121a;
+  font-size: 2.2vh; font-weight: 800; padding: 1.4vh; cursor: pointer;
+}
+
+/* ── Dashboard editor ── */
 .picker {
-  position: fixed; inset: 0; z-index: 10;
+  position: fixed; inset: 0; z-index: 20;
   background: rgba(4, 8, 18, .8);
   display: flex; align-items: center; justify-content: center;
 }
 .picker-panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: 1.6vh;
-  padding: 3vh 2.5vw; width: min(80vw, 1100px); max-height: 85vh; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 2.2vh;
+  padding: 3vh 2vw; width: min(88vw, 1300px); max-height: 88vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2vh;
 }
 .picker-head { display: flex; align-items: center; justify-content: space-between; }
-.picker-head h2 { font-size: 2.8vh; letter-spacing: .06em; }
-.picker-head button {
-  background: none; border: none; color: var(--dim); font-size: 3vh; cursor: pointer;
-}
-.saved { display: flex; flex-wrap: wrap; gap: 1vh; }
-.dash-card {
-  display: inline-flex; align-items: center; gap: .8vw;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
-  color: var(--text); font-size: 2.1vh; font-weight: 600;
-  padding: 1.1vh 1.6vw; cursor: pointer;
-}
-.dash-card:hover { border-color: var(--accent); color: var(--accent); }
-.dash-del { color: var(--dim); font-size: 1.8vh; padding-left: .4vw; }
-.dash-del:hover { color: #ef4444; }
-.picker-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.6vh 1.5vw;
-}
-.picker-grid label { display: flex; flex-direction: column; gap: .6vh; font-size: 1.8vh; color: var(--dim); text-transform: capitalize; }
-.picker-grid select, .picker-actions input {
+.picker-head h2 { font-size: 2.6vh; letter-spacing: .06em; }
+.picker-head button { background: none; border: none; color: var(--dim); font-size: 3vh; cursor: pointer; }
+.picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.4vh 1.2vw; }
+.picker-grid label, .wrow label { display: flex; flex-direction: column; gap: .5vh; font-size: 1.7vh; color: var(--dim); text-transform: capitalize; }
+.picker select, .picker input[type="text"], .picker input[type="password"] {
   background: var(--bg); color: var(--text); border: 1px solid var(--line);
-  border-radius: .8vh; padding: 1vh 1vw; font-size: 2vh; width: 100%;
+  border-radius: .8vh; padding: .9vh 1vw; font-size: 1.9vh; width: 100%;
 }
-.picker-actions { display: flex; gap: 1vw; align-items: center; border-top: 1px solid var(--line); padding-top: 2vh; }
+.picker-actions { display: flex; gap: 1vw; align-items: center; border-top: 1px solid var(--line); padding-top: 1.8vh; }
 .picker-actions input { flex: 1; }
 .picker-actions button {
   background: var(--accent-dim); border: none; border-radius: .8vh; color: #04121a;
-  font-size: 2.1vh; font-weight: 700; padding: 1.1vh 2vw; cursor: pointer; white-space: nowrap;
+  font-size: 2vh; font-weight: 700; padding: 1vh 1.8vw; cursor: pointer; white-space: nowrap;
 }
 .picker-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+.section-title { font-size: 2vh; letter-spacing: .08em; color: var(--dim); text-transform: uppercase; font-weight: 700; }
+
+.wrow {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1.4fr 1.4fr 1.4fr 1.6fr auto;
+  gap: .8vw; align-items: end;
+  padding: 1vh 0; border-bottom: 1px solid var(--line);
+}
+.wrow .w-del { background: none; border: none; color: var(--dim); font-size: 2.4vh; cursor: pointer; padding-bottom: .8vh; }
+.wrow .w-del:hover { color: #ef4444; }
+.add-widget {
+  align-self: flex-start;
+  background: var(--bg); color: var(--accent); border: 1px dashed var(--accent-dim);
+  border-radius: .8vh; font-size: 1.9vh; font-weight: 700; padding: .9vh 1.5vw; cursor: pointer;
+}
+
 #agentsList { display: flex; flex-direction: column; }
 .agent-row {
   display: grid; grid-template-columns: 6vh 1fr 1fr auto auto; gap: 1vw;
@@ -247,10 +282,6 @@ footer {
 }
 .agent-row .avatar { width: 5.5vh; height: 5.5vh; font-size: 1.8vh; }
 .agent-row .orig { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-row input[type="text"] {
-  background: var(--bg); color: var(--text); border: 1px solid var(--line);
-  border-radius: .8vh; padding: .8vh 1vw; font-size: 2vh; width: 100%;
-}
 .agent-row input[type="file"] { color: var(--dim); font-size: 1.6vh; max-width: 16vw; }
 .agent-row button {
   background: var(--accent-dim); border: none; border-radius: .8vh; color: #04121a;
@@ -262,20 +293,22 @@ footer {
 <body>
 
 <header>
+  <button class="menu-btn" id="menuBtn" title="Dashboards">☰</button>
   <div class="brand" id="brand"></div>
   <div class="view-badge" id="viewBadge">—</div>
   <div class="chips" id="chips"></div>
   <div class="spacer"></div>
-  <button class="gear" id="gearBtn" title="Dashboards">⚙ Dashboards</button>
+  <button class="gear" id="gearBtn" title="Edit this dashboard">✎ Edit</button>
   <div class="total-box">
     <div class="total-num" id="totalNum">0</div>
-    <div class="total-lbl" id="totalLbl">Apps</div>
+    <div class="total-lbl" id="totalLbl">Revenue</div>
   </div>
 </header>
 
-<nav class="tabs" id="dashTabs"></nav>
-
-<main><div id="board"></div></main>
+<main>
+  <div class="kpi-row" id="kpiRow"></div>
+  <div class="widgets" id="widgets"></div>
+</main>
 
 <footer>
   <div class="dot" id="liveDot"></div>
@@ -287,17 +320,19 @@ footer {
   <p id="overlayMsg">Connecting to live data…</p>
 </div>
 
+<div class="backdrop hidden" id="backdrop"></div>
+<aside class="sidebar hidden" id="sidebar">
+  <div class="sidebar-head"><h2>Dashboards</h2><button id="sidebarClose" title="Close">✕</button></div>
+  <div id="sidebarList" style="display:flex;flex-direction:column;gap:1vh"></div>
+  <button class="side-new" id="newDashBtn">＋ New dashboard</button>
+</aside>
+
 <div class="picker hidden" id="picker">
   <div class="picker-panel">
-    <div class="picker-head"><h2>Dashboards</h2><button id="pickerClose" title="Close">✕</button></div>
-    <div class="saved" id="savedList"></div>
+    <div class="picker-head"><h2 id="editorTitle">Edit dashboard</h2><button id="pickerClose" title="Close">✕</button></div>
+
+    <div class="section-title">Dashboard</div>
     <div class="picker-grid" id="pickerGrid">
-      <label><span>KPI</span>
-        <select id="selMetric">
-          <option value="revenue">Revenue</option>
-          <option value="apps">Apps</option>
-        </select>
-      </label>
       <label><span>Date frame</span>
         <select id="selView">
           <option value="today">Today</option>
@@ -307,11 +342,17 @@ footer {
         </select>
       </label>
     </div>
+
+    <div class="section-title">Widgets</div>
+    <div id="widgetsList"></div>
+    <button class="add-widget" id="addWidgetBtn">＋ Add widget</button>
+
     <div class="picker-actions">
-      <input id="saveName" placeholder="Name this dashboard (e.g. Ancillary — This Week)">
-      <button id="saveBtn">Save as dashboard</button>
-      <button id="applyBtn">Apply</button>
+      <input id="saveName" type="text" placeholder="Dashboard name">
+      <button id="saveBtn">Save</button>
+      <button id="applyBtn" class="secondary">Apply without saving</button>
     </div>
+
     <div class="picker-head"><h2>Agents</h2><button class="gear" id="agentsToggle">Edit names &amp; photos</button></div>
     <div id="agentsEditor" class="hidden">
       <div class="picker-actions" style="border-top:none;padding-top:0">
@@ -330,12 +371,6 @@ import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/fi
 const CFG = window.TV_CONFIG;
 const FB = window.FIREBASE_CONFIG;
 
-// Per-TV dashboard title: /tv/?title=Ancillary%20Board
-const customTitle = new URLSearchParams(location.search).get("title");
-if (customTitle) CFG.TITLE = customTitle;
-document.getElementById("brand").textContent = CFG.TITLE;
-document.title = CFG.TITLE;
-
 const overlay = document.getElementById("overlay");
 const overlayMsg = document.getElementById("overlayMsg");
 
@@ -345,23 +380,51 @@ if (FB.apiKey.startsWith("REPLACE_")) {
 }
 
 /* ── Dashboard state ──────────────────────────────────────────────────────
-   A "dashboard" is {title, metric, view, filters}. The active one lives in
-   localStorage (so each TV keeps its board across reloads); URL params
-   still work and take precedence for shareable links. Saved dashboards
-   are picked from the on-screen panel (click the title or ⚙). */
+   A dashboard is {title, view, filters, widgets[]}. Widgets:
+     {type:"leaderboard", metric:"revenue"|"apps", label?, ffield?, fvalue?}
+     {type:"kpi",        metric:"revenue"|"apps"|"avg", label?, ffield?, fvalue?}
+     {type:"breakdown",  metric:"revenue"|"apps", field:<column>, label?, ffield?, fvalue?}
+   ffield/fvalue are an optional widget-level filter on top of the
+   dashboard-level filters. Active dashboard + saved list live in
+   localStorage (per device); ?d=<json> makes a shareable link. */
 const params = new URLSearchParams(location.search);
-const NON_FILTER_PARAMS = ["title", "metric", "view", "retry"];
-const DEFAULT_STATE = { title: CFG.TITLE, metric: CFG.DEFAULT_METRIC, view: "mtd", filters: {} };
+const NON_FILTER_PARAMS = ["title", "metric", "view", "retry", "d"];
 const VIEWS = { today: "Today", week: "This Week", mtd: "MTD", ytd: "YTD" };
+const WIDGET_TYPES = { leaderboard: "Leaderboard", kpi: "KPI tile", breakdown: "Breakdown" };
+const METRICS = { revenue: "Revenue", apps: "Apps", avg: "Avg $ / App" };
+const DEFAULT_STATE = {
+  title: CFG.TITLE,
+  view: "mtd",
+  filters: {},
+  widgets: [{ type: "kpi", metric: "revenue" }, { type: "kpi", metric: "apps" }, { type: "leaderboard", metric: "revenue" }],
+};
+
+function normalizeState(s) {
+  const out = { ...structuredClone(DEFAULT_STATE), ...s };
+  if (!VIEWS[out.view]) out.view = "mtd";
+  if (!Array.isArray(out.widgets) || !out.widgets.length) {
+    out.widgets = structuredClone(DEFAULT_STATE.widgets);
+  }
+  out.widgets = out.widgets
+    .filter((w) => WIDGET_TYPES[w?.type])
+    .map((w) => ({ ...w, metric: METRICS[w.metric] ? w.metric : "revenue" }));
+  if (typeof out.filters !== "object" || !out.filters) out.filters = {};
+  return out;
+}
 
 function stateFromURL() {
+  const d = params.get("d");
+  if (d) {
+    try { return normalizeState(JSON.parse(d)); } catch { /* bad link — ignore */ }
+  }
   if (![...params.keys()].filter((k) => k !== "retry").length) return null;
+  // Legacy simple links: ?metric=&view=&title=&<field>=<value>
   const s = structuredClone(DEFAULT_STATE);
   if (params.get("title")) s.title = params.get("title");
   const m = (params.get("metric") || "").toLowerCase();
-  if (["apps", "revenue"].includes(m)) s.metric = m;
   const v = (params.get("view") || "").toLowerCase();
   if (VIEWS[v]) s.view = v;
+  s.widgets = [{ type: "leaderboard", metric: m === "apps" ? "apps" : "revenue" }];
   for (const [k, val] of params.entries()) {
     if (NON_FILTER_PARAMS.includes(k) || !val) continue;
     s.filters[k] = val;
@@ -374,7 +437,7 @@ function loadState() {
   if (fromUrl) return fromUrl;
   try {
     const saved = JSON.parse(localStorage.getItem("tvState"));
-    if (saved && saved.metric) return { ...structuredClone(DEFAULT_STATE), ...saved };
+    if (saved) return normalizeState(saved);
   } catch { /* corrupted state — fall through to default */ }
   return structuredClone(DEFAULT_STATE);
 }
@@ -383,12 +446,17 @@ let state = loadState();
 
 function persistState() {
   localStorage.setItem("tvState", JSON.stringify(state));
-  const p = new URLSearchParams();
-  if (state.title && state.title !== CFG.TITLE) p.set("title", state.title);
-  if (state.metric !== CFG.DEFAULT_METRIC) p.set("metric", state.metric);
-  if (state.view !== DEFAULT_STATE.view) p.set("view", state.view);
-  for (const [k, v] of Object.entries(state.filters)) p.set(k, v);
-  history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : ""));
+  const link = JSON.stringify(state) === JSON.stringify(DEFAULT_STATE)
+    ? location.pathname
+    : location.pathname + "?d=" + encodeURIComponent(JSON.stringify(state));
+  history.replaceState(null, "", link);
+}
+
+function getDashboards() {
+  try { return JSON.parse(localStorage.getItem("tvDashboards")) || []; } catch { return []; }
+}
+function setDashboards(ds) {
+  localStorage.setItem("tvDashboards", JSON.stringify(ds));
 }
 
 function updateChips() {
@@ -407,33 +475,16 @@ function updateChips() {
 function applyState() {
   document.getElementById("brand").textContent = state.title || CFG.TITLE;
   document.title = state.title || CFG.TITLE;
+  document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
   updateChips();
-  renderTabs();
   render();
 }
 
-// Saved dashboards as an always-visible tab bar — click to switch boards
-// without leaving the page. (Create/delete them in the ⚙ picker.)
-function renderTabs() {
-  const nav = document.getElementById("dashTabs");
-  nav.innerHTML = "";
-  const saved = getDashboards();
-  if (!saved.length) return;
-  const tabs = [
-    { name: CFG.TITLE, state: structuredClone(DEFAULT_STATE) },
-    ...saved.map((d) => ({ name: d.title, state: d })),
-  ];
-  for (const t of tabs) {
-    const el = document.createElement("button");
-    el.className = "tab" + ((state.title || CFG.TITLE) === t.name ? " active" : "");
-    el.textContent = t.name;
-    el.addEventListener("click", () => {
-      state = structuredClone(t.state);
-      persistState();
-      applyState();
-    });
-    nav.appendChild(el);
-  }
+function switchTo(s) {
+  state = normalizeState(structuredClone(s));
+  persistState();
+  applyState();
+  renderSidebar();
 }
 
 /* ── Agent profiles (names + photos, edited in-app) ── */
@@ -450,7 +501,6 @@ function photoOf(agent) { return profiles.get(slugOf(agent))?.photo || null; }
 /* ── Firestore live listeners ── */
 const db = getFirestore(initializeApp(FB));
 let latest = null;
-let lastUpdateMs = 0;
 
 onSnapshot(collection(db, "tvProfiles"), (snap) => {
   const next = new Map();
@@ -476,7 +526,6 @@ onSnapshot(collection(db, "tvLeaderboard"),
       return;
     }
     latest = { ...(meta || {}), rows };
-    lastUpdateMs = Date.now();
     overlay.classList.add("hidden");
     render();
   },
@@ -486,7 +535,7 @@ onSnapshot(collection(db, "tvLeaderboard"),
   }
 );
 
-/* ── Rendering ── */
+/* ── Aggregation ── */
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -504,100 +553,177 @@ function periodStart(v) {
   return ymd(new Date(now.getFullYear(), now.getMonth(), 1)); // mtd
 }
 
-function render() {
-  if (!latest) return;
-  const rows = latest.rows || [];
-  const view = state.view;
-  const metric = state.metric;
-  const start = periodStart(view);
-  const fields = latest.filterFields || [];
+function matchesFilter(r, field, value) {
+  return String(r[field] || "").trim().toLowerCase() === String(value).trim().toLowerCase();
+}
 
-  const byAgent = new Map();
-  const totals = { apps: 0, revenue: 0 };
-  for (const r of rows) {
+// Rows within the dashboard's date frame + filters, plus the widget's own
+// optional filter.
+function rowsFor(widget) {
+  const start = periodStart(state.view);
+  const fields = latest.filterFields || [];
+  const out = [];
+  for (const r of latest.rows || []) {
     if ((r[CFG.dateField] || "") < start) continue;
     let keep = true;
     for (const [k, v] of Object.entries(state.filters)) {
-      if (fields.length && !fields.includes(k)) continue; // stale/unknown filter key
-      if (String(r[k] || "").trim().toLowerCase() !== String(v).trim().toLowerCase()) { keep = false; break; }
+      if (fields.length && !fields.includes(k)) continue; // stale filter key
+      if (!matchesFilter(r, k, v)) { keep = false; break; }
     }
-    if (!keep) continue;
-    const apps = Number(r[CFG.appsField]) || 0;
-    const revenue = Number(r[CFG.revenueField]) || 0;
-    totals.apps += apps;
-    totals.revenue += revenue;
-    const agent = r[CFG.agentField] || "Unknown";
-    const acc = byAgent.get(agent) || { apps: 0, revenue: 0 };
-    acc.apps += apps;
-    acc.revenue += revenue;
-    byAgent.set(agent, acc);
+    if (keep && widget?.ffield && widget?.fvalue && !matchesFilter(r, widget.ffield, widget.fvalue)) keep = false;
+    if (keep) out.push(r);
   }
+  return out;
+}
 
-  const ranked = [...byAgent.entries()]
-    .map(([agent, m]) => ({ agent, ...m }))
-    .sort((a, b) => b[metric] - a[metric] || a.agent.localeCompare(b.agent));
-
-  document.getElementById("viewBadge").textContent = (VIEWS[view] || view).toUpperCase();
-  document.getElementById("totalNum").textContent = fmtMetric(totals[metric]);
-  document.getElementById("totalLbl").textContent = metric === "revenue" ? "Revenue" : "Apps";
-
-  const board = document.getElementById("board");
-  board.innerHTML = "";
-  const max = ranked.length ? ranked[0][metric] : 1;
-  const shown = ranked.slice(0, CFG.MAX_ROWS);
-
-  for (let i = 0; i < shown.length; i++) {
-    const { agent, apps, revenue } = shown[i];
-    const main = metric === "revenue" ? revenue : apps;
-    const sub = metric === "revenue" ? `${fmt(apps)} apps` : fmtMoney(revenue);
-    const row = document.createElement("div");
-    row.className = "row";
-    const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
-    row.innerHTML = `
-      <div class="rank r${i + 1}">${i + 1}</div>
-      <div class="avatar"></div>
-      <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
-      <div><div class="apps">${fmtMetric(main)}</div><div class="sub">${sub}</div></div>`;
-    row.querySelector(".name").textContent = displayNameOf(agent);
-    const av = row.querySelector(".avatar");
-    const photo = photoOf(agent);
-    if (photo) {
-      const img = document.createElement("img");
-      img.src = photo;
-      img.alt = "";
-      av.appendChild(img);
-    } else {
-      av.textContent = initialsOf(displayNameOf(agent));
-    }
-    board.appendChild(row);
+function sumsOf(rows) {
+  let apps = 0, revenue = 0;
+  for (const r of rows) {
+    apps += Number(r[CFG.appsField]) || 0;
+    revenue += Number(r[CFG.revenueField]) || 0;
   }
-  if (ranked.length > CFG.MAX_ROWS) {
-    const more = document.createElement("div");
-    more.className = "more";
-    const rest = ranked.slice(CFG.MAX_ROWS).reduce((s, r) => s + r[metric], 0);
-    more.textContent = `+ ${ranked.length - CFG.MAX_ROWS} more agents · ${fmtMetric(rest)}`;
-    board.appendChild(more);
-  }
-  if (!ranked.length) {
-    const empty = document.createElement("div");
-    empty.className = "more";
-    empty.textContent = "No apps in this period yet.";
-    board.appendChild(empty);
-  }
+  return { apps, revenue };
+}
 
-  updateStatus();
+function aggBy(rows, keyFn) {
+  const map = new Map();
+  for (const r of rows) {
+    const key = keyFn(r) || "—";
+    const acc = map.get(key) || { apps: 0, revenue: 0 };
+    acc.apps += Number(r[CFG.appsField]) || 0;
+    acc.revenue += Number(r[CFG.revenueField]) || 0;
+    map.set(key, acc);
+  }
+  return map;
 }
 
 function fmt(n) {
   return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
-
 function fmtMoney(n) {
   return "$" + Math.round(n).toLocaleString();
 }
+function fmtBy(metric, n) {
+  return metric === "apps" ? fmt(n) : fmtMoney(n);
+}
 
-function fmtMetric(n) {
-  return state.metric === "revenue" ? fmtMoney(n) : fmt(n);
+function widgetLabel(w) {
+  if (w.label) return w.label;
+  const suffix = w.fvalue ? ` — ${w.fvalue}` : "";
+  if (w.type === "kpi") return METRICS[w.metric] + suffix;
+  if (w.type === "breakdown") return `${METRICS[w.metric]} by ${String(w.field || "").replace(/_/g, " ")}` + suffix;
+  return "Leaderboard" + (w.metric === "apps" ? " — Apps" : "") + suffix;
+}
+
+/* ── Rendering ── */
+function render() {
+  if (!latest) return;
+
+  const kpis = state.widgets.filter((w) => w.type === "kpi");
+  const boards = state.widgets.filter((w) => w.type !== "kpi");
+
+  const kpiRow = document.getElementById("kpiRow");
+  kpiRow.innerHTML = "";
+  let headerSet = false;
+  for (const w of kpis) {
+    const sums = sumsOf(rowsFor(w));
+    const value = w.metric === "apps" ? fmt(sums.apps)
+      : w.metric === "avg" ? fmtMoney(sums.revenue / Math.max(1, sums.apps))
+      : fmtMoney(sums.revenue);
+    if (!headerSet) {
+      document.getElementById("totalNum").textContent = value;
+      document.getElementById("totalLbl").textContent = widgetLabel(w);
+      headerSet = true;
+    }
+    const tile = document.createElement("div");
+    tile.className = "kpi-tile";
+    const num = document.createElement("div");
+    num.className = "kpi-num";
+    num.textContent = value;
+    const lbl = document.createElement("div");
+    lbl.className = "kpi-lbl";
+    lbl.textContent = widgetLabel(w);
+    tile.append(num, lbl);
+    kpiRow.appendChild(tile);
+  }
+
+  const widgetsEl = document.getElementById("widgets");
+  widgetsEl.innerHTML = "";
+  widgetsEl.style.gridTemplateColumns = `repeat(${Math.max(1, boards.length)}, 1fr)`;
+  for (const w of boards) {
+    const rows = rowsFor(w);
+    const isAgents = w.type === "leaderboard";
+    const map = aggBy(rows, isAgents ? (r) => r[CFG.agentField] : (r) => r[w.field]);
+    const ranked = [...map.entries()]
+      .map(([key, m]) => ({ key, ...m }))
+      .sort((a, b) => b[w.metric] - a[w.metric] || String(a.key).localeCompare(String(b.key)));
+
+    if (!headerSet) {
+      const sums = sumsOf(rows);
+      document.getElementById("totalNum").textContent = fmtBy(w.metric, sums[w.metric]);
+      document.getElementById("totalLbl").textContent = METRICS[w.metric];
+      headerSet = true;
+    }
+
+    const panel = document.createElement("div");
+    panel.className = "widget";
+    const h = document.createElement("h3");
+    h.textContent = widgetLabel(w);
+    const boardEl = document.createElement("div");
+    boardEl.className = "wboard";
+    panel.append(h, boardEl);
+
+    const max = ranked.length ? ranked[0][w.metric] : 1;
+    const shown = ranked.slice(0, CFG.MAX_ROWS);
+    for (let i = 0; i < shown.length; i++) {
+      const e = shown[i];
+      const main = e[w.metric];
+      const sub = w.metric === "apps" ? fmtMoney(e.revenue) : `${fmt(e.apps)} apps`;
+      const row = document.createElement("div");
+      row.className = "row" + (isAgents ? "" : " noav");
+      const pct = max > 0 ? Math.max(4, (main / max) * 100) : 4;
+      row.innerHTML = `
+        <div class="rank r${i + 1}">${i + 1}</div>
+        ${isAgents ? '<div class="avatar"></div>' : ""}
+        <div class="bar-wrap"><div class="bar" style="width:${pct}%"></div><div class="name"></div></div>
+        <div><div class="apps">${fmtBy(w.metric, main)}</div><div class="sub">${sub}</div></div>`;
+      row.querySelector(".name").textContent = isAgents ? displayNameOf(e.key) : e.key;
+      if (isAgents) {
+        const av = row.querySelector(".avatar");
+        const photo = photoOf(e.key);
+        if (photo) {
+          const img = document.createElement("img");
+          img.src = photo;
+          img.alt = "";
+          av.appendChild(img);
+        } else {
+          av.textContent = initialsOf(displayNameOf(e.key));
+        }
+      }
+      boardEl.appendChild(row);
+    }
+    if (ranked.length > CFG.MAX_ROWS) {
+      const more = document.createElement("div");
+      more.className = "more";
+      const rest = ranked.slice(CFG.MAX_ROWS).reduce((s, r) => s + r[w.metric], 0);
+      more.textContent = `+ ${ranked.length - CFG.MAX_ROWS} more · ${fmtBy(w.metric, rest)}`;
+      boardEl.appendChild(more);
+    }
+    if (!ranked.length) {
+      const empty = document.createElement("div");
+      empty.className = "more";
+      empty.textContent = "No apps in this period yet.";
+      boardEl.appendChild(empty);
+    }
+    widgetsEl.appendChild(panel);
+  }
+
+  if (!headerSet) {
+    document.getElementById("totalNum").textContent = "—";
+    document.getElementById("totalLbl").textContent = "";
+  }
+
+  updateStatus();
 }
 
 function updateStatus() {
@@ -615,11 +741,83 @@ function updateStatus() {
   txt.textContent = parts.join(" · ") || "Live";
 }
 
-/* ── Dashboard picker ── */
+/* ── Sidebar ── */
+const sidebar = document.getElementById("sidebar");
+const backdrop = document.getElementById("backdrop");
+document.getElementById("menuBtn").addEventListener("click", openSidebar);
+document.getElementById("brand").addEventListener("click", openSidebar);
+document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
+backdrop.addEventListener("click", () => { closeSidebar(); closeEditor(); });
+
+function openSidebar() {
+  renderSidebar();
+  sidebar.classList.remove("hidden");
+  backdrop.classList.remove("hidden");
+}
+function closeSidebar() {
+  sidebar.classList.add("hidden");
+  if (picker.classList.contains("hidden")) backdrop.classList.add("hidden");
+}
+
+function renderSidebar() {
+  const list = document.getElementById("sidebarList");
+  list.innerHTML = "";
+  const items = [
+    { name: CFG.TITLE, state: structuredClone(DEFAULT_STATE), idx: null },
+    ...getDashboards().map((d, idx) => ({ name: d.title, state: d, idx })),
+  ];
+  for (const it of items) {
+    const el = document.createElement("div");
+    el.className = "side-item" + ((state.title || CFG.TITLE) === it.name ? " active" : "");
+
+    const nameBtn = document.createElement("button");
+    nameBtn.className = "side-name";
+    nameBtn.textContent = it.name;
+    nameBtn.addEventListener("click", () => { switchTo(it.state); closeSidebar(); });
+    el.appendChild(nameBtn);
+
+    const edit = document.createElement("button");
+    edit.className = "side-act";
+    edit.textContent = "✎";
+    edit.title = it.idx == null ? "Customize (saves as a new dashboard)" : "Edit dashboard";
+    edit.addEventListener("click", () => { closeSidebar(); openEditor(it.state, it.idx); });
+    el.appendChild(edit);
+
+    if (it.idx != null) {
+      const del = document.createElement("button");
+      del.className = "side-act del";
+      del.textContent = "✕";
+      del.title = "Delete dashboard";
+      del.addEventListener("click", () => {
+        const ds = getDashboards();
+        ds.splice(it.idx, 1);
+        setDashboards(ds);
+        renderSidebar();
+      });
+      el.appendChild(del);
+    }
+    list.appendChild(el);
+  }
+}
+
+document.getElementById("newDashBtn").addEventListener("click", () => {
+  closeSidebar();
+  openEditor({ ...structuredClone(DEFAULT_STATE), title: "" }, null);
+});
+
+/* ── Dashboard editor ── */
 const picker = document.getElementById("picker");
-document.getElementById("brand").addEventListener("click", openPicker);
-document.getElementById("gearBtn").addEventListener("click", openPicker);
-document.getElementById("pickerClose").addEventListener("click", () => picker.classList.add("hidden"));
+let editorIdx = null; // index into saved dashboards, or null = save as new
+document.getElementById("gearBtn").addEventListener("click", () => {
+  const idx = getDashboards().findIndex((d) => d.title === state.title);
+  openEditor(state, idx === -1 ? null : idx);
+});
+document.getElementById("pickerClose").addEventListener("click", closeEditor);
+
+function closeEditor() {
+  picker.classList.add("hidden");
+  if (sidebar.classList.contains("hidden")) backdrop.classList.add("hidden");
+}
 
 function uniqueValues(field) {
   const seen = new Map();
@@ -630,123 +828,162 @@ function uniqueValues(field) {
   return [...seen.values()].sort((a, b) => a.localeCompare(b)).slice(0, 300);
 }
 
-function openPicker() {
-  document.getElementById("selMetric").value = state.metric;
-  document.getElementById("selView").value = state.view;
+function makeSelect(options, value, allLabel) {
+  const sel = document.createElement("select");
+  if (allLabel != null) {
+    const o = document.createElement("option");
+    o.value = "";
+    o.textContent = allLabel;
+    sel.appendChild(o);
+  }
+  const entries = Array.isArray(options) ? options.map((v) => [v, v]) : Object.entries(options);
+  for (const [val, text] of entries) {
+    const o = document.createElement("option");
+    o.value = val;
+    o.textContent = String(text).replace(/_/g, " ");
+    sel.appendChild(o);
+  }
+  if (value != null) {
+    sel.value = value;
+    if (sel.value !== value && value !== "") { // preserve values missing from options
+      const o = document.createElement("option");
+      o.value = value;
+      o.textContent = value;
+      sel.appendChild(o);
+      sel.value = value;
+    }
+  }
+  return sel;
+}
+
+function labeled(text, el) {
+  const label = document.createElement("label");
+  const span = document.createElement("span");
+  span.textContent = text;
+  label.append(span, el);
+  return label;
+}
+
+function openEditor(source, idx) {
+  editorIdx = idx;
+  const s = normalizeState(structuredClone(source));
+  document.getElementById("editorTitle").textContent = idx == null ? "New dashboard" : "Edit dashboard";
+  document.getElementById("saveName").value = idx == null ? (source.title === CFG.TITLE ? "" : source.title || "") : s.title;
+  document.getElementById("selView").value = s.view;
+
+  // Dashboard-level filters
   const grid = document.getElementById("pickerGrid");
   grid.querySelectorAll("label.dyn").forEach((el) => el.remove());
   for (const f of latest?.filterFields || []) {
-    const label = document.createElement("label");
-    label.className = "dyn";
-    const span = document.createElement("span");
-    span.textContent = f.replace(/_/g, " ");
-    const sel = document.createElement("select");
+    const sel = makeSelect(uniqueValues(f), s.filters[f] || "", "All");
     sel.dataset.field = f;
-    const all = document.createElement("option");
-    all.value = "";
-    all.textContent = "All";
-    sel.appendChild(all);
-    for (const v of uniqueValues(f)) {
-      const o = document.createElement("option");
-      o.value = v;
-      o.textContent = v;
-      sel.appendChild(o);
-    }
-    const active = state.filters[f];
-    if (active) {
-      sel.value = active;
-      if (sel.value !== active) { // value casing differs from options — add it
-        const o = document.createElement("option");
-        o.value = active;
-        o.textContent = active;
-        sel.appendChild(o);
-        sel.value = active;
-      }
-    }
-    label.append(span, sel);
+    const label = labeled(f.replace(/_/g, " "), sel);
+    label.className = "dyn";
     grid.appendChild(label);
   }
-  renderSaved();
+
+  // Widgets
+  const list = document.getElementById("widgetsList");
+  list.innerHTML = "";
+  for (const w of s.widgets) list.appendChild(widgetRow(w));
+
   document.getElementById("agentsEditor").classList.add("hidden");
   picker.classList.remove("hidden");
+  backdrop.classList.remove("hidden");
 }
 
-function pickerToState(title) {
+function widgetRow(w) {
+  const row = document.createElement("div");
+  row.className = "wrow";
+
+  const fields = latest?.filterFields || [];
+  const typeSel = makeSelect(WIDGET_TYPES, w.type);
+  const metricSel = makeSelect(METRICS, METRICS[w.metric] ? w.metric : "revenue");
+  const fieldSel = makeSelect(fields, w.field || (fields[0] || ""));
+  const fFieldSel = makeSelect(fields, w.ffield || "", "No widget filter");
+  const fValueSel = makeSelect(w.ffield ? uniqueValues(w.ffield) : [], w.fvalue || "", "All");
+  const labelInput = document.createElement("input");
+  labelInput.type = "text";
+  labelInput.placeholder = "Label (optional)";
+  labelInput.value = w.label || "";
+  const del = document.createElement("button");
+  del.className = "w-del";
+  del.textContent = "✕";
+  del.title = "Remove widget";
+  del.addEventListener("click", () => row.remove());
+
+  function syncVisibility() {
+    // "Avg $ / App" only makes sense for KPI tiles.
+    metricSel.querySelector('option[value="avg"]').hidden = typeSel.value !== "kpi";
+    if (typeSel.value !== "kpi" && metricSel.value === "avg") metricSel.value = "revenue";
+    fieldSel.parentElement.style.visibility = typeSel.value === "breakdown" ? "visible" : "hidden";
+  }
+  typeSel.addEventListener("change", syncVisibility);
+  fFieldSel.addEventListener("change", () => {
+    const fresh = makeSelect(fFieldSel.value ? uniqueValues(fFieldSel.value) : [], "", "All");
+    fresh.className = fValueSel.className;
+    fValueSel.replaceChildren(...fresh.childNodes);
+    fValueSel.value = "";
+  });
+
+  row.append(
+    labeled("Widget", typeSel),
+    labeled("KPI", metricSel),
+    labeled("Break down by", fieldSel),
+    labeled("Widget filter", fFieldSel),
+    labeled("Filter value", fValueSel),
+    labeled("Label", labelInput),
+    del,
+  );
+  row._read = () => {
+    const out = { type: typeSel.value, metric: metricSel.value };
+    if (out.type === "breakdown") out.field = fieldSel.value;
+    if (fFieldSel.value && fValueSel.value) { out.ffield = fFieldSel.value; out.fvalue = fValueSel.value; }
+    if (labelInput.value.trim()) out.label = labelInput.value.trim();
+    return out;
+  };
+  syncVisibility();
+  return row;
+}
+
+document.getElementById("addWidgetBtn").addEventListener("click", () => {
+  document.getElementById("widgetsList").appendChild(widgetRow({ type: "leaderboard", metric: "revenue" }));
+});
+
+function editorToState(title) {
   const filters = {};
   document.querySelectorAll("#pickerGrid select[data-field]").forEach((s) => {
     if (s.value) filters[s.dataset.field] = s.value;
   });
-  return {
+  const widgets = [...document.querySelectorAll("#widgetsList .wrow")].map((r) => r._read());
+  return normalizeState({
     title: title || CFG.TITLE,
-    metric: document.getElementById("selMetric").value,
     view: document.getElementById("selView").value,
     filters,
-  };
+    widgets,
+  });
 }
 
 document.getElementById("applyBtn").addEventListener("click", () => {
-  state = pickerToState(state.title);
-  persistState();
-  applyState();
-  picker.classList.add("hidden");
+  switchTo(editorToState(document.getElementById("saveName").value.trim() || state.title));
+  closeEditor();
 });
-
-function getDashboards() {
-  try { return JSON.parse(localStorage.getItem("tvDashboards")) || []; } catch { return []; }
-}
 
 document.getElementById("saveBtn").addEventListener("click", () => {
-  const name = document.getElementById("saveName").value.trim();
-  if (!name) { document.getElementById("saveName").focus(); return; }
-  const d = pickerToState(name);
+  const nameInput = document.getElementById("saveName");
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); return; }
+  const d = editorToState(name);
   const ds = getDashboards();
-  ds.push(d);
-  localStorage.setItem("tvDashboards", JSON.stringify(ds));
-  document.getElementById("saveName").value = "";
-  state = d;
-  persistState();
-  applyState();
-  picker.classList.add("hidden");
+  if (editorIdx != null && ds[editorIdx]) ds[editorIdx] = d;
+  else ds.push(d);
+  setDashboards(ds);
+  switchTo(d);
+  closeEditor();
 });
 
-function renderSaved() {
-  const list = document.getElementById("savedList");
-  list.innerHTML = "";
-  const cards = [
-    { name: CFG.TITLE + " (default)", state: structuredClone(DEFAULT_STATE) },
-    ...getDashboards().map((d, idx) => ({ name: d.title, state: d, idx })),
-  ];
-  for (const c of cards) {
-    const card = document.createElement("button");
-    card.className = "dash-card";
-    card.append(c.name);
-    if (c.idx != null) {
-      const del = document.createElement("span");
-      del.className = "dash-del";
-      del.textContent = "✕";
-      del.title = "Delete dashboard";
-      del.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const ds = getDashboards();
-        ds.splice(c.idx, 1);
-        localStorage.setItem("tvDashboards", JSON.stringify(ds));
-        renderSaved();
-        renderTabs();
-      });
-      card.appendChild(del);
-    }
-    card.addEventListener("click", () => {
-      state = structuredClone(c.state);
-      persistState();
-      applyState();
-      picker.classList.add("hidden");
-    });
-    list.appendChild(card);
-  }
-}
-
 /* ── Agent editor (names + photos, saved to Firestore via the admin
-      endpoint — nothing hosted elsewhere) ── */
+      endpoint) ── */
 const adminKeyInput = document.getElementById("adminKey");
 adminKeyInput.value = localStorage.getItem("tvAdminKey") || "";
 adminKeyInput.addEventListener("change", () => localStorage.setItem("tvAdminKey", adminKeyInput.value.trim()));
@@ -868,6 +1105,7 @@ function renderAgentsEditor() {
   }
 }
 
+/* ── Init ── */
 applyState();
 
 // Refresh date-frame boundary / staleness even when no new snapshot arrives.
