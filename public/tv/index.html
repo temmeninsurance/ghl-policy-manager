@@ -1349,6 +1349,28 @@ footer {
   border-radius: .8vh; padding: .9vh 1vw; font-size: 1.9vh; width: 100%;
   color-scheme: dark;
 }
+.msel { position: relative; }
+.msel-btn {
+  width: 100%; text-align: left; cursor: pointer;
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: .8vh; padding: .9vh 1vw; font-size: 1.9vh;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.msel-drop {
+  position: absolute; top: calc(100% + .4vh); left: 0; right: 0; z-index: 30;
+  max-height: 34vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: .8vh;
+  padding: .5vh; display: flex; flex-direction: column; gap: .1vh;
+  box-shadow: 0 1vh 3vh rgba(0, 0, 0, .5);
+}
+.msel-opt {
+  display: flex; align-items: center; gap: .6vw;
+  font-size: 1.7vh; color: var(--text); text-transform: none;
+  padding: .5vh .8vw; border-radius: .5vh; cursor: pointer;
+}
+.msel-opt:hover { background: rgba(128, 128, 128, .15); }
+.msel-opt input { accent-color: var(--accent); }
+
 .picker-actions { display: flex; gap: 1vw; align-items: center; border-top: 1px solid var(--line); padding-top: 1.8vh; }
 .picker-actions input { flex: 1; }
 .picker-actions button {
@@ -1701,6 +1723,18 @@ function normalizeState(s) {
   out.contestEnd = /^\d{4}-\d{2}-\d{2}$/.test(out.contestEnd || "") ? out.contestEnd : "";
   const rs = Number(out.rowsShown);
   out.rowsShown = Number.isInteger(rs) && rs >= 3 && rs <= 30 ? rs : 0; // 0 = auto
+  if (typeof out.filters === "object" && out.filters) {
+    const nf = {};
+    for (const [k, v] of Object.entries(out.filters)) {
+      if (Array.isArray(v)) {
+        const a = v.map(String).filter(Boolean);
+        if (a.length) nf[k] = a.length === 1 ? a[0] : a;
+      } else if (v != null && v !== "") {
+        nf[k] = String(v);
+      }
+    }
+    out.filters = nf;
+  }
   out.theme = ["race", "opoly", "madness", "golf", "cup", "deal"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
@@ -2108,8 +2142,11 @@ function paceFraction() {
   return { elapsed, total, frac: Math.min(1, elapsed / total) };
 }
 
+// value may be a single string or an array (any-of).
 function matchesFilter(r, field, value) {
-  return String(r[field] || "").trim().toLowerCase() === String(value).trim().toLowerCase();
+  const rv = String(r[field] || "").trim().toLowerCase();
+  if (Array.isArray(value)) return value.some((v) => rv === String(v).trim().toLowerCase());
+  return rv === String(value).trim().toLowerCase();
 }
 
 // Rows within the dashboard's date frame + filters, plus the widget's own
@@ -2725,6 +2762,71 @@ function labeled(text, el) {
   return label;
 }
 
+// Checkbox dropdown for dashboard filters — pick any number of values
+// (none checked = All).
+function makeMultiSelect(field, values, selected) {
+  const wrap = document.createElement("div");
+  wrap.className = "msel";
+  wrap.dataset.field = field;
+  const sel = new Set((Array.isArray(selected) ? selected : selected ? [selected] : []).map(String));
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "msel-btn";
+  const drop = document.createElement("div");
+  drop.className = "msel-drop hidden";
+  drop.addEventListener("click", (e) => e.stopPropagation());
+
+  const summary = () => {
+    const arr = [...sel];
+    btn.textContent = arr.length === 0 ? "All"
+      : arr.length === 1 ? arr[0]
+      : `${arr[0]} +${arr.length - 1} more`;
+  };
+
+  const allCb = document.createElement("input");
+  allCb.type = "checkbox";
+  allCb.checked = sel.size === 0;
+  const allOpt = document.createElement("label");
+  allOpt.className = "msel-opt";
+  allOpt.append(allCb, document.createTextNode(" All"));
+  allCb.addEventListener("change", () => {
+    sel.clear();
+    drop.querySelectorAll("input").forEach((c) => { if (c !== allCb) c.checked = false; });
+    allCb.checked = true;
+    summary();
+  });
+  drop.appendChild(allOpt);
+
+  for (const v of values) {
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = sel.has(v);
+    const opt = document.createElement("label");
+    opt.className = "msel-opt";
+    opt.append(cb, document.createTextNode(" " + v));
+    cb.addEventListener("change", () => {
+      if (cb.checked) sel.add(v); else sel.delete(v);
+      allCb.checked = sel.size === 0;
+      summary();
+    });
+    drop.appendChild(opt);
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.querySelectorAll(".msel-drop").forEach((d) => { if (d !== drop) d.classList.add("hidden"); });
+    drop.classList.toggle("hidden");
+  });
+
+  wrap._read = () => [...sel];
+  wrap.append(btn, drop);
+  summary();
+  return wrap;
+}
+document.addEventListener("click", () =>
+  document.querySelectorAll(".msel-drop").forEach((d) => d.classList.add("hidden")));
+
 function openEditor(source, idx) {
   editorIdx = idx;
   const s = normalizeState(structuredClone(source));
@@ -2756,13 +2858,15 @@ function openEditor(source, idx) {
   parentSel.value = source.parentId || "";
   if (parentSel.value !== (source.parentId || "")) parentSel.value = "";
 
-  // Dashboard-level filters
+  // Dashboard-level filters — multi-select (any-of within a field)
   const grid = document.getElementById("pickerGrid");
   grid.querySelectorAll("label.dyn").forEach((el) => el.remove());
   for (const f of latest?.filterFields || []) {
-    const sel = makeSelect(uniqueValues(f), s.filters[f] || "", "All");
-    sel.dataset.field = f;
-    const label = labeled(f.replace(/_/g, " "), sel);
+    const cur = s.filters[f];
+    const base = uniqueValues(f);
+    const extras = (Array.isArray(cur) ? cur : cur ? [cur] : []).filter((v) => !base.includes(v));
+    const ms = makeMultiSelect(f, [...base, ...extras], cur);
+    const label = labeled(f.replace(/_/g, " "), ms);
     label.className = "dyn";
     grid.appendChild(label);
   }
@@ -2837,8 +2941,9 @@ document.getElementById("addWidgetBtn").addEventListener("click", () => {
 
 function editorToState(title) {
   const filters = {};
-  document.querySelectorAll("#pickerGrid select[data-field]").forEach((s) => {
-    if (s.value) filters[s.dataset.field] = s.value;
+  document.querySelectorAll("#pickerGrid .msel").forEach((m) => {
+    const vals = m._read();
+    if (vals.length) filters[m.dataset.field] = vals.length === 1 ? vals[0] : vals;
   });
   const widgets = [...document.querySelectorAll("#widgetsList .wrow")].map((r) => r._read());
   const out = normalizeState({
