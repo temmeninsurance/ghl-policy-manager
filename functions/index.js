@@ -262,30 +262,44 @@ async function syncSheetToFirestore() {
   const metaRef = db.doc("tvLeaderboard/current");
   const prevHashes = ((await metaRef.get()).data() || {}).monthHashes || {};
 
+  // Heavy months (AEP season) can exceed the 1 MB doc limit on their own —
+  // shard those into <month>-p1, <month>-p2, … The TV page merges any doc
+  // that carries a rows array, so shards need no client changes.
+  const TARGET_DOC_BYTES = 700_000;
+  const docs = new Map(); // docId → rows
+  for (const [month, monthRows] of byMonth) {
+    const size = JSON.stringify(monthRows).length + 200;
+    const parts = Math.max(1, Math.ceil(size / TARGET_DOC_BYTES));
+    if (parts === 1) { docs.set(month, monthRows); continue; }
+    const per = Math.ceil(monthRows.length / parts);
+    for (let k = 0; k < parts; k++) {
+      const chunk = monthRows.slice(k * per, (k + 1) * per);
+      if (chunk.length) docs.set(`${month}-p${k + 1}`, chunk);
+    }
+  }
+
   const monthHashes = {};
   let monthsWritten = 0;
-  for (const [month, monthRows] of byMonth) {
-    const payload = { month, rowCount: monthRows.length, rows: monthRows };
+  for (const [docId, docRows] of docs) {
+    const payload = { month: docId.slice(0, 7), rowCount: docRows.length, rows: docRows };
     const json = JSON.stringify(payload);
     if (json.length > MAX_DOC_BYTES) {
       throw new Error(
-        `Refusing to write: month ${month} would be ~${Math.round(json.length / 1024)} KB, ` +
-        `over the 1 MB Firestore doc limit. Reduce synced fields for this to fit.`
+        `Refusing to write: doc ${docId} would be ~${Math.round(json.length / 1024)} KB, ` +
+        `over the 1 MB Firestore doc limit even after sharding.`
       );
     }
-    if (json.length > MAX_DOC_BYTES * 0.8) {
-      warnings.push(`Month ${month} is at ${Math.round((json.length / MAX_DOC_BYTES) * 100)}% of the 1 MB doc limit.`);
-    }
     const hash = hashString(json);
-    monthHashes[month] = hash;
-    if (prevHashes[month] === hash) continue; // unchanged — skip the write
-    await db.doc(`tvLeaderboard/${month}`).set({ ...payload, updatedAt: FieldValue.serverTimestamp() });
+    monthHashes[docId] = hash;
+    if (prevHashes[docId] === hash) continue; // unchanged — skip the write
+    await db.doc(`tvLeaderboard/${docId}`).set({ ...payload, updatedAt: FieldValue.serverTimestamp() });
     monthsWritten++;
   }
 
-  // Drop month docs that no longer exist in the sheet (e.g. year rollover).
-  for (const month of Object.keys(prevHashes)) {
-    if (!byMonth.has(month)) await db.doc(`tvLeaderboard/${month}`).delete();
+  // Drop docs that no longer exist (year rollover, or a month that was
+  // just re-sharded under new ids).
+  for (const docId of Object.keys(prevHashes)) {
+    if (!docs.has(docId)) await db.doc(`tvLeaderboard/${docId}`).delete();
   }
 
   await metaRef.set({
