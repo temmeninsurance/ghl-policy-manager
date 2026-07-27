@@ -40,11 +40,43 @@ const SHEET_ID = "1Q_UveDxIZ8-NokXp_umtoiiEC0Gs_MZvt4ZmFjbmly8";
 const SHEET_TAB = "All Apps";
 
 // Every OTHER visible tab in the spreadsheet is also synced as an extra
-// data source, as long as it has the same required headers (COLUMN_MAP.agent
-// and COLUMN_MAP.date). Dashboards pick their source in the TV editor.
-// Tabs without those headers (notes, pivots, …) are skipped automatically;
-// so are hidden tabs and any tab listed here:
+// data source. Each tab's columns are auto-detected from the alias lists
+// below, so tabs don't need to use the primary tab's exact header names.
+// Tabs where no agent + date column can be recognized (notes, pivots,
+// pictures, …) are skipped automatically — the skip reason (including the
+// headers seen) is written to tvLeaderboard/current → skippedTabs.
+// Hidden tabs and any tab listed here are never synced:
 const EXCLUDE_TABS = [];
+
+// Explicit column mappings for extra tabs the auto-detection can't figure
+// out. Key = exact tab name (trailing spaces ok), value shaped like
+// COLUMN_MAP. Example:
+//   "Retained Revenue": { agent: "Agent", date: "Month", apps: null, revenue: "Retained" },
+const TAB_COLUMN_MAPS = {};
+
+// Auto-detection aliases, matched case/whitespace-insensitively against each
+// extra tab's headers. Agent aliases are deliberately conservative (exact
+// matches only) so a customer-name column can never be mistaken for the
+// agent column and leak into the public docs.
+const AGENT_ALIASES = [
+  "employee email", "employee", "employee name", "agent email", "agent",
+  "agent name", "rep", "rep name", "producer", "producer name", "sdr",
+  "sdr name", "salesperson", "sold by", "writing agent", "team member",
+];
+const DATE_ALIASES = [
+  "date sold", "sold date", "sale date", "date", "submission date",
+  "date submitted", "submitted", "app date", "application date",
+  "date of sale", "effective date", "timestamp", "created", "created at",
+  "month",
+];
+const APPS_ALIASES = [
+  "app count", "apps", "app", "# of apps", "number of apps",
+  "policy count", "policies", "count", "qty", "quantity",
+];
+const REVENUE_ALIASES = [
+  "revenue", "monthly revenue", "new revenue", "total revenue",
+  "retained revenue", "commission", "comp",
+];
 
 // Maps output field → exact header-row text in the sheet (case/whitespace
 // insensitive match). `agent` and `date` are required. `apps` is optional —
@@ -171,17 +203,40 @@ async function fetchTabValues(sheets, tab) {
   return resp.data.values || [];
 }
 
-// Parse one tab's raw values into public rows. Throws when the required
-// headers can't be found (callers skip non-primary tabs on that error).
-function parseTab(tabTitle, values) {
+// Column mapping for an EXTRA tab: explicit TAB_COLUMN_MAPS entry first,
+// then alias auto-detection. Throws (with the headers it saw) when no
+// agent + date column can be recognized.
+function detectTabMap(tabTitle, values) {
+  for (const [name, map] of Object.entries(TAB_COLUMN_MAPS)) {
+    if (normalizeHeader(name) === normalizeHeader(tabTitle)) return map;
+  }
+  for (let i = 0; i < Math.min(values.length, 20); i++) {
+    const h = (values[i] || []).map(normalizeHeader);
+    const agent = AGENT_ALIASES.find((a) => h.includes(a));
+    const date = DATE_ALIASES.find((a) => h.includes(a));
+    if (!agent || !date) continue;
+    const apps = APPS_ALIASES.find((a) => h.includes(a)) || null;
+    const revenue = REVENUE_ALIASES.find((a) => h.includes(a)) ||
+      h.find((x) => /revenue/.test(x)) || null;
+    return { agent, date, apps, revenue };
+  }
+  const firstRow = (values.find((r) => r && r.filter(Boolean).length >= 2) || [])
+    .slice(0, 12).join(" | ");
+  throw new Error(`no recognizable agent/date columns; headers seen: [${firstRow.slice(0, 220)}]`);
+}
+
+// Parse one tab's raw values into public rows using the given column map.
+// Throws when the map's required headers can't be found (callers skip
+// non-primary tabs on that error).
+function parseTab(tabTitle, values, colMap = COLUMN_MAP) {
   if (values.length < 2) {
     throw new Error(`tab '${tabTitle}' returned ${values.length} row(s) — expected a header row plus data.`);
   }
 
   // The header row is not necessarily row 1 — find the first row containing
   // both required headers.
-  const agentHeader = normalizeHeader(COLUMN_MAP.agent);
-  const dateHeader = normalizeHeader(COLUMN_MAP.date);
+  const agentHeader = normalizeHeader(colMap.agent);
+  const dateHeader = normalizeHeader(colMap.date);
   let headerRow = -1;
   for (let i = 0; i < Math.min(values.length, 20); i++) {
     const h = (values[i] || []).map(normalizeHeader);
@@ -189,7 +244,7 @@ function parseTab(tabTitle, values) {
   }
   if (headerRow === -1) {
     throw new Error(
-      `no header row containing "${COLUMN_MAP.agent}" and "${COLUMN_MAP.date}" ` +
+      `no header row containing "${colMap.agent}" and "${colMap.date}" ` +
       `in the first 20 rows of tab '${tabTitle}'`
     );
   }
@@ -197,7 +252,7 @@ function parseTab(tabTitle, values) {
   const headers = values[headerRow].map(normalizeHeader);
   const colIndex = {};
   const missing = [];
-  for (const [field, headerText] of Object.entries(COLUMN_MAP)) {
+  for (const [field, headerText] of Object.entries(colMap)) {
     if (headerText == null) continue;
     const idx = headers.indexOf(normalizeHeader(headerText));
     if (idx === -1) missing.push(`${field} → "${headerText}"`);
@@ -301,11 +356,16 @@ async function syncSheetToFirestore() {
   for (const tab of tabs) {
     if (tab === SHEET_TAB || excludedTabs.has(normalizeHeader(tab))) continue;
     try {
-      const parsed = parseTab(tab, await fetchTabValues(sheets, tab));
+      const values = await fetchTabValues(sheets, tab);
+      const parsed = parseTab(tab, values, detectTabMap(tab, values));
+      if (!parsed.rows.length) {
+        skippedTabs.push({ tab, reason: "columns recognized but no parsable data rows" });
+        continue;
+      }
       let id = slugifyTab(tab) || "tab";
       while (usedIds.has(id)) id += "-2";
       usedIds.add(id);
-      sources.push({ id, title: tab, ...parsed });
+      sources.push({ id, title: tab.trim(), ...parsed });
     } catch (err) {
       skippedTabs.push({ tab, reason: err.message });
     }
