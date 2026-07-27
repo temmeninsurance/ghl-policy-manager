@@ -2311,23 +2311,33 @@ footer {
 .sidebar-head h2 { font-size: 2.6vh; letter-spacing: .08em; }
 .sidebar-head button { background: none; border: none; color: var(--dim); font-size: 3vh; cursor: pointer; }
 .side-item {
-  display: flex; align-items: center; gap: .6vw;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 1vh;
-  padding: 1.4vh 1vw;
+  display: flex; align-items: center; gap: .4vw;
+  background: var(--bg); border: 1px solid var(--line); border-radius: .9vh;
+  padding: .9vh .9vw;
 }
 .side-item.active { border-color: var(--accent-dim); }
 .side-item .side-name {
   flex: 1; text-align: left;
   background: none; border: none; color: var(--text);
-  font-size: 2.2vh; font-weight: 700; cursor: pointer;
+  font-size: 1.9vh; font-weight: 700; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .side-item.active .side-name { color: var(--accent); }
-.side-item .side-act { background: none; border: none; color: var(--dim); font-size: 2.2vh; cursor: pointer; padding: 0 .4vw; }
+.side-item .side-act { background: none; border: none; color: var(--dim); font-size: 2vh; cursor: pointer; padding: 0 .4vw; }
 .side-item .side-act:hover { color: var(--accent); }
 .side-item .side-act.del:hover { color: #ef4444; }
-.side-child { margin-left: 2vw; }
-.side-child .side-name { font-size: 2vh; font-weight: 600; }
+/* expand/collapse caret for dashboards with sub-dashboards; hidden-but-
+   present on leaf items so names line up */
+.side-caret {
+  background: none; border: none; color: var(--dim);
+  font-size: 1.7vh; cursor: pointer; padding: 0;
+  width: 2vh; flex: 0 0 auto; text-align: center;
+}
+.side-caret:hover { color: var(--accent); }
+.side-caret.leaf { visibility: hidden; cursor: default; }
+.side-count { font-size: 1.4vh; font-weight: 800; color: var(--dim); flex: 0 0 auto; }
+.side-child { margin-left: 2.4vh; }
+.side-child .side-name { font-size: 1.7vh; font-weight: 600; }
 .side-new {
   background: var(--accent-dim); border: none; border-radius: 1vh; color: #04121a;
   font-size: 2.2vh; font-weight: 800; padding: 1.4vh; cursor: pointer;
@@ -2538,9 +2548,12 @@ footer {
 
   .sidebar { width: 86vw; padding: 16px 14px; }
   .sidebar-head h2 { font-size: 19px; }
-  .side-item { padding: 12px 10px; }
-  .side-item .side-name { font-size: 16px; }
-  .side-child .side-name { font-size: 14px; }
+  .side-item { padding: 9px 10px; }
+  .side-item .side-name { font-size: 15px; }
+  .side-child .side-name { font-size: 13px; }
+  .side-caret { font-size: 13px; width: 16px; }
+  .side-count { font-size: 11px; }
+  .side-child { margin-left: 18px; }
   .side-new, .side-lock { font-size: 15px; padding: 12px; }
   .sidebar input#sideKey { font-size: 15px; padding: 10px; }
 
@@ -2638,7 +2651,7 @@ footer {
 <div class="backdrop hidden" id="backdrop"></div>
 <aside class="sidebar hidden" id="sidebar">
   <div class="sidebar-head"><h2>Dashboards</h2><button id="sidebarClose" title="Close">✕</button></div>
-  <div id="sidebarList" style="display:flex;flex-direction:column;gap:1vh"></div>
+  <div id="sidebarList" style="display:flex;flex-direction:column;gap:.6vh"></div>
   <div class="spacer"></div>
   <button class="side-new hidden" id="newDashBtn">＋ New dashboard</button>
   <button class="side-lock hidden" id="repsBtn">👤 Edit reps — names, photos, goals</button>
@@ -3961,16 +3974,45 @@ function closeSidebar() {
   if (picker.classList.contains("hidden")) backdrop.classList.add("hidden");
 }
 
-function sideItem(it, isChild) {
+// Per-device memory of which dashboard groups are expanded.
+let sideOpen = {};
+try { sideOpen = JSON.parse(localStorage.getItem("tvSideOpen")) || {}; } catch { sideOpen = {}; }
+function setSideOpen(id, open) {
+  sideOpen[id] = open;
+  localStorage.setItem("tvSideOpen", JSON.stringify(sideOpen));
+}
+
+function sideItem(it, isChild, group) {
   const el = document.createElement("div");
   el.className = "side-item" + (isChild ? " side-child" : "") +
     ((state.title || CFG.TITLE) === it.name ? " active" : "");
+
+  // Caret: expands/collapses sub-dashboards. Leaf items keep an invisible
+  // placeholder so all top-level names align.
+  if (!isChild) {
+    const caret = document.createElement("button");
+    caret.className = "side-caret" + (group?.kids ? "" : " leaf");
+    caret.textContent = group?.open ? "▾" : "▸";
+    caret.title = group?.open ? "Collapse" : "Expand";
+    if (group?.kids) {
+      caret.addEventListener("click", () => { setSideOpen(it.id, !group.open); renderSidebar(); });
+    }
+    el.appendChild(caret);
+  }
 
   const nameBtn = document.createElement("button");
   nameBtn.className = "side-name";
   nameBtn.textContent = (isChild ? "↳ " : "") + it.name;
   nameBtn.addEventListener("click", () => { switchTo(it.state); closeSidebar(); });
   el.appendChild(nameBtn);
+
+  if (group?.kids && !group.open) {
+    const cnt = document.createElement("span");
+    cnt.className = "side-count";
+    cnt.textContent = group.kids;
+    cnt.title = group.kids + " sub-dashboard" + (group.kids === 1 ? "" : "s");
+    el.appendChild(cnt);
+  }
 
   if (editMode) {
     const edit = document.createElement("button");
@@ -4005,11 +4047,15 @@ function renderSidebar() {
   // Orphans (parent was deleted) surface at top level rather than vanish.
   const tops = ds.filter((d) => !d.parentId || !topIds.has(d.parentId));
   list.appendChild(sideItem({ name: CFG.TITLE, state: structuredClone(DEFAULT_STATE), idx: null }, false));
+  const activeName = state.title || CFG.TITLE;
   for (const top of tops) {
-    list.appendChild(sideItem(top, false));
-    for (const child of ds.filter((d) => d.parentId && d.parentId === top.id)) {
-      list.appendChild(sideItem(child, true));
-    }
+    const kids = ds.filter((d) => d.parentId && d.parentId === top.id);
+    // Collapsed by default; the branch holding the active dashboard opens
+    // itself; a manual toggle is remembered per device.
+    const open = kids.length > 0 &&
+      (top.id in sideOpen ? !!sideOpen[top.id] : kids.some((k) => k.name === activeName));
+    list.appendChild(sideItem(top, false, { kids: kids.length, open }));
+    if (open) for (const child of kids) list.appendChild(sideItem(child, true));
   }
 }
 
