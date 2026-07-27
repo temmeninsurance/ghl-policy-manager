@@ -161,6 +161,18 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 .nchip.down { color: #ef4444; }
 .nchip.fire { color: #f97316; }
 
+/* achievement badges: career-milestone chips beside names */
+.abadge {
+  display: inline-flex; align-items: center; gap: .25vw;
+  margin-left: .6vw; padding: .15vh .55vw;
+  border: 1px solid rgba(128, 128, 128, .5); border-radius: 999px;
+  font-size: 1.35vh; font-weight: 800; letter-spacing: .05em;
+  opacity: .92; white-space: nowrap; flex: 0 0 auto;
+  font-style: normal; font-variant-numeric: tabular-nums;
+}
+.wboard.split2 .abadge { font-size: 1.05vh; padding: .1vh .4vw; margin-left: .4vw; gap: .18vw; }
+.wboard.split3 .abadge .ab-t { display: none; } /* icon only when space is tight */
+
 /* Pacing: business-day projections. The strip under each rep's line shows
    period progress (or goal progress when a goal is set); the dashed marker
    is where they should be today. */
@@ -188,6 +200,10 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
   position: absolute; right: .9vw; top: 50%; transform: translateY(-50%);
   font-size: 1.3vh; font-weight: 700; color: var(--dim);
   white-space: nowrap; letter-spacing: .02em;
+  /* solid pill (matches the strip base color on every theme) so the
+     dashed pace mark and the fill edge never cross the digits */
+  background: inherit;
+  padding: .1vh .6vw; border-radius: 999px;
 }
 
 /* Celebration takeover */
@@ -383,6 +399,8 @@ body.temmenkart .tbar { background: linear-gradient(180deg, #38bdf8, #0284c7); }
   font-size: 2.7vh; font-weight: 700;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* the name text shrinks (ellipsis) before chips/badges can overflow the bar */
+.name .nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .apps { font-size: 2.9vh; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
 .sub { font-size: 1.5vh; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
 .more { text-align: center; color: var(--dim); font-size: 1.9vh; padding: .5vh 0; }
@@ -2505,6 +2523,8 @@ footer {
   body.temmenopoly .rank { font-size: 13px; padding: 3px 0; }
   body.temmenopoly .kpi-tile::before { margin: 0 -14px 6px; height: 12px; }
   .rank { font-size: 16px; }
+  .abadge { font-size: 10px; padding: 1px 4px; gap: 0; margin-left: 5px; }
+  .abadge .ab-t { display: none; } /* icon-only on phones — labels collide with theme trinkets */
   .avatar { width: 42px; height: 42px; font-size: 14px; }
   .bar-wrap { border-radius: 10px; }
   .name { font-size: 15px; padding-left: 10px; }
@@ -2687,6 +2707,12 @@ footer {
           <option value="off">Off</option>
         </select>
       </label>
+      <label><span>Achievement badges</span>
+        <select id="selBadges">
+          <option value="on">On — career milestones by names</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
       <label><span>Theme</span>
         <select id="selTheme">
           <option value="default">Standard</option>
@@ -2771,6 +2797,7 @@ function normalizeState(s) {
   const out = { ...structuredClone(DEFAULT_STATE), ...s };
   out.autoScroll = !!out.autoScroll;
   out.celebrate = out.celebrate !== false;
+  out.badges = out.badges !== false;
   out.goal = Number(out.goal) > 0 ? Number(out.goal) : 0;
   out.contestStart = /^\d{4}-\d{2}-\d{2}$/.test(out.contestStart || "") ? out.contestStart : "";
   out.contestEnd = /^\d{4}-\d{2}-\d{2}$/.test(out.contestEnd || "") ? out.contestEnd : "";
@@ -3001,7 +3028,8 @@ onSnapshot(doc(db, "tvDashboards", "config"), (snap) => {
   // If this screen is currently showing a saved dashboard whose definition
   // just changed (theme, date frame, filters, widgets…), swap to the fresh
   // version immediately — no reload or re-click needed on any device.
-  if (sharedDashboards) {
+  // Applied-but-unsaved local previews (state.applied) are left alone.
+  if (sharedDashboards && !state.applied) {
     const cur = getDashboards().find((d) =>
       (state.id && d.id === state.id) || (!state.id && d.title === state.title));
     if (cur) {
@@ -3337,15 +3365,19 @@ function nameChip(cls, text) {
 }
 
 // Company-wide per-agent career facts, recomputed per render: first sale
-// date (rookie window) and selling-day streaks (consecutive company-active
-// days with at least one sale).
+// date (rookie window), selling-day streaks (consecutive company-active
+// days with at least one sale), and career totals for achievement badges.
 let firstSale = new Map();
 let streakMap = new Map();
+let careerStats = new Map(); // agent → { apps, rev, curMonthRev, bestPriorMonthRev }
 function computeCareerFacts() {
   firstSale = new Map();
   streakMap = new Map();
+  careerStats = new Map();
   const agentDays = new Map();
   const allDays = new Set();
+  const monthRev = new Map(); // agent → Map(yyyy-mm → rev)
+  const thisMonth = ymd(new Date()).slice(0, 7);
   for (const r of latest.rows || []) {
     const a = r[CFG.agentField], d = r[CFG.dateField];
     if (!a || !d) continue;
@@ -3354,6 +3386,24 @@ function computeCareerFacts() {
     let s = agentDays.get(a);
     if (!s) { s = new Set(); agentDays.set(a, s); }
     s.add(d);
+    let c = careerStats.get(a);
+    if (!c) { c = { apps: 0, rev: 0, curMonthRev: 0, bestPriorMonthRev: 0 }; careerStats.set(a, c); }
+    const apps = Number(r[CFG.appsField]) || 0;
+    const rev = Number(r[CFG.revenueField]) || 0;
+    c.apps += apps;
+    c.rev += rev;
+    const mo = d.slice(0, 7);
+    if (mo === thisMonth) {
+      c.curMonthRev += rev;
+    } else if (mo < thisMonth) { // future-dated rows must not pollute the record baseline
+      let mm = monthRev.get(a);
+      if (!mm) { mm = new Map(); monthRev.set(a, mm); }
+      mm.set(mo, (mm.get(mo) || 0) + rev);
+    }
+  }
+  for (const [a, mm] of monthRev) {
+    const c = careerStats.get(a);
+    for (const v of mm.values()) if (v > c.bestPriorMonthRev) c.bestPriorMonthRev = v;
   }
   const active = [...allDays].sort().reverse().slice(0, 60);
   for (const [a, days] of agentDays) {
@@ -3361,6 +3411,48 @@ function computeCareerFacts() {
     for (const d of active) { if (days.has(d)) n++; else break; }
     streakMap.set(a, n);
   }
+}
+
+// Achievement badges: career milestones shown as small chips by the name.
+const APP_TIERS = [
+  [2500, "👑"], [1000, "💎"], [500, "🥇"], [250, "🥈"], [100, "🥉"],
+];
+// Rookie window boundary, clamped so month-end dates don't overflow
+// (Aug 31 − 6mo must be end of Feb, not Mar 2-3).
+function rookieCutoff() {
+  const cut = new Date();
+  const day = cut.getDate();
+  cut.setMonth(cut.getMonth() - ROOKIE_MONTHS);
+  if (cut.getDate() !== day) cut.setDate(0);
+  return ymd(cut);
+}
+function badgesFor(agent) {
+  const out = [];
+  const c = careerStats.get(agent);
+  if (!c) return out;
+  // RECORD first: the cap below must never drop the most motivating badge.
+  if (c.bestPriorMonthRev > 0 && c.curMonthRev > c.bestPriorMonthRev) {
+    out.push({ icon: "📈", txt: "RECORD", title: "Best month of their career — right now" });
+  }
+  if ((firstSale.get(agent) || "0000") >= rookieCutoff()) {
+    out.push({ icon: "🌱", txt: "NEW", title: "Rookie — first sale within " + ROOKIE_MONTHS + " months" });
+  }
+  const tier = APP_TIERS.find(([n]) => c.apps >= n);
+  if (tier) out.push({ icon: tier[1], txt: tier[0].toLocaleString(), title: c.apps.toLocaleString() + " career apps" });
+  if (c.rev >= 1_000_000) {
+    const m = Math.floor(c.rev / 1_000_000);
+    out.push({ icon: "💰", txt: "$" + m + "M", title: "$" + m + "M+ career revenue" });
+  }
+  return out.slice(0, 3);
+}
+
+function badgeChip(b) {
+  const s = document.createElement("span");
+  s.className = "abadge";
+  s.title = b.title;
+  s.innerHTML = `${b.icon}<span class="ab-t"></span>`;
+  s.querySelector(".ab-t").textContent = b.txt;
+  return s;
 }
 
 /* ── Rendering ── */
@@ -3582,7 +3674,10 @@ function render() {
           </div>
           <div><div class="apps">${Math.round(e.pct)}%</div><div class="sub">${fmtMoney(e.rev)} / ${fmtMoney(e.goal)}</div></div>`;
         const nameEl = row.querySelector(".name");
-        nameEl.textContent = displayNameOf(e.agent);
+        const nm = document.createElement("span");
+        nm.className = "nm";
+        nm.textContent = displayNameOf(e.agent);
+        nameEl.appendChild(nm);
         nameEl.appendChild(nameChip(e.diff >= 0 ? "up" : "down",
           (e.diff >= 0 ? "▲" : "▼") + fmtMoney(Math.abs(e.diff))));
         const av = row.querySelector(".avatar");
@@ -3616,9 +3711,7 @@ function render() {
       .sort((a, b) => b[w.metric] - a[w.metric] || String(a.key).localeCompare(String(b.key)));
 
     if (w.type === "rookies") {
-      const cut = new Date();
-      cut.setMonth(cut.getMonth() - ROOKIE_MONTHS);
-      const cutS = ymd(cut);
+      const cutS = rookieCutoff();
       ranked = ranked.filter((e) => (firstSale.get(e.key) || "0000") >= cutS);
     }
 
@@ -3725,7 +3818,15 @@ function render() {
           ${valueCell}`;
       }
       const nameEl = row.querySelector(".name, .lane-name");
-      nameEl.textContent = isAgents ? displayNameOf(e.key) : e.key;
+      const nameText = isAgents ? displayNameOf(e.key) : e.key;
+      if (nameEl.classList.contains("lane-name")) {
+        nameEl.textContent = nameText;
+      } else {
+        const nm = document.createElement("span");
+        nm.className = "nm";
+        nm.textContent = nameText;
+        nameEl.appendChild(nm);
+      }
       if (isAgents) {
         if (prevRank && prevRank.has(e.key)) {
           const moved = prevRank.get(e.key) - i;
@@ -3734,6 +3835,9 @@ function render() {
         }
         const st = streakMap.get(e.key) || 0;
         if (st >= 2) nameEl.appendChild(nameChip("fire", "🔥" + st));
+        if (state.badges !== false) {
+          for (const b of badgesFor(e.key)) nameEl.appendChild(badgeChip(b));
+        }
       }
       if (isAgents) {
         const av = row.querySelector(".avatar");
@@ -4088,6 +4192,7 @@ function openEditor(source, idx) {
   document.getElementById("selCStart").value = s.contestStart || "";
   document.getElementById("selCEnd").value = s.contestEnd || "";
   document.getElementById("selCele").value = s.celebrate === false ? "off" : "on";
+  document.getElementById("selBadges").value = s.badges === false ? "off" : "on";
   document.getElementById("selRows").value = String(s.rowsShown || 0);
 
   // Parent choices: top-level saved dashboards (by id), excluding itself.
@@ -4206,6 +4311,7 @@ function editorToState(title) {
     contestStart: document.getElementById("selCStart").value || "",
     contestEnd: document.getElementById("selCEnd").value || "",
     celebrate: document.getElementById("selCele").value !== "off",
+    badges: document.getElementById("selBadges").value !== "off",
     rowsShown: Number(document.getElementById("selRows").value) || 0,
     filters,
     widgets,
@@ -4217,7 +4323,11 @@ function editorToState(title) {
 }
 
 document.getElementById("applyBtn").addEventListener("click", () => {
-  switchTo(editorToState(document.getElementById("saveName").value.trim() || state.title));
+  const s = editorToState(document.getElementById("saveName").value.trim() || state.title);
+  // Applied-not-saved states are local previews: flag them so the shared
+  // config hot-swap doesn't clobber them when someone saves elsewhere.
+  s.applied = true;
+  switchTo(s);
   closeEditor();
 });
 
