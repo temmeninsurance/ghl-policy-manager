@@ -308,6 +308,31 @@ body.temmenkart .tbar { background: linear-gradient(180deg, #38bdf8, #0284c7); }
 .wboard::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
 .wboard::-webkit-scrollbar-track { background: transparent; }
 
+/* Side-by-side split — kicks in automatically when "Reps visible on
+   screen" is set above 10: entries fill the left column top-to-bottom,
+   then continue in a right column, so 16–20 reps fit one frame. */
+.widget .wboard.split2 {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1.8vw;
+  row-gap: .8vh;
+  overflow-y: hidden; overflow-x: auto;
+}
+.wboard.split2 .row, .wboard.split2 .row.paced { height: auto; min-height: 0; }
+.wboard.split2 .row { grid-template-columns: 2.2vw 4.6vh 1fr minmax(6.5vw, auto); gap: .6vw; }
+.wboard.split2 .row.noav, .wboard.split2 .row.race { grid-template-columns: 2.2vw 1fr minmax(6.5vw, auto); }
+.wboard.split2 .rank { font-size: 2vh; }
+.wboard.split2 .avatar { width: 4.6vh; height: 4.6vh; font-size: 1.7vh; }
+.wboard.split2 .name { font-size: 2vh; padding-left: .8vw; }
+.wboard.split2 .apps { font-size: 2.1vh; }
+.wboard.split2 .sub { font-size: 1.2vh; }
+.wboard.split2 .houses { font-size: 1.6vh; }
+.wboard.split2 .kart-svg { width: 5.5vh; }
+.wboard.split2 .kart .avatar { width: 3vh; height: 3vh; font-size: 1.2vh; margin-bottom: -1.6vh; }
+.wboard.split2 .lane-name { font-size: 1.6vh; padding: .3vh .8vw; }
+.wboard.split2 .more { grid-column: 1 / -1; align-self: start; }
+
 .row {
   display: grid;
   grid-template-columns: 3.2vw 6vh 1fr minmax(9vw, auto);
@@ -2393,6 +2418,9 @@ footer {
   .widget { gap: 8px; }
   .widget h3 { font-size: 12px; }
   .widget .wboard { overflow: visible; padding-right: 0; gap: 8px; } /* page scrolls instead */
+  .widget .wboard.split2 { display: flex; flex-direction: column; } /* phones stay single-column */
+  .wboard.split2 .row { height: 56px; }
+  .wboard.split2 .row.paced { height: 62px; }
   /* trend needs a real height on phones, and scrolls sideways when dense */
   .widget .wboard.trend { height: 190px; overflow-x: auto; overflow-y: hidden; gap: 3px; padding: 4px 2px; }
   .tcol { min-width: 26px; flex: 1 0 26px; }
@@ -2599,9 +2627,12 @@ footer {
           <option value="6">6</option>
           <option value="8">8</option>
           <option value="10">10</option>
-          <option value="12">12</option>
-          <option value="15">15</option>
-          <option value="20">20</option>
+          <option value="12">12 — side by side</option>
+          <option value="14">14 — side by side</option>
+          <option value="15">15 — side by side</option>
+          <option value="16">16 — side by side</option>
+          <option value="18">18 — side by side</option>
+          <option value="20">20 — side by side</option>
         </select>
       </label>
       <label><span>Celebrations</span>
@@ -3362,7 +3393,7 @@ function render() {
   }
 
   const widgetsEl = document.getElementById("widgets");
-  const scrollPos = [...widgetsEl.querySelectorAll(".wboard")].map((el) => el.scrollTop);
+  const scrollPos = [...widgetsEl.querySelectorAll(".wboard")].map((el) => ({ top: el.scrollTop, left: el.scrollLeft }));
   widgetsEl.innerHTML = "";
   widgetsEl.style.gridTemplateColumns = `repeat(${Math.max(1, boards.length)}, 1fr)`;
   const todayS = ymd(new Date());
@@ -3458,7 +3489,7 @@ function render() {
       const h = document.createElement("h3");
       h.textContent = widgetLabel(w);
       const boardEl = document.createElement("div");
-      boardEl.className = "wboard";
+      boardEl.className = "wboard" + (state.rowsShown > 10 ? " split2" : "");
       panel.append(h, boardEl);
 
       for (let i = 0; i < ranked.length; i++) {
@@ -3538,7 +3569,7 @@ function render() {
     const h = document.createElement("h3");
     h.textContent = (race ? "🏁 " : "") + widgetLabel(w);
     const boardEl = document.createElement("div");
-    boardEl.className = "wboard";
+    boardEl.className = "wboard" + (state.rowsShown > 10 ? " split2" : "");
     panel.append(h, boardEl);
 
     const ITEMS = ["👑", "🚀", "🍄", "⭐", "🐢", "🍌"];
@@ -3651,17 +3682,26 @@ function render() {
   }
   // Keep each board's scroll position across live refreshes.
   [...widgetsEl.querySelectorAll(".wboard")].forEach((el, i) => {
-    if (scrollPos[i]) el.scrollTop = scrollPos[i];
+    if (!scrollPos[i]) return;
+    if (scrollPos[i].top) el.scrollTop = scrollPos[i].top;
+    if (scrollPos[i].left) el.scrollLeft = scrollPos[i].left;
   });
 
   // Admin-chosen frame size: stretch/shrink rows so exactly N reps fill
-  // each board before scrolling. (Phones keep natural sizing.)
+  // each board before scrolling. Above 10 the board splits side by side,
+  // so each column holds half of N. (Phones keep natural sizing.)
   if (state.rowsShown > 0 && !window.matchMedia("(max-width: 700px)").matches) {
     requestAnimationFrame(() => {
       for (const boardEl of widgetsEl.querySelectorAll(".wboard")) {
+        const split = boardEl.classList.contains("split2");
+        const perCol = split ? Math.ceil(state.rowsShown / 2) : state.rowsShown;
         const gap = parseFloat(getComputedStyle(boardEl).rowGap) || 0;
-        const rowH = Math.max(34, (boardEl.clientHeight - gap * (state.rowsShown - 1)) / state.rowsShown);
-        boardEl.querySelectorAll(".row").forEach((r) => { r.style.height = rowH + "px"; });
+        const rowH = Math.max(34, (boardEl.clientHeight - gap * (perCol - 1)) / perCol);
+        if (split) {
+          boardEl.style.gridTemplateRows = `repeat(${perCol}, ${rowH}px)`;
+        } else {
+          boardEl.querySelectorAll(".row").forEach((r) => { r.style.height = rowH + "px"; });
+        }
       }
     });
   }
@@ -4265,22 +4305,27 @@ setInterval(() => {
   const now = Date.now();
   if (now < manualPauseUntil) return;
   for (const el of document.querySelectorAll(".wboard")) {
-    if (el.scrollHeight <= el.clientHeight + 4) continue; // everything fits
+    // Split boards overflow sideways (extra columns), everything else down.
+    const horiz = el.classList.contains("split2");
+    const size = horiz ? el.clientWidth : el.clientHeight;
+    const total = horiz ? el.scrollWidth : el.scrollHeight;
+    if (total <= size + 4) continue; // everything fits
     let st = scrollMemo.get(el);
     if (!st) { st = { pauseUntil: now + TOP_PAUSE_MS, atBottom: false }; scrollMemo.set(el, st); }
     if (now < st.pauseUntil) continue;
-    const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    const pos = horiz ? el.scrollLeft : el.scrollTop;
+    const atEnd = pos + size >= total - 2;
     if (atEnd) {
       if (!st.atBottom) {
         st.atBottom = true;
         st.pauseUntil = now + BOTTOM_PAUSE_MS;
       } else {
-        el.scrollTop = 0;
+        if (horiz) el.scrollLeft = 0; else el.scrollTop = 0;
         st.atBottom = false;
         st.pauseUntil = now + TOP_PAUSE_MS;
       }
     } else {
-      el.scrollTop += SCROLL_STEP;
+      if (horiz) el.scrollLeft += SCROLL_STEP; else el.scrollTop += SCROLL_STEP;
     }
   }
 }, 50);
