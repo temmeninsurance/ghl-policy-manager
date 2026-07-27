@@ -176,9 +176,11 @@ main { flex: 1; padding: 1.4vh 2.2vw; display: flex; flex-direction: column; gap
 /* Pacing: business-day projections. The strip under each rep's line shows
    period progress (or goal progress when a goal is set); the dashed marker
    is where they should be today. */
-.bar.pahead, .pfill.pahead { background: linear-gradient(90deg, rgba(34, 197, 94, .55), rgba(34, 197, 94, .2)); border-right-color: #22c55e; }
+/* Green = goal hit (solid) or pacing to hit it (lighter); red = behind. */
+.bar.pahead, .pfill.pahead { background: linear-gradient(90deg, rgba(34, 197, 94, .6), rgba(34, 197, 94, .25)); border-right-color: #22c55e; }
 .bar.pbehind, .pfill.pbehind { background: linear-gradient(90deg, rgba(239, 68, 68, .5), rgba(239, 68, 68, .18)); border-right-color: #ef4444; }
-.bar.pdone, .pfill.pdone { background: linear-gradient(90deg, rgba(251, 191, 36, .55), rgba(251, 191, 36, .22)); border-right-color: var(--gold); }
+.bar.pdone, .pfill.pdone { background: linear-gradient(90deg, rgba(22, 163, 74, .95), rgba(34, 197, 94, .55)); border-right-color: #22c55e; }
+.pfill.pdone { box-shadow: 0 0 .8vh rgba(34, 197, 94, .45); }
 .pace-mark {
   position: absolute; top: 8%; bottom: 8%; width: 0;
   border-left: .25vw dashed rgba(241, 245, 249, .55);
