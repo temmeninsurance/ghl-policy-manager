@@ -309,17 +309,18 @@ body.temmenkart .tbar { background: linear-gradient(180deg, #38bdf8, #0284c7); }
 .wboard::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
 .wboard::-webkit-scrollbar-track { background: transparent; }
 
-/* Side-by-side split — kicks in automatically when "Reps visible on
-   screen" is set above 10: entries fill the left column top-to-bottom,
-   then continue in a right column, so 16–20 reps fit one frame. */
+/* Multi-column fit — kicks in automatically when "Reps visible on screen"
+   is set above 10: the board caps at that count and never scrolls, filling
+   columns top-to-bottom (2 columns up to ~20 reps, 3 columns up to 30). */
 .widget .wboard.split2 {
   display: grid;
   grid-auto-flow: column;
   grid-template-columns: 1fr 1fr;
   column-gap: 1.8vw;
   row-gap: .8vh;
-  overflow-y: hidden; overflow-x: auto;
+  overflow: hidden;
 }
+.widget .wboard.split2.split3 { grid-template-columns: 1fr 1fr 1fr; column-gap: 1.1vw; }
 .wboard.split2 .row, .wboard.split2 .row.paced { height: auto; min-height: 0; }
 .wboard.split2 .row { grid-template-columns: 2.2vw 4.6vh 1fr minmax(6.5vw, auto); gap: .6vw; }
 .wboard.split2 .row.noav, .wboard.split2 .row.race { grid-template-columns: 2.2vw 1fr minmax(6.5vw, auto); }
@@ -333,6 +334,18 @@ body.temmenkart .tbar { background: linear-gradient(180deg, #38bdf8, #0284c7); }
 .wboard.split2 .kart .avatar { width: 3vh; height: 3vh; font-size: 1.2vh; margin-bottom: -1.6vh; }
 .wboard.split2 .lane-name { font-size: 1.6vh; padding: .3vh .8vw; }
 .wboard.split2 .more { grid-column: 1 / -1; align-self: start; }
+/* three columns: one notch tighter, trinkets make way for the names */
+.wboard.split3 .row { grid-template-columns: 1.8vw 4vh 1fr minmax(5.4vw, auto); gap: .5vw; }
+.wboard.split3 .row.noav, .wboard.split3 .row.race { grid-template-columns: 1.8vw 1fr minmax(5.4vw, auto); }
+.wboard.split3 .rank { font-size: 1.7vh; }
+.wboard.split3 .avatar { width: 4vh; height: 4vh; font-size: 1.5vh; }
+.wboard.split3 .name { font-size: 1.8vh; padding-left: .6vw; }
+.wboard.split3 .apps { font-size: 1.8vh; }
+.wboard.split3 .sub { font-size: 1.1vh; }
+.wboard.split3 .houses { display: none; }
+.wboard.split3 .ptext { font-size: 1.1vh; right: .5vw; }
+.wboard.split3 .nchip { font-size: 1.3vh; margin-left: .4vw; }
+.wboard.split3 .pstrip { height: 1.5vh; }
 
 .row {
   display: grid;
@@ -2655,12 +2668,17 @@ footer {
           <option value="6">6</option>
           <option value="8">8</option>
           <option value="10">10</option>
-          <option value="12">12 — side by side</option>
-          <option value="14">14 — side by side</option>
-          <option value="15">15 — side by side</option>
-          <option value="16">16 — side by side</option>
-          <option value="18">18 — side by side</option>
-          <option value="20">20 — side by side</option>
+          <option value="12">12 — 2 columns</option>
+          <option value="14">14 — 2 columns</option>
+          <option value="15">15 — 2 columns</option>
+          <option value="16">16 — 2 columns</option>
+          <option value="18">18 — 2 columns</option>
+          <option value="20">20 — 2 columns</option>
+          <option value="22">22 — 3 columns</option>
+          <option value="24">24 — 3 columns</option>
+          <option value="26">26 — 3 columns</option>
+          <option value="28">28 — 3 columns</option>
+          <option value="30">30 — 3 columns</option>
         </select>
       </label>
       <label><span>Celebrations</span>
@@ -3346,6 +3364,22 @@ function computeCareerFacts() {
 }
 
 /* ── Rendering ── */
+const isPhone = () => window.matchMedia("(max-width: 700px)").matches;
+
+// Multi-column fit: above 10 reps a board never scrolls — it caps the list
+// at the chosen count and splits into however many columns fit best
+// (up to ~10 rows per column, max 3 columns for 30 reps).
+function boardFit(count) {
+  if (isPhone() || !(state.rowsShown > 10)) return { cap: Infinity, cols: 1, rows: 0 };
+  const n = Math.min(count, state.rowsShown);
+  const cols = Math.min(3, Math.max(1, Math.ceil(n / 10)));
+  return { cap: state.rowsShown, cols, rows: Math.ceil(n / cols) };
+}
+
+function boardClass(fit) {
+  return "wboard" + (fit.cols > 1 ? " split2" : "") + (fit.cols === 3 ? " split3" : "");
+}
+
 function render() {
   if (!latest) return;
   computeCareerFacts();
@@ -3527,11 +3561,14 @@ function render() {
       const h = document.createElement("h3");
       h.textContent = widgetLabel(w);
       const boardEl = document.createElement("div");
-      boardEl.className = "wboard" + (state.rowsShown > 10 ? " split2" : "");
+      const fit = boardFit(ranked.length);
+      boardEl.className = boardClass(fit);
+      if (fit.cols > 1) boardEl.dataset.rows = fit.rows;
       panel.append(h, boardEl);
 
-      for (let i = 0; i < ranked.length; i++) {
-        const e = ranked[i];
+      const shown = ranked.slice(0, fit.cap);
+      for (let i = 0; i < shown.length; i++) {
+        const e = shown[i];
         const cls = e.pct >= 100 ? "pdone" : e.diff >= 0 ? "pahead" : "pbehind";
         const row = document.createElement("div");
         row.className = "row";
@@ -3607,12 +3644,14 @@ function render() {
     const h = document.createElement("h3");
     h.textContent = (race ? "🏁 " : "") + widgetLabel(w);
     const boardEl = document.createElement("div");
-    boardEl.className = "wboard" + (state.rowsShown > 10 ? " split2" : "");
+    const fit = boardFit(ranked.length);
+    boardEl.className = boardClass(fit);
+    if (fit.cols > 1) boardEl.dataset.rows = fit.rows;
     panel.append(h, boardEl);
 
     const ITEMS = ["👑", "🚀", "🍄", "⭐", "🐢", "🍌"];
     const max = ranked.length ? ranked[0][w.metric] : 1;
-    const shown = ranked; // every matching entry — the board scrolls
+    const shown = ranked.slice(0, fit.cap); // capped when split — never scrolls
     for (let i = 0; i < shown.length; i++) {
       const e = shown[i];
       const main = e[w.metric];
@@ -3726,16 +3765,17 @@ function render() {
   });
 
   // Admin-chosen frame size: stretch/shrink rows so exactly N reps fill
-  // each board before scrolling. Above 10 the board splits side by side,
-  // so each column holds half of N. (Phones keep natural sizing.)
-  if (state.rowsShown > 0 && !window.matchMedia("(max-width: 700px)").matches) {
+  // each board before scrolling. Split boards size to their own column
+  // depth so every entry fits the frame. (Phones keep natural sizing.)
+  if (state.rowsShown > 0 && !isPhone()) {
     requestAnimationFrame(() => {
       for (const boardEl of widgetsEl.querySelectorAll(".wboard")) {
-        const split = boardEl.classList.contains("split2");
-        const perCol = split ? Math.ceil(state.rowsShown / 2) : state.rowsShown;
+        const perCol = boardEl.classList.contains("split2")
+          ? Math.max(1, Number(boardEl.dataset.rows) || 1)
+          : state.rowsShown;
         const gap = parseFloat(getComputedStyle(boardEl).rowGap) || 0;
-        const rowH = Math.max(34, (boardEl.clientHeight - gap * (perCol - 1)) / perCol);
-        if (split) {
+        const rowH = Math.max(30, (boardEl.clientHeight - gap * (perCol - 1)) / perCol);
+        if (boardEl.classList.contains("split2")) {
           boardEl.style.gridTemplateRows = `repeat(${perCol}, ${rowH}px)`;
         } else {
           boardEl.querySelectorAll(".row").forEach((r) => { r.style.height = rowH + "px"; });
@@ -4343,27 +4383,22 @@ setInterval(() => {
   const now = Date.now();
   if (now < manualPauseUntil) return;
   for (const el of document.querySelectorAll(".wboard")) {
-    // Split boards overflow sideways (extra columns), everything else down.
-    const horiz = el.classList.contains("split2");
-    const size = horiz ? el.clientWidth : el.clientHeight;
-    const total = horiz ? el.scrollWidth : el.scrollHeight;
-    if (total <= size + 4) continue; // everything fits
+    if (el.scrollHeight <= el.clientHeight + 4) continue; // everything fits
     let st = scrollMemo.get(el);
     if (!st) { st = { pauseUntil: now + TOP_PAUSE_MS, atBottom: false }; scrollMemo.set(el, st); }
     if (now < st.pauseUntil) continue;
-    const pos = horiz ? el.scrollLeft : el.scrollTop;
-    const atEnd = pos + size >= total - 2;
+    const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
     if (atEnd) {
       if (!st.atBottom) {
         st.atBottom = true;
         st.pauseUntil = now + BOTTOM_PAUSE_MS;
       } else {
-        if (horiz) el.scrollLeft = 0; else el.scrollTop = 0;
+        el.scrollTop = 0;
         st.atBottom = false;
         st.pauseUntil = now + TOP_PAUSE_MS;
       }
     } else {
-      if (horiz) el.scrollLeft += SCROLL_STEP; else el.scrollTop += SCROLL_STEP;
+      el.scrollTop += SCROLL_STEP;
     }
   }
 }, 50);
@@ -4411,6 +4446,9 @@ applyState();
 
 // Refresh date-frame boundary / staleness even when no new snapshot arrives.
 setInterval(render, 60_000);
+
+// Re-render when crossing the phone breakpoint (column fit differs).
+window.matchMedia("(max-width: 700px)").addEventListener("change", () => render());
 
 // Periodic hard reload for always-on TVs.
 setTimeout(() => location.reload(), CFG.PAGE_RELOAD_MS);
