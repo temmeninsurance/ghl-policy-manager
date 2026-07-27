@@ -35,8 +35,16 @@ initializeApp();
 // The long ID from the sheet URL: docs.google.com/spreadsheets/d/<SHEET_ID>/edit
 const SHEET_ID = "1Q_UveDxIZ8-NokXp_umtoiiEC0Gs_MZvt4ZmFjbmly8";
 
-// Exact tab (worksheet) name holding the submission rows.
+// The primary tab (worksheet). Company-wide facts on the TV (celebrations,
+// career badges, streaks) always come from this tab.
 const SHEET_TAB = "All Apps";
+
+// Every OTHER visible tab in the spreadsheet is also synced as an extra
+// data source, as long as it has the same required headers (COLUMN_MAP.agent
+// and COLUMN_MAP.date). Dashboards pick their source in the TV editor.
+// Tabs without those headers (notes, pivots, …) are skipped automatically;
+// so are hidden tabs and any tab listed here:
+const EXCLUDE_TABS = [];
 
 // Maps output field → exact header-row text in the sheet (case/whitespace
 // insensitive match). `agent` and `date` are required. `apps` is optional —
@@ -137,31 +145,37 @@ function normalizeDate(value) {
   return null;
 }
 
-async function fetchSheetRows() {
+function sheetsClient() {
   const auth = new google.auth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
-  const sheets = google.sheets({ version: "v4", auth });
+  return google.sheets({ version: "v4", auth });
+}
+
+async function listVisibleTabs(sheets) {
+  const resp = await sheets.spreadsheets.get({
+    spreadsheetId: SHEET_ID,
+    fields: "sheets.properties(title,hidden)",
+  });
+  return (resp.data.sheets || [])
+    .map((s) => s.properties)
+    .filter((p) => p && !p.hidden && p.title)
+    .map((p) => p.title);
+}
+
+async function fetchTabValues(sheets, tab) {
   const resp = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `'${SHEET_TAB}'`,
+    range: `'${String(tab).replace(/'/g, "''")}'`, // A1 escapes ' by doubling
   });
   return resp.data.values || [];
 }
 
-async function syncSheetToFirestore() {
-  if (SHEET_ID.startsWith("REPLACE_") || SHEET_TAB.startsWith("REPLACE_")) {
-    throw new Error("SHEET_ID / SHEET_TAB are not configured yet — edit functions/index.js CONFIG block.");
-  }
-  for (const f of REQUIRED_FIELDS) {
-    if (!COLUMN_MAP[f] || String(COLUMN_MAP[f]).startsWith("REPLACE_")) {
-      throw new Error(`COLUMN_MAP.${f} is not configured yet — edit functions/index.js CONFIG block.`);
-    }
-  }
-
-  const values = await fetchSheetRows();
+// Parse one tab's raw values into public rows. Throws when the required
+// headers can't be found (callers skip non-primary tabs on that error).
+function parseTab(tabTitle, values) {
   if (values.length < 2) {
-    throw new Error(`Sheet tab '${SHEET_TAB}' returned ${values.length} row(s) — expected a header row plus data.`);
+    throw new Error(`tab '${tabTitle}' returned ${values.length} row(s) — expected a header row plus data.`);
   }
 
   // The header row is not necessarily row 1 — find the first row containing
@@ -175,9 +189,8 @@ async function syncSheetToFirestore() {
   }
   if (headerRow === -1) {
     throw new Error(
-      `Could not find a header row containing "${COLUMN_MAP.agent}" and "${COLUMN_MAP.date}" ` +
-      `in the first 20 rows of tab '${SHEET_TAB}'. First non-empty row seen: ` +
-      `[${(values.find((r) => r && r.length) || []).join(" | ")}]`
+      `no header row containing "${COLUMN_MAP.agent}" and "${COLUMN_MAP.date}" ` +
+      `in the first 20 rows of tab '${tabTitle}'`
     );
   }
 
@@ -191,10 +204,7 @@ async function syncSheetToFirestore() {
     else colIndex[field] = idx;
   }
   if (missing.length) {
-    throw new Error(
-      `Header(s) not found in sheet tab '${SHEET_TAB}': ${missing.join(", ")}. ` +
-      `First row seen: [${values[0].join(" | ")}]`
-    );
+    throw new Error(`header(s) not found in tab '${tabTitle}': ${missing.join(", ")}`);
   }
 
   if (SYNC_ALL_COLUMNS) {
@@ -247,41 +257,98 @@ async function syncSheetToFirestore() {
     rows.push(row);
   }
 
-  const warnings = [];
+  return {
+    rows,
+    skippedInvalid,
+    fields: [...new Set([...Object.keys(colIndex), "apps"])],
+    filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps", "revenue"].includes(f)),
+  };
+}
 
-  // One doc per month, so a full year can exceed 1 MB overall while each
-  // doc stays small.
-  const byMonth = new Map();
-  for (const row of rows) {
-    const m = row.date.slice(0, 7);
-    if (!byMonth.has(m)) byMonth.set(m, []);
-    byMonth.get(m).push(row);
+function slugifyTab(title) {
+  return String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+async function syncSheetToFirestore() {
+  if (SHEET_ID.startsWith("REPLACE_") || SHEET_TAB.startsWith("REPLACE_")) {
+    throw new Error("SHEET_ID / SHEET_TAB are not configured yet — edit functions/index.js CONFIG block.");
+  }
+  for (const f of REQUIRED_FIELDS) {
+    if (!COLUMN_MAP[f] || String(COLUMN_MAP[f]).startsWith("REPLACE_")) {
+      throw new Error(`COLUMN_MAP.${f} is not configured yet — edit functions/index.js CONFIG block.`);
+    }
   }
 
+  const sheets = sheetsClient();
+  const warnings = [];
+  const skippedTabs = [];
+
+  // Primary tab first — a failure here fails the whole sync, exactly as
+  // before multi-tab support.
+  const primary = parseTab(SHEET_TAB, await fetchTabValues(sheets, SHEET_TAB));
+  const sources = [{ id: "main", title: SHEET_TAB, ...primary }];
+
+  // Every other visible tab with the required headers becomes an extra
+  // source; anything else is skipped (and listed in the meta doc).
+  let tabs = [];
+  try {
+    tabs = await listVisibleTabs(sheets);
+  } catch (err) {
+    warnings.push(`Could not list sheet tabs (${err.message}) — synced only '${SHEET_TAB}'.`);
+  }
+  const excludedTabs = new Set(EXCLUDE_TABS.map((t) => normalizeHeader(t)));
+  const usedIds = new Set(["main", "current"]);
+  for (const tab of tabs) {
+    if (tab === SHEET_TAB || excludedTabs.has(normalizeHeader(tab))) continue;
+    try {
+      const parsed = parseTab(tab, await fetchTabValues(sheets, tab));
+      let id = slugifyTab(tab) || "tab";
+      while (usedIds.has(id)) id += "-2";
+      usedIds.add(id);
+      sources.push({ id, title: tab, ...parsed });
+    } catch (err) {
+      skippedTabs.push({ tab, reason: err.message });
+    }
+  }
+
+  const currentYear = new Date().getFullYear();
   const db = getFirestore();
   const metaRef = db.doc("tvLeaderboard/current");
   const prevHashes = ((await metaRef.get()).data() || {}).monthHashes || {};
 
-  // Heavy months (AEP season) can exceed the 1 MB doc limit on their own —
-  // shard those into <month>-p1, <month>-p2, … The TV page merges any doc
-  // that carries a rows array, so shards need no client changes.
+  // One doc per source-month (heavy months shard into -p1, -p2, …). The
+  // primary source keeps the legacy '<yyyy-mm>' ids; extra sources use
+  // '<slug>~<yyyy-mm>' and store rows under `srows` so TV pages older than
+  // this feature ignore them instead of double-counting.
   const TARGET_DOC_BYTES = 700_000;
-  const docs = new Map(); // docId → rows
-  for (const [month, monthRows] of byMonth) {
-    const size = JSON.stringify(monthRows).length + 200;
-    const parts = Math.max(1, Math.ceil(size / TARGET_DOC_BYTES));
-    if (parts === 1) { docs.set(month, monthRows); continue; }
-    const per = Math.ceil(monthRows.length / parts);
-    for (let k = 0; k < parts; k++) {
-      const chunk = monthRows.slice(k * per, (k + 1) * per);
-      if (chunk.length) docs.set(`${month}-p${k + 1}`, chunk);
+  const docs = new Map(); // docId → { source, rows }
+  for (const src of sources) {
+    const byMonth = new Map();
+    for (const row of src.rows) {
+      const m = row.date.slice(0, 7);
+      if (!byMonth.has(m)) byMonth.set(m, []);
+      byMonth.get(m).push(row);
+    }
+    src.months = [...byMonth.keys()].sort();
+    for (const [month, monthRows] of byMonth) {
+      const base = src.id === "main" ? month : `${src.id}~${month}`;
+      const size = JSON.stringify(monthRows).length + 200;
+      const parts = Math.max(1, Math.ceil(size / TARGET_DOC_BYTES));
+      if (parts === 1) { docs.set(base, { src, month, rows: monthRows }); continue; }
+      const per = Math.ceil(monthRows.length / parts);
+      for (let k = 0; k < parts; k++) {
+        const chunk = monthRows.slice(k * per, (k + 1) * per);
+        if (chunk.length) docs.set(`${base}-p${k + 1}`, { src, month, rows: chunk });
+      }
     }
   }
 
   const monthHashes = {};
   let monthsWritten = 0;
-  for (const [docId, docRows] of docs) {
-    const payload = { month: docId.slice(0, 7), rowCount: docRows.length, rows: docRows };
+  for (const [docId, { src, month, rows: docRows }] of docs) {
+    const payload = { source: src.id, sourceTitle: src.title, month, rowCount: docRows.length };
+    if (src.id === "main") payload.rows = docRows;
+    else payload.srows = docRows;
     const json = JSON.stringify(payload);
     if (json.length > MAX_DOC_BYTES) {
       throw new Error(
@@ -296,29 +363,35 @@ async function syncSheetToFirestore() {
     monthsWritten++;
   }
 
-  // Drop docs that no longer exist (year rollover, or a month that was
-  // just re-sharded under new ids).
+  // Drop docs that no longer exist (year rollover, a re-sharded month, or
+  // a tab that was renamed/removed).
   for (const docId of Object.keys(prevHashes)) {
     if (!docs.has(docId)) await db.doc(`tvLeaderboard/${docId}`).delete();
   }
 
+  const totalRows = sources.reduce((n, s) => n + s.rows.length, 0);
   await metaRef.set({
     updatedAt: FieldValue.serverTimestamp(),
     year: currentYear,
-    months: [...byMonth.keys()].sort(),
+    months: sources[0].months,
     monthHashes,
-    rowCount: rows.length,
-    skippedInvalid,
-    fields: [...new Set([...Object.keys(colIndex), "apps"])],
-    filterFields: Object.keys(colIndex).filter((f) => !["agent", "date", "apps", "revenue"].includes(f)),
+    rowCount: totalRows,
+    skippedInvalid: sources.reduce((n, s) => n + s.skippedInvalid, 0),
+    // Legacy top-level fields describe the primary tab (older TV pages).
+    fields: sources[0].fields,
+    filterFields: sources[0].filterFields,
+    sources: sources.map((s) => ({
+      id: s.id, title: s.title, rowCount: s.rows.length, filterFields: s.filterFields,
+    })),
+    skippedTabs,
     warnings,
   });
 
   const summary = {
-    synced: rows.length,
-    months: byMonth.size,
+    synced: totalRows,
+    sources: sources.map((s) => `${s.title}: ${s.rows.length}`),
     monthsWritten,
-    skippedInvalid,
+    skippedTabs: skippedTabs.map((t) => t.tab),
     warnings,
   };
   logger.info("TV leaderboard synced", summary);

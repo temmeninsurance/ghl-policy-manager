@@ -2652,6 +2652,9 @@ footer {
 
     <div class="section-title">Dashboard</div>
     <div class="picker-grid" id="pickerGrid">
+      <label id="sourceLabel" class="hidden"><span>Data source (sheet tab)</span>
+        <select id="selSource"></select>
+      </label>
       <label><span>Date frame</span>
         <select id="selView">
           <option value="today">Today</option>
@@ -2798,6 +2801,11 @@ function normalizeState(s) {
   out.autoScroll = !!out.autoScroll;
   out.celebrate = out.celebrate !== false;
   out.badges = out.badges !== false;
+  if (typeof out.source === "string" && out.source.trim() && out.source !== "main") {
+    out.source = out.source.trim();
+  } else {
+    delete out.source; // main tab is the default
+  }
   out.goal = Number(out.goal) > 0 ? Number(out.goal) : 0;
   out.contestStart = /^\d{4}-\d{2}-\d{2}$/.test(out.contestStart || "") ? out.contestStart : "";
   out.contestEnd = /^\d{4}-\d{2}-\d{2}$/.test(out.contestEnd || "") ? out.contestEnd : "";
@@ -3052,8 +3060,15 @@ onSnapshot(collection(db, "tvLeaderboard"),
     const rows = [];
     snap.forEach((d) => {
       const data = d.data();
-      if (d.id === "current") meta = data;
-      else if (Array.isArray(data.rows)) rows.push(...data.rows);
+      if (d.id === "current") { meta = data; return; }
+      // Primary-tab docs carry `rows`; extra sheet tabs carry `srows` (so TV
+      // pages older than multi-source support ignore them). Tag each row
+      // with its source so dashboards can filter by sheet tab.
+      const docRows = Array.isArray(data.rows) ? data.rows : Array.isArray(data.srows) ? data.srows : null;
+      if (!docRows) return;
+      const src = data.source || "main";
+      for (const r of docRows) r.__src = src;
+      rows.push(...docRows);
     });
     if (!meta && !rows.length) {
       overlay.classList.remove("hidden");
@@ -3092,6 +3107,7 @@ function celebStats() {
   const t = ymd(new Date());
   const m = new Map();
   for (const r of latest.rows || []) {
+    if ((r.__src || "main") !== "main") continue; // company-wide facts come from the primary tab
     const a = r[CFG.agentField];
     if (!a) continue;
     let s = m.get(a);
@@ -3251,11 +3267,22 @@ function matchesFilter(r, field, value) {
 
 // Rows within the dashboard's date frame + filters, plus the widget's own
 // optional filter.
+// Data sources = sheet tabs. Meta lists them; older meta docs have none.
+function sourcesList() {
+  if (Array.isArray(latest?.sources) && latest.sources.length) return latest.sources;
+  return [{ id: "main", title: "Main", rowCount: latest?.rowCount || 0, filterFields: latest?.filterFields || [] }];
+}
+function sourceMeta(id) {
+  return sourcesList().find((s) => s.id === id) || sourcesList()[0];
+}
+
 function rowsFor(widget, range) {
   const [start, end] = range || currentRange();
-  const fields = latest.filterFields || [];
+  const srcId = state.source || "main";
+  const fields = sourceMeta(srcId).filterFields || [];
   const out = [];
   for (const r of latest.rows || []) {
+    if ((r.__src || "main") !== srcId) continue;
     const d = r[CFG.dateField] || "";
     if (d < start || d > end) continue;
     let keep = true;
@@ -3379,6 +3406,7 @@ function computeCareerFacts() {
   const monthRev = new Map(); // agent → Map(yyyy-mm → rev)
   const thisMonth = ymd(new Date()).slice(0, 7);
   for (const r of latest.rows || []) {
+    if ((r.__src || "main") !== "main") continue; // careers/streaks/rookies track the primary tab
     const a = r[CFG.agentField], d = r[CFG.dateField];
     if (!a || !d) continue;
     if (d < (firstSale.get(a) || "9999")) firstSale.set(a, d);
@@ -4070,9 +4098,11 @@ function closeEditor() {
   if (sidebar.classList.contains("hidden")) backdrop.classList.add("hidden");
 }
 
-function uniqueValues(field) {
+function uniqueValues(field, srcId) {
+  const src = srcId || state.source || "main";
   const seen = new Map();
   for (const r of latest?.rows || []) {
+    if ((r.__src || "main") !== src) continue;
     const v = String(r[field] ?? "").trim();
     if (v) seen.set(v.toLowerCase(), v);
   }
@@ -4212,18 +4242,21 @@ function openEditor(source, idx) {
   parentSel.value = source.parentId || "";
   if (parentSel.value !== (source.parentId || "")) parentSel.value = "";
 
-  // Dashboard-level filters — multi-select (any-of within a field)
-  const grid = document.getElementById("pickerGrid");
-  grid.querySelectorAll("label.dyn").forEach((el) => el.remove());
-  for (const f of [CFG.agentField, ...(latest?.filterFields || [])]) {
-    const cur = s.filters[f];
-    const base = uniqueValues(f);
-    const extras = (Array.isArray(cur) ? cur : cur ? [cur] : []).filter((v) => !base.includes(v));
-    const ms = makeMultiSelect(f, [...base, ...extras], cur);
-    const label = labeled(f.replace(/_/g, " "), ms);
-    label.className = "dyn";
-    grid.appendChild(label);
+  // Data source (sheet tab) — hidden while the sheet has only one tab.
+  const srcSel = document.getElementById("selSource");
+  srcSel.replaceChildren();
+  for (const sm of sourcesList()) {
+    const o = document.createElement("option");
+    o.value = sm.id;
+    o.textContent = sm.title;
+    srcSel.appendChild(o);
   }
+  srcSel.value = s.source || "main";
+  if (!srcSel.value) srcSel.value = "main"; // saved tab was renamed/removed
+  document.getElementById("sourceLabel").classList.toggle("hidden", sourcesList().length < 2);
+
+  // Dashboard-level filters — multi-select (any-of within a field)
+  buildEditorFilters(s.filters);
 
   // Widgets
   const list = document.getElementById("widgetsList");
@@ -4235,16 +4268,44 @@ function openEditor(source, idx) {
   backdrop.classList.remove("hidden");
 }
 
+// Filter selects are scoped to the editor's chosen data source: its fields,
+// its live values.
+function buildEditorFilters(filters) {
+  const srcId = document.getElementById("selSource").value || "main";
+  const grid = document.getElementById("pickerGrid");
+  grid.querySelectorAll("label.dyn").forEach((el) => el.remove());
+  for (const f of [CFG.agentField, ...(sourceMeta(srcId).filterFields || [])]) {
+    const cur = filters[f];
+    const base = uniqueValues(f, srcId);
+    const extras = (Array.isArray(cur) ? cur : cur ? [cur] : []).filter((v) => !base.includes(v));
+    const ms = makeMultiSelect(f, [...base, ...extras], cur);
+    const label = labeled(f.replace(/_/g, " "), ms);
+    label.className = "dyn";
+    grid.appendChild(label);
+  }
+}
+
+// Switching tabs means new fields and values: reset the dashboard filters
+// and refresh each widget row's field choices (type/metric/label are kept).
+document.getElementById("selSource").addEventListener("change", () => {
+  buildEditorFilters({});
+  const list = document.getElementById("widgetsList");
+  const ws = [...list.querySelectorAll(".wrow")].map((r) => r._read());
+  list.innerHTML = "";
+  for (const w of ws) list.appendChild(widgetRow(w));
+});
+
 function widgetRow(w) {
   const row = document.createElement("div");
   row.className = "wrow";
 
-  const fields = latest?.filterFields || [];
+  const srcId = document.getElementById("selSource").value || "main";
+  const fields = sourceMeta(srcId).filterFields || [];
   const typeSel = makeSelect(WIDGET_TYPES, w.type);
   const metricSel = makeSelect(METRICS, METRICS[w.metric] ? w.metric : "revenue");
   const fieldSel = makeSelect(fields, w.field || (fields[0] || ""));
   const fFieldSel = makeSelect(fields, w.ffield || "", "No widget filter");
-  const fValueSel = makeSelect(w.ffield ? uniqueValues(w.ffield) : [], w.fvalue || "", "All");
+  const fValueSel = makeSelect(w.ffield ? uniqueValues(w.ffield, srcId) : [], w.fvalue || "", "All");
   const labelInput = document.createElement("input");
   labelInput.type = "text";
   labelInput.placeholder = "Label (optional)";
@@ -4265,7 +4326,7 @@ function widgetRow(w) {
   }
   typeSel.addEventListener("change", syncVisibility);
   fFieldSel.addEventListener("change", () => {
-    const fresh = makeSelect(fFieldSel.value ? uniqueValues(fFieldSel.value) : [], "", "All");
+    const fresh = makeSelect(fFieldSel.value ? uniqueValues(fFieldSel.value, document.getElementById("selSource").value || "main") : [], "", "All");
     fresh.className = fValueSel.className;
     fValueSel.replaceChildren(...fresh.childNodes);
     fValueSel.value = "";
@@ -4304,6 +4365,7 @@ function editorToState(title) {
   const widgets = [...document.querySelectorAll("#widgetsList .wrow")].map((r) => r._read());
   const out = normalizeState({
     title: title || CFG.TITLE,
+    source: document.getElementById("selSource").value || "",
     view: document.getElementById("selView").value,
     autoScroll: document.getElementById("selScroll").value === "on",
     theme: document.getElementById("selTheme").value,
