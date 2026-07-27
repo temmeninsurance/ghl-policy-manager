@@ -128,6 +128,7 @@ header {
   color: var(--dim); font-size: 1.8vh; cursor: pointer; padding: .4vh .7vw;
 }
 .daterange button:hover { color: #ef4444; border-color: #ef4444; }
+.dr-toggle { display: none; } /* phones only — collapses the date picker */
 .spacer { flex: 1; }
 .total-box { text-align: right; }
 .total-num { font-size: 3.8vh; font-weight: 900; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -461,7 +462,7 @@ body.temmenkart header::after {
   background: linear-gradient(90deg, #38bdf8, #22c55e, #facc15, #ef4444, #2dd4bf, #38bdf8);
 }
 body.temmenkart .brand { font-size: 3.6vh; letter-spacing: .06em; }
-body.temmenkart .menu-btn, body.temmenkart header .gear {
+body.temmenkart .menu-btn, body.temmenkart header .gear, body.temmenkart .dr-toggle {
   background: #fff; color: #14285c; border: 2px solid #14285c;
   border-radius: 1vh; font-weight: 800;
   box-shadow: .25vh .35vh 0 rgba(20, 40, 92, .3);
@@ -611,7 +612,7 @@ body.temmenopoly .brand {
   text-shadow: 0 .3vh 0 rgba(0, 0, 0, .35);
 }
 body.temmenopoly .brand::before { content: "🎩 "; text-shadow: none; }
-body.temmenopoly .menu-btn, body.temmenopoly header .gear {
+body.temmenopoly .menu-btn, body.temmenopoly header .gear, body.temmenopoly .dr-toggle {
   color: #fff; border-color: rgba(255, 255, 255, .55);
 }
 body.temmenopoly .view-badge {
@@ -754,7 +755,7 @@ body.temmenmadness .brand {
   text-shadow: .25vh .35vh 0 rgba(0, 0, 0, .6), 0 0 2.4vh rgba(45, 212, 191, .35);
 }
 body.temmenmadness .brand::before { content: "🏀 "; font-style: normal; text-shadow: none; }
-body.temmenmadness .menu-btn, body.temmenmadness header .gear {
+body.temmenmadness .menu-btn, body.temmenmadness header .gear, body.temmenmadness .dr-toggle {
   background: #1d242d; border: 1px solid #3a4553; color: #8fa0b3; border-radius: .6vh;
 }
 body.temmenmadness .view-badge {
@@ -900,7 +901,7 @@ body.temmengolf .brand {
   text-shadow: 0 .25vh .6vh rgba(0, 0, 0, .5);
 }
 body.temmengolf .brand::before { content: "⛳ "; font-style: normal; }
-body.temmengolf .menu-btn, body.temmengolf header .gear {
+body.temmengolf .menu-btn, body.temmengolf header .gear, body.temmengolf .dr-toggle {
   background: transparent; color: #d9e5d3; border: 1px solid rgba(245, 213, 71, .5); border-radius: .6vh;
 }
 body.temmengolf .view-badge {
@@ -1081,7 +1082,7 @@ body.temmencup .brand {
   text-shadow: .25vh .35vh 0 rgba(0, 0, 0, .55), 0 0 2.4vh rgba(255, 201, 51, .35);
 }
 body.temmencup .brand::before { content: "⚽ "; font-style: normal; text-shadow: none; }
-body.temmencup .menu-btn, body.temmencup header .gear {
+body.temmencup .menu-btn, body.temmencup header .gear, body.temmencup .dr-toggle {
   background: #0d1526; border: 1px solid #2c3d68; color: #93a1c4; border-radius: .6vh;
 }
 body.temmencup .view-badge {
@@ -1222,7 +1223,7 @@ body.temmendeal .brand {
   text-shadow: 0 .3vh 0 rgba(0, 0, 0, .6), 0 0 2.6vh rgba(255, 176, 46, .55);
 }
 body.temmendeal .brand::before { content: "💼 "; text-shadow: none; }
-body.temmendeal .menu-btn, body.temmendeal header .gear {
+body.temmendeal .menu-btn, body.temmendeal header .gear, body.temmendeal .dr-toggle {
   background: #170c2c; border: 1px solid #4a3a6e; color: #a795c9; border-radius: .6vh;
 }
 body.temmendeal .view-badge {
@@ -1408,7 +1409,7 @@ body.temmenxmas header::after {
 }
 body.temmenxmas .brand { font-size: 3.2vh; letter-spacing: .1em; }
 body.temmenxmas .brand::before { content: "🎄 "; }
-body.temmenxmas .menu-btn, body.temmenxmas header .gear {
+body.temmenxmas .menu-btn, body.temmenxmas header .gear, body.temmenxmas .dr-toggle {
   background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .5); color: #fff; border-radius: .8vh;
 }
 body.temmenxmas .view-badge {
@@ -1579,7 +1580,7 @@ body.temmenhallow .brand {
   animation: hallow-flicker 4s ease-in-out infinite;
 }
 body.temmenhallow .brand::before { content: "🎃 "; }
-body.temmenhallow .menu-btn, body.temmenhallow header .gear {
+body.temmenhallow .menu-btn, body.temmenhallow header .gear, body.temmenhallow .dr-toggle {
   background: #1a0d2c; border: 1px solid #4a2f6b; color: #a98fc9; border-radius: .8vh;
 }
 body.temmenhallow .view-badge {
@@ -1726,7 +1727,7 @@ body.temmenmueller .brand::before {
   background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 55%, #312e81 100%);
   clip-path: polygon(0 100%, 0 22%, 26% 0, 50% 52%, 74% 0, 100% 22%, 100% 100%, 72% 100%, 72% 48%, 50% 88%, 28% 48%, 28% 100%);
 }
-body.temmenmueller .menu-btn, body.temmenmueller header .gear {
+body.temmenmueller .menu-btn, body.temmenmueller header .gear, body.temmenmueller .dr-toggle {
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
 }
 body.temmenmueller .view-badge {
@@ -1823,7 +1824,7 @@ body.temmenins .brand::before {
   width: 3.2vh; height: 3.2vh;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 4 Q6 4 6 14 L6 32 Q6 48 32 62 Q58 48 58 32 L58 14 Q58 4 50 4 Z' fill='%2312b2ab'/%3E%3Crect x='15' y='13' width='34' height='31' rx='10' fill='%23ffffff'/%3E%3Cpath d='M19 33 A13 13 0 0 1 45 33 L36.5 33 L36.5 31.5 Q36.5 27 32 27 Q27.5 27 27.5 31.5 L27.5 33 Z' fill='%2312b2ab'/%3E%3Crect x='28.6' y='30' width='6.8' height='19' rx='3.4' fill='%2312b2ab'/%3E%3C/svg%3E") no-repeat center / contain;
 }
-body.temmenins .menu-btn, body.temmenins header .gear {
+body.temmenins .menu-btn, body.temmenins header .gear, body.temmenins .dr-toggle {
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
 }
 body.temmenins .view-badge { background: #12b2ab; color: #fff; border: none; font-weight: 800; }
@@ -2042,7 +2043,7 @@ body.temmenwild .brand::before {
   width: 3.4vh; height: 3vh;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M6 48 C2 26 10 8 28 4 C19 15 18 30 25 42 C18 46 10 48 6 48 Z' fill='%234a8bff'/%3E%3Cpath d='M34 22 C40 8 52 3 60 5 C53 11 49 19 49 27 C43 26 37 24 34 22 Z' fill='%234a8bff'/%3E%3C/svg%3E") no-repeat center / contain;
 }
-body.temmenwild header .gear, body.temmenwild .menu-btn {
+body.temmenwild header .gear, body.temmenwild .menu-btn, body.temmenwild .dr-toggle {
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
 }
 body.temmenwild .view-badge {
@@ -2160,7 +2161,7 @@ body.temmenchambers .brand::before {
   width: 3vh; height: 3.2vh;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 L56 11 L56 30 Q56 48 32 61 Q8 48 8 30 L8 11 Z' fill='none' stroke='%2329abe2' stroke-width='5' stroke-linejoin='round'/%3E%3Crect x='28.5' y='17' width='7' height='22' rx='1.5' fill='%236d7278'/%3E%3Crect x='21' y='24.5' width='22' height='7' rx='1.5' fill='%236d7278'/%3E%3C/svg%3E") no-repeat center / contain;
 }
-body.temmenchambers header .gear, body.temmenchambers .menu-btn {
+body.temmenchambers header .gear, body.temmenchambers .menu-btn, body.temmenchambers .dr-toggle {
   background: #fff; border: 1px solid #d5eaf5; color: #6d7278; border-radius: .7vh;
 }
 body.temmenchambers .view-badge {
@@ -2396,23 +2397,36 @@ footer {
 /* ── Mobile (phones) — px-based compact layout instead of TV vh/vw ── */
 @media (max-width: 700px) {
   body { overflow-y: auto; }
-  header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  header { flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; }
   .menu-btn, .gear { font-size: 15px; padding: 6px 10px; border-radius: 8px; }
   .brand { font-size: 16px; letter-spacing: .06em; flex: 1; min-width: 55%; }
-  .view-badge { font-size: 12px; padding: 4px 10px; min-width: 0; }
-  .daterange { font-size: 12px; }
-  .daterange input[type="date"] { font-size: 12px; padding: 4px 6px; max-width: 118px; }
-  .daterange button { font-size: 12px; padding: 3px 8px; }
+  .view-badge { font-size: 11px; padding: 4px 9px; min-width: 0; }
+  /* The date picker collapses behind a 📅 button so empty inputs never
+     clutter the header; it opens as its own tidy full-width row. */
+  .dr-toggle {
+    display: block; background: none; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px;
+    color: var(--dim); font-size: 14px; padding: 5px 9px; line-height: 1;
+  }
+  header .dr-toggle.active { color: var(--accent); border-color: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent-dim); }
+  .daterange { display: none; }
+  .daterange.open { display: flex; flex-basis: 100%; order: 9; gap: 6px; font-size: 12px; }
+  .daterange.open input[type="date"] { flex: 1; max-width: none; font-size: 13px; padding: 7px 8px; border-radius: 8px; }
+  .daterange.open button { font-size: 13px; padding: 5px 10px; border-radius: 8px; }
   .total-box { display: none; } /* the KPI tiles carry the totals on phones */
-  .sync-chip { padding: 3px 8px; border-radius: 8px; }
+  .sync-chip { padding: 3px 8px; border-radius: 8px; gap: 6px; }
   #syncTime { font-size: 11px; }
   #syncRows { font-size: 8px; }
 
-  main { flex: 1 0 auto; height: auto; padding: 10px 12px; gap: 12px; }
+  main { flex: 1 0 auto; height: auto; padding: 10px 12px 30px; gap: 12px; }
+  .goal-bar { padding: 10px 12px; border-radius: 10px; gap: 6px; }
+  .goal-head { font-size: 13px; flex-wrap: wrap; gap: 4px 10px; }
+  .goal-track { height: 14px; }
   .kpi-row { flex-wrap: wrap; gap: 8px; }
-  .kpi-tile { padding: 12px 14px; border-radius: 12px; flex: 1 1 40%; gap: 4px; }
-  .kpi-num { font-size: 27px; }
+  .kpi-tile { padding: 12px 14px; border-radius: 12px; flex: 1 1 40%; gap: 4px; min-width: 0; }
+  .kpi-num { font-size: 26px; max-width: 100%; }
   .kpi-lbl { font-size: 11px; letter-spacing: .08em; }
+  .kpi-delta { font-size: 12px; }
 
   .widgets { grid-template-columns: 1fr !important; gap: 16px; min-height: auto; }
   .widget { gap: 8px; }
@@ -2517,6 +2531,19 @@ footer {
   .ptext { font-size: 9px; right: 8px; }
   .agent-row input[type="file"] { max-width: none; flex: 1 1 100%; font-size: 12px; }
   .agent-row button { font-size: 14px; padding: 8px 14px; }
+
+  /* multi-select filter dropdowns: real tap targets */
+  .msel-btn { font-size: 14px; padding: 8px; border-radius: 8px; }
+  .msel-drop { max-height: 240px; padding: 6px; border-radius: 8px; }
+  .msel-opt { font-size: 13px; padding: 8px 10px; gap: 8px; border-radius: 6px; }
+
+  /* celebration takeover sized for a phone in the hand */
+  .celebrate-inner { padding: 0 16px; max-width: 100%; }
+  .c-avatar { width: 110px; height: 110px; font-size: 36px; border-width: 3px; }
+  .c-name { font-size: 26px; }
+  .c-amount { font-size: 40px; }
+  .c-sub { font-size: 14px; }
+  .c-tag { font-size: 15px; letter-spacing: .08em; text-align: center; }
 }
 </style>
 </head>
@@ -2526,6 +2553,7 @@ footer {
   <button class="menu-btn" id="menuBtn" title="Dashboards">☰</button>
   <div class="brand" id="brand"></div>
   <div class="view-badge" id="viewBadge">—</div>
+  <button class="dr-toggle" id="drToggle" title="Filter by dates">📅</button>
   <div class="daterange" id="dateRange">
     <input type="date" id="drFrom" title="From">
     <span>–</span>
@@ -3391,6 +3419,16 @@ function render() {
     }
     kpiRow.appendChild(tile);
   }
+  // Long dollar figures shrink to fit their tile instead of clipping.
+  requestAnimationFrame(() => {
+    for (const el of kpiRow.querySelectorAll(".kpi-num")) {
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollWidth > el.clientWidth + 1 && size > 13) {
+        size -= 1;
+        el.style.fontSize = size + "px";
+      }
+    }
+  });
 
   const widgetsEl = document.getElementById("widgets");
   const scrollPos = [...widgetsEl.querySelectorAll(".wboard")].map((el) => ({ top: el.scrollTop, left: el.scrollLeft }));
@@ -4334,11 +4372,18 @@ setInterval(() => {
 const drFrom = document.getElementById("drFrom");
 const drTo = document.getElementById("drTo");
 const drClear = document.getElementById("drClear");
+const drToggle = document.getElementById("drToggle");
+const dateRangeEl = document.getElementById("dateRange");
+drToggle.addEventListener("click", () => dateRangeEl.classList.toggle("open"));
 
 function syncDatePicker() {
   drFrom.value = dateOverride?.start || "";
   drTo.value = dateOverride?.end || "";
   drClear.classList.toggle("hidden", !dateOverride);
+  // Phones collapse the picker behind the 📅 button; an active filter
+  // lights it up (and keeps the row visible) so it can't go unnoticed.
+  drToggle.classList.toggle("active", !!dateOverride);
+  if (dateOverride) dateRangeEl.classList.add("open");
 }
 
 function onDateInput() {
