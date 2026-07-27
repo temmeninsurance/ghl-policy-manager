@@ -1982,6 +1982,241 @@ body.temmenmueller .row:first-child .bar::after {
 body.temmenins .goal-fill { background: linear-gradient(90deg, #12b2ab, #1c4e89); }
 body.temmenmueller .goal-fill { background: linear-gradient(90deg, #8b5cf6, #312e81); }
 
+/* ── Wildwood Insurance Advisors — azure swoosh on charcoal ── */
+body.temmenwild {
+  --bg: #f2f5f9;
+  --panel: #ffffff;
+  --line: #dbe3ee;
+  --text: #16181d;
+  --dim: #5c6673;
+  --accent: #3d7ff0;
+  --accent-dim: #2563eb;
+  background:
+    radial-gradient(rgba(22, 24, 29, .05) 1px, transparent 1.4px),
+    radial-gradient(70vw 42vh at 108% -8%, rgba(61, 127, 240, .13), transparent 60%),
+    radial-gradient(60vw 36vh at -8% 108%, rgba(22, 24, 29, .07), transparent 60%),
+    var(--bg);
+  background-size: 2.6vh 2.6vh, auto, auto, auto;
+}
+body.temmenwild::before {
+  content: ""; position: fixed; right: -8vh; bottom: -10vh;
+  width: 66vh; height: 58vh; z-index: -1; pointer-events: none; opacity: .06;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M6 48 C2 26 10 8 28 4 C19 15 18 30 25 42 C18 46 10 48 6 48 Z' fill='%233d7ff0'/%3E%3Cpath d='M34 22 C40 8 52 3 60 5 C53 11 49 19 49 27 C43 26 37 24 34 22 Z' fill='%233d7ff0'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+body.temmenwild header {
+  background: linear-gradient(100deg, #21242c 0%, #16181d 60%, #0f1114 100%);
+  border-bottom: .4vh solid #3d7ff0;
+  box-shadow: 0 .4vh 1.8vh rgba(22, 24, 29, .45), inset 0 -1px 0 rgba(255, 255, 255, .12);
+}
+body.temmenwild .brand {
+  color: #fff; font-size: 2.6vh; letter-spacing: .1em;
+  display: inline-flex; align-items: center; gap: .8vw;
+}
+body.temmenwild .brand::before {
+  content: ""; display: inline-block;
+  width: 3.4vh; height: 3vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M6 48 C2 26 10 8 28 4 C19 15 18 30 25 42 C18 46 10 48 6 48 Z' fill='%234a8bff'/%3E%3Cpath d='M34 22 C40 8 52 3 60 5 C53 11 49 19 49 27 C43 26 37 24 34 22 Z' fill='%234a8bff'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+body.temmenwild header .gear, body.temmenwild .menu-btn {
+  background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .4); color: #fff; border-radius: .7vh;
+}
+body.temmenwild .view-badge {
+  background: linear-gradient(135deg, #4a8bff, #2563eb); color: #fff; border: none;
+  font-weight: 800; box-shadow: 0 .3vh .8vh rgba(61, 127, 240, .4);
+}
+body.temmenwild .sync-chip { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .3); }
+body.temmenwild .sync-chip #syncTime { color: #fff; }
+body.temmenwild .sync-chip #syncRows { color: rgba(255, 255, 255, .7); }
+body.temmenwild .total-num { color: #8db8ff; }
+body.temmenwild .total-lbl { color: rgba(255, 255, 255, .75); }
+body.temmenwild .kpi-tile {
+  position: relative; padding-top: 1.2vh;
+  background: linear-gradient(180deg, #ffffff, #f5f8fc);
+  border: 1px solid #dbe3ee; border-radius: 1.1vh; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(22, 24, 29, .06), 0 .9vh 2.6vh rgba(22, 24, 29, .12);
+}
+body.temmenwild .kpi-tile::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: .5vh;
+  background: linear-gradient(90deg, #3d7ff0, #16181d);
+}
+body.temmenwild .kpi-lbl {
+  order: -1; margin: 0; padding: 0; background: none;
+  color: #5c6673; font-size: 1.5vh; font-weight: 800; letter-spacing: .22em;
+}
+body.temmenwild .kpi-num { color: #16181d; font-size: 5.4vh; }
+body.temmenwild .kpi-delta { align-self: flex-start; padding: .35vh 1vw; border-radius: 999px; font-size: 1.5vh; }
+body.temmenwild .kpi-delta.up { color: #16a34a; background: rgba(22, 163, 74, .12); }
+body.temmenwild .kpi-delta.down { color: #dc2626; background: rgba(220, 38, 38, .10); }
+body.temmenwild .widget h3 {
+  color: #16181d; letter-spacing: .12em;
+  padding-bottom: .6vh; position: relative; align-self: flex-start;
+}
+body.temmenwild .widget h3::after {
+  content: ""; position: absolute; left: 0; bottom: 0;
+  width: 100%; height: .4vh; border-radius: 999px;
+  background: linear-gradient(90deg, #3d7ff0, #16181d 70%, transparent);
+}
+body.temmenwild .rank {
+  background: #16181d; color: #fff; border: none;
+  border-radius: .7vh; width: 4.4vh; height: 4.4vh; line-height: 4.4vh;
+  font-weight: 800; font-size: 2vh; justify-self: center;
+  box-shadow: 0 .3vh .8vh rgba(22, 24, 29, .3);
+}
+body.temmenwild .rank.r1 { background: linear-gradient(135deg, #4a8bff, #2563eb); box-shadow: 0 0 1.4vh rgba(61, 127, 240, .5); }
+body.temmenwild .rank.r2 { background: #5c6673; }
+body.temmenwild .rank.r3 { background: #98a3b3; }
+body.temmenwild .avatar {
+  border: .4vh solid transparent; color: #5c6673;
+  background: linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from 210deg, #3d7ff0, #16181d, #4a8bff, #3d7ff0) border-box;
+  box-shadow: 0 .3vh .8vh rgba(22, 24, 29, .2);
+}
+body.temmenwild .bar-wrap {
+  background: #fff; border: 1px solid #dbe3ee; border-radius: .9vh;
+  box-shadow: 0 1px 2px rgba(22, 24, 29, .05), 0 .5vh 1.4vh rgba(22, 24, 29, .09);
+}
+body.temmenwild .bar {
+  background: linear-gradient(90deg, rgba(61, 127, 240, .5), rgba(61, 127, 240, .14));
+  border-right: 2px solid #3d7ff0;
+  overflow: hidden; border-radius: inherit;
+}
+body.temmenwild .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(22, 24, 29, .7), rgba(61, 127, 240, .35));
+  border-right-color: #16181d;
+}
+body.temmenwild .row:first-child .bar::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .5) 50%, transparent 65%);
+  background-size: 240% 100%;
+  animation: brand-shimmer 3.4s ease-in-out infinite;
+}
+body.temmenwild .row:first-child .bar-wrap { border-color: #3d7ff0; box-shadow: 0 0 1.4vh rgba(61, 127, 240, .3); }
+body.temmenwild .name, body.temmenwild .apps { color: #16181d; }
+body.temmenwild .sub, body.temmenwild .more { color: #5c6673; }
+body.temmenwild .tbar { background: linear-gradient(180deg, #4a8bff, #2563eb); }
+body.temmenwild .pstrip { background: #f2f5f9; }
+body.temmenwild .goal-fill { background: linear-gradient(90deg, #3d7ff0, #16181d); }
+body.temmenwild .dot { background: #3d7ff0; box-shadow: 0 0 1vh rgba(61, 127, 240, .7); }
+body.temmenwild .daterange input[type="date"] { color-scheme: light; }
+
+/* ── Chambers Insurance — clinical sky-cyan with the cross shield ── */
+body.temmenchambers {
+  --bg: #f3fafd;
+  --panel: #ffffff;
+  --line: #d5eaf5;
+  --text: #333a40;
+  --dim: #6d7278;
+  --accent: #29abe2;
+  --accent-dim: #1786b8;
+  background:
+    radial-gradient(rgba(41, 171, 226, .06) 1px, transparent 1.4px),
+    radial-gradient(70vw 42vh at 108% -8%, rgba(41, 171, 226, .13), transparent 60%),
+    radial-gradient(60vw 36vh at -8% 108%, rgba(109, 114, 120, .08), transparent 60%),
+    var(--bg);
+  background-size: 2.6vh 2.6vh, auto, auto, auto;
+}
+body.temmenchambers::before {
+  content: ""; position: fixed; right: -10vh; bottom: -12vh;
+  width: 66vh; height: 66vh; z-index: -1; pointer-events: none; opacity: .07;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 L56 11 L56 30 Q56 48 32 61 Q8 48 8 30 L8 11 Z' fill='none' stroke='%2329abe2' stroke-width='5' stroke-linejoin='round'/%3E%3Crect x='28.5' y='17' width='7' height='22' rx='1.5' fill='%236d7278'/%3E%3Crect x='21' y='24.5' width='22' height='7' rx='1.5' fill='%236d7278'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+/* the roster's one light header — crisp and clinical */
+body.temmenchambers header {
+  background: linear-gradient(180deg, #ffffff, #f2fafe);
+  border-bottom: .4vh solid #29abe2;
+  box-shadow: 0 .4vh 1.6vh rgba(41, 171, 226, .18);
+}
+body.temmenchambers .brand {
+  color: #29abe2; font-size: 2.6vh; letter-spacing: .18em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .8vw;
+}
+body.temmenchambers .brand::before {
+  content: ""; display: inline-block;
+  width: 3vh; height: 3.2vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 L56 11 L56 30 Q56 48 32 61 Q8 48 8 30 L8 11 Z' fill='none' stroke='%2329abe2' stroke-width='5' stroke-linejoin='round'/%3E%3Crect x='28.5' y='17' width='7' height='22' rx='1.5' fill='%236d7278'/%3E%3Crect x='21' y='24.5' width='22' height='7' rx='1.5' fill='%236d7278'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+body.temmenchambers header .gear, body.temmenchambers .menu-btn {
+  background: #fff; border: 1px solid #d5eaf5; color: #6d7278; border-radius: .7vh;
+}
+body.temmenchambers .view-badge {
+  background: linear-gradient(135deg, #45c0f0, #1786b8); color: #fff; border: none;
+  font-weight: 800; box-shadow: 0 .3vh .8vh rgba(41, 171, 226, .35);
+}
+body.temmenchambers .sync-chip { background: #fff; border-color: #d5eaf5; }
+body.temmenchambers .sync-chip #syncTime { color: #333a40; }
+body.temmenchambers .sync-chip #syncRows { color: #6d7278; }
+body.temmenchambers .total-num { color: #29abe2; }
+body.temmenchambers .total-lbl { color: #6d7278; }
+body.temmenchambers .kpi-tile {
+  position: relative; padding-top: 1.2vh;
+  background: linear-gradient(180deg, #ffffff, #f5fbfe);
+  border: 1px solid #d5eaf5; border-radius: 1.1vh; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(41, 171, 226, .08), 0 .9vh 2.6vh rgba(41, 171, 226, .12);
+}
+body.temmenchambers .kpi-tile::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: .5vh;
+  background: linear-gradient(90deg, #29abe2, #6d7278);
+}
+body.temmenchambers .kpi-lbl {
+  order: -1; margin: 0; padding: 0; background: none;
+  color: #6d7278; font-size: 1.5vh; font-weight: 800; letter-spacing: .22em;
+}
+body.temmenchambers .kpi-num { color: #29abe2; font-size: 5.4vh; }
+body.temmenchambers .kpi-delta { align-self: flex-start; padding: .35vh 1vw; border-radius: 999px; font-size: 1.5vh; }
+body.temmenchambers .kpi-delta.up { color: #16a34a; background: rgba(22, 163, 74, .12); }
+body.temmenchambers .kpi-delta.down { color: #dc2626; background: rgba(220, 38, 38, .10); }
+body.temmenchambers .widget h3 {
+  color: #333a40; letter-spacing: .14em; text-transform: uppercase;
+  padding-bottom: .6vh; position: relative; align-self: flex-start;
+}
+body.temmenchambers .widget h3::after {
+  content: ""; position: absolute; left: 0; bottom: 0;
+  width: 100%; height: .4vh; border-radius: 999px;
+  background: linear-gradient(90deg, #29abe2, #6d7278 70%, transparent);
+}
+body.temmenchambers .rank {
+  background: #29abe2; color: #fff; border: none;
+  border-radius: 50%; width: 4.4vh; height: 4.4vh; line-height: 4.4vh;
+  font-weight: 800; font-size: 2vh; justify-self: center;
+  box-shadow: 0 .3vh .8vh rgba(41, 171, 226, .3);
+}
+body.temmenchambers .rank.r1 { background: linear-gradient(135deg, #45c0f0, #1786b8); box-shadow: 0 0 1.4vh rgba(41, 171, 226, .55); }
+body.temmenchambers .rank.r2 { background: #6d7278; }
+body.temmenchambers .rank.r3 { background: #a9b2ba; }
+body.temmenchambers .avatar {
+  border: .4vh solid transparent; color: #6d7278;
+  background: linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from 210deg, #29abe2, #6d7278, #45c0f0, #29abe2) border-box;
+  box-shadow: 0 .3vh .8vh rgba(41, 171, 226, .22);
+}
+body.temmenchambers .bar-wrap {
+  background: #fff; border: 1px solid #d5eaf5; border-radius: .9vh;
+  box-shadow: 0 1px 2px rgba(41, 171, 226, .06), 0 .5vh 1.4vh rgba(41, 171, 226, .10);
+}
+body.temmenchambers .bar {
+  background: linear-gradient(90deg, rgba(41, 171, 226, .45), rgba(41, 171, 226, .12));
+  border-right: 2px solid #29abe2;
+  overflow: hidden; border-radius: inherit;
+}
+body.temmenchambers .row:first-child .bar {
+  background: linear-gradient(90deg, rgba(23, 134, 184, .6), rgba(41, 171, 226, .25));
+  border-right-color: #1786b8;
+}
+body.temmenchambers .row:first-child .bar::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .55) 50%, transparent 65%);
+  background-size: 240% 100%;
+  animation: brand-shimmer 3.4s ease-in-out infinite;
+}
+body.temmenchambers .row:first-child .bar-wrap { border-color: #29abe2; box-shadow: 0 0 1.4vh rgba(41, 171, 226, .35); }
+body.temmenchambers .name, body.temmenchambers .apps { color: #333a40; }
+body.temmenchambers .sub, body.temmenchambers .more { color: #6d7278; }
+body.temmenchambers .tbar { background: linear-gradient(180deg, #45c0f0, #1786b8); }
+body.temmenchambers .pstrip { background: #f3fafd; }
+body.temmenchambers .goal-fill { background: linear-gradient(90deg, #29abe2, #6d7278); }
+body.temmenchambers .dot { background: #29abe2; box-shadow: 0 0 1vh rgba(41, 171, 226, .7); }
+body.temmenchambers .daterange input[type="date"] { color-scheme: light; }
+
 footer {
   display: flex; align-items: center; gap: 1vw;
   padding: 1.2vh 2.2vw;
@@ -2388,6 +2623,8 @@ footer {
           <option value="hallow">Temmen Frightnight 🎃</option>
           <option value="mueller">Mueller Insurance 💜</option>
           <option value="temmen">Temmen Insurance 🛡️</option>
+          <option value="wildwood">Wildwood Insurance 🪶</option>
+          <option value="chambers">Chambers Insurance ⚕️</option>
         </select>
       </label>
     </div>
@@ -2474,7 +2711,7 @@ function normalizeState(s) {
     }
     out.filters = nf;
   }
-  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow", "mueller", "temmen"].includes(out.theme) ? out.theme : "default";
+  out.theme = ["race", "opoly", "madness", "golf", "cup", "deal", "xmas", "hallow", "mueller", "temmen", "wildwood", "chambers"].includes(out.theme) ? out.theme : "default";
   if (!VIEWS[out.view]) out.view = "mtd";
   if (!Array.isArray(out.widgets) || !out.widgets.length) {
     out.widgets = structuredClone(DEFAULT_STATE.widgets);
@@ -2643,6 +2880,8 @@ function applyState() {
   document.body.classList.toggle("temmenhallow", state.theme === "hallow");
   document.body.classList.toggle("temmenmueller", state.theme === "mueller");
   document.body.classList.toggle("temmenins", state.theme === "temmen");
+  document.body.classList.toggle("temmenwild", state.theme === "wildwood");
+  document.body.classList.toggle("temmenchambers", state.theme === "chambers");
   setBrand(state.title || CFG.TITLE);
   document.title = state.title || CFG.TITLE;
   document.getElementById("viewBadge").textContent = (VIEWS[state.view] || state.view).toUpperCase();
@@ -2736,7 +2975,8 @@ const CELEB_HEADLINES = {
   race: "🏁 FULL THROTTLE!", opoly: "🎩 PAYDAY!", madness: "🏀 BUCKETS!",
   golf: "⛳ BIRDIE!", cup: "⚽ GOOOOAL!", deal: "💼 DEAL!",
   xmas: "🎄 HO HO SOLD!", hallow: "🎃 TRICK OR TREAT!",
-  mueller: "💜 NEW SALE!", temmen: "🛡️ NEW SALE!", default: "🎉 NEW SALE!",
+  mueller: "💜 NEW SALE!", temmen: "🛡️ NEW SALE!",
+  wildwood: "🪶 NEW SALE!", chambers: "⚕️ NEW SALE!", default: "🎉 NEW SALE!",
 };
 const MILESTONE_STEP = 250; // career apps
 let celebBaseline = null;
