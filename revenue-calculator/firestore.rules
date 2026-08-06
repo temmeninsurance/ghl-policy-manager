@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The ONE account allowed to edit the pay scale.
+    // Must match ADMIN_EMAIL in public/index.html.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'admin@temmeninsurance.com';
+    }
+
+    // Pay scale rules — anyone with the link can read (the calculator
+    // needs them), only the admin account can write.
+    match /rates/{rateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // App settings (carriers, products, cross-sell map, typical premiums)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Everything else: locked.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

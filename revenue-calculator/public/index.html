@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║        TEMMEN PORTAL — Insurance Revenue Calculator v1.0 (Firebase)      ║
+  ╠══════════════════════════════════════════════════════════════════════════╣
+  ║                                                                          ║
+  ║  See ../SETUP.md for full setup + deploy instructions.                   ║
+  ║                                                                          ║
+  ║  QUICK VERSION:                                                          ║
+  ║    1. Create a Firebase project → enable Firestore + Email/Password auth ║
+  ║    2. Create ONE auth user: the admin email below, password = admin PIN  ║
+  ║    3. Paste your Firebase web config into FIREBASE_CONFIG below          ║
+  ║    4. firebase deploy                                                    ║
+  ║                                                                          ║
+  ║  Reps: open the link, no login needed (read-only).                       ║
+  ║  Admins: click the lock, enter the PIN, edit the pay scale live.         ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Temmen Revenue Calculator</title>
+<style>
+:root{--teal:#0d9488;--teal-d:#0f766e;--teal-l:#ccfbf1;--ink:#111827;--mut:#6b7280;--mut-l:#9ca3af;--line:#e5e7eb;--bg:#f6f8f9}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:var(--ink);background:var(--bg);line-height:1.5}
+.wrap{max-width:1060px;margin:0 auto;padding:18px 16px 60px}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.hdr-title{font-size:20px;font-weight:800}
+.hdr-title small{display:block;font-size:12px;font-weight:500;color:var(--mut)}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.tabs{display:flex;border-bottom:2px solid var(--line);margin-bottom:16px;gap:2px}
+.tab{padding:9px 18px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-size:14px;font-weight:600;color:var(--mut);cursor:pointer;font-family:inherit}
+.tab:hover{color:#374151}
+.tab.on{color:var(--teal);border-bottom-color:var(--teal)}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card h3{font-size:14px;font-weight:700;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+.fg input,.fg select,.fg textarea{padding:9px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;width:100%;outline:none;font-family:inherit}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+.seg{display:flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden}
+.seg button{flex:1;padding:9px 4px;border:none;background:#fff;color:var(--mut);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--teal);color:#fff}
+.btn{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{background:var(--teal-d)}
+.btn-ghost{background:#f9fafb;color:#374151;border:1px solid var(--line)}
+.btn-ghost:hover{background:#f3f4f6}
+.btn-danger{background:#fee2e2;color:#dc2626}
+.btn-danger:hover{background:#fecaca}
+.btn-sm{padding:6px 12px;font-size:12px}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:9999px;font-size:11px;font-weight:700}
+.badge-best{background:#fef3c7;color:#92400e}
+.badge-teal{background:var(--teal-l);color:var(--teal-d)}
+.badge-gray{background:#f3f4f6;color:var(--mut)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut-l);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid #f3f4f6;font-size:13px;vertical-align:middle}
+tr.best{background:#fffdf3}
+.money{font-weight:700;font-variant-numeric:tabular-nums}
+.money-big{font-size:16px;color:var(--teal-d)}
+.empty{text-align:center;padding:34px 16px;color:var(--mut-l)}
+.empty .ico{font-size:30px;margin-bottom:8px}
+.note{font-size:12px;color:var(--mut);margin-top:8px}
+.warn{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:12px}
+.err{background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:12px;color:#dc2626;margin-bottom:10px}
+.xsell{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.xsell-card{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fafcfc}
+.xsell-card .xp{font-weight:700;font-size:13px}
+.xsell-card .xc{font-size:12px;color:var(--mut);margin:2px 0 6px}
+.xsell-card .xm{font-size:15px;font-weight:800;color:var(--teal-d)}
+.xsell-card .xs{font-size:11px;color:var(--mut-l)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+.toolbar .fg{min-width:130px}
+.spacer{flex:1}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal-title{font-size:16px;font-weight:700}
+.modal-x{border:none;background:none;font-size:20px;color:var(--mut-l);cursor:pointer;width:30px;height:30px;border-radius:7px}
+.modal-x:hover{background:#f3f4f6;color:#374151}
+.modal-body{padding:18px 20px;overflow-y:auto;flex:1}
+.modal-ftr{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line)}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+.states-box{border:1px solid var(--line);border-radius:8px;padding:10px;max-height:170px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:4px}
+.states-box label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:2px 4px;border-radius:4px}
+.states-box label:hover{background:#f3f4f6}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--teal-l);color:var(--teal-d);border-radius:9999px;padding:4px 6px 4px 12px;font-size:12px;font-weight:600}
+.chip button{border:none;background:none;color:var(--teal-d);cursor:pointer;font-size:13px;line-height:1;padding:2px 5px;border-radius:50%}
+.chip button:hover{background:rgba(13,148,136,.15)}
+.pin-box{max-width:340px;margin:60px auto;text-align:center}
+.pin-box input{text-align:center;font-size:20px;letter-spacing:.3em}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:none;background:none;color:var(--mut-l);cursor:pointer}
+.icon-btn:hover{background:#f3f4f6;color:#374151}
+.icon-btn.del:hover{background:#fee2e2;color:#dc2626}
+.subtabs{display:flex;gap:6px;margin-bottom:14px}
+.subtab{padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:600;color:var(--mut);cursor:pointer;font-family:inherit}
+.subtab.on{background:var(--teal);border-color:var(--teal);color:#fff}
+.setup{max-width:640px;margin:40px auto}
+.setup ol{margin:10px 0 0 20px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+code{background:#f3f4f6;border-radius:4px;padding:1px 5px;font-size:12px}
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:60px;color:var(--mut)}
+.spin{width:20px;height:20px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.xsell-cfg{display:flex;flex-direction:column;gap:10px}
+.xsell-row{display:flex;gap:10px;align-items:start;flex-wrap:wrap;padding:10px;border:1px solid var(--line);border-radius:10px}
+.xsell-row .xr-name{font-weight:700;font-size:13px;min-width:150px;padding-top:3px}
+.xsell-row .xr-opts{display:flex;flex-wrap:wrap;gap:4px 14px;flex:1}
+.xsell-row label{font-size:12px;display:flex;gap:5px;align-items:center;cursor:pointer}
+@media (max-width:640px){.form2{grid-template-columns:1fr}.hdr-title{font-size:17px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading"><div class="spin"></div>Loading…</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+/* ═══════════ 1. CONFIG — paste your Firebase web config here ═══════════ */
+var FIREBASE_CONFIG = {
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+  projectId: "PASTE_YOUR_PROJECT_ID",
+  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
+  messagingSenderId: "PASTE",
+  appId: "PASTE"
+};
+/* The one auth account that can edit the pay scale. Its PASSWORD is the admin PIN.
+   Must match the email hardcoded in firestore.rules. */
+var ADMIN_EMAIL = "admin@temmeninsurance.com";
+
+/* ═══════════ 2. Constants ═══════════ */
+var STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+var DEFAULT_SETTINGS = {
+  products: ["Medicare Advantage","PDP","Medicare Supplement","ACA / Health","Life","Final Expense","Annuity"],
+  carriers: [],
+  crossSells: {
+    "Medicare Advantage": ["Final Expense","Life"],
+    "PDP": ["Medicare Supplement","Final Expense"],
+    "Medicare Supplement": ["PDP","Final Expense"],
+    "ACA / Health": ["Life"],
+    "Life": ["Annuity"],
+    "Final Expense": ["Life"],
+    "Annuity": ["Life"]
+  },
+  /* typical MONTHLY premium per product — used only to estimate cross-sell $ */
+  defaultPremiums: {
+    "Medicare Advantage": 0, "PDP": 40, "Medicare Supplement": 150,
+    "ACA / Health": 450, "Life": 80, "Final Expense": 60, "Annuity": 0
+  }
+};
+
+/* ═══════════ 3. State ═══════════ */
+var db=null, auth=null, isAdmin=false;
+var settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+var rates = [];            // [{id, product, carrier, state, ageMin, ageMax, compType, firstYear, renewal, notes}]
+var ratesLoaded=false, settingsLoaded=false;
+var view='calc', adminSub='rates';
+var calcIn = {state:'', age:'', product:'', premium:'', mode:'monthly', carrier:''};
+var adminFilter = {product:'', state:'', carrier:'', q:''};
+var modal=null;   // {type:'rate'|'pin', ...}
+
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function money(n){if(n==null||isNaN(n))return '—';return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:(n%1?2:0),maximumFractionDigits:2})}
+function num(v){var n=parseFloat(v);return isNaN(n)?null:n}
+
+/* ═══════════ 4. Boot ═══════════ */
+function boot(){
+  if(!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.indexOf('PASTE')===0){ renderSetup(); return; }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.firestore();
+  auth = firebase.auth();
+  auth.onAuthStateChanged(function(u){
+    isAdmin = !!(u && u.email && u.email.toLowerCase()===ADMIN_EMAIL.toLowerCase());
+    render();
+  });
+  db.collection('config').doc('settings').onSnapshot(function(doc){
+    settingsLoaded=true;
+    if(doc.exists){
+      var d=doc.data();
+      settings.products = (d.products&&d.products.length)?d.products:DEFAULT_SETTINGS.products;
+      settings.carriers = d.carriers||[];
+      settings.crossSells = d.crossSells||DEFAULT_SETTINGS.crossSells;
+      settings.defaultPremiums = d.defaultPremiums||DEFAULT_SETTINGS.defaultPremiums;
+    }
+    render();
+  }, function(e){ settingsLoaded=true; render(); console.error(e); });
+  db.collection('rates').onSnapshot(function(snap){
+    ratesLoaded=true;
+    rates = snap.docs.map(function(d){var o=d.data();o.id=d.id;return o});
+    render();
+  }, function(e){ ratesLoaded=true; render(); console.error(e); });
+}
+
+/* ═══════════ 5. Comp math ═══════════ */
+function annualPremium(){
+  var p=num(calcIn.premium); if(p==null)return null;
+  return calcIn.mode==='monthly' ? p*12 : p;
+}
+function ruleMatches(r, product, state, age){
+  if(r.product!==product)return false;
+  if(state && r.state!==state)return false;
+  if(age!=null){
+    if(r.ageMin!=null && age<r.ageMin)return false;
+    if(r.ageMax!=null && age>r.ageMax)return false;
+  }
+  return true;
+}
+function bandWidth(r){
+  var lo=(r.ageMin==null)?0:r.ageMin, hi=(r.ageMax==null)?150:r.ageMax;
+  return hi-lo;
+}
+function payFor(rule, annual){
+  // returns {fy, renewal} in dollars, or null values if premium needed but missing
+  if(rule.compType==='flat') return {fy:rule.firstYear, renewal:rule.renewal||0, needsPremium:false};
+  if(annual==null) return {fy:null, renewal:null, needsPremium:true};
+  return {fy:annual*rule.firstYear/100, renewal:annual*(rule.renewal||0)/100, needsPremium:false};
+}
+/* best matching rule per carrier for product/state/age */
+function bestRulesByCarrier(product, state, age){
+  var byCarrier={};
+  rates.forEach(function(r){
+    if(!ruleMatches(r, product, state, age))return;
+    var cur=byCarrier[r.carrier];
+    if(!cur || bandWidth(r)<bandWidth(cur)) byCarrier[r.carrier]=r;
+  });
+  return byCarrier;
+}
+function rankCarriers(product, state, age, annual){
+  var byCarrier=bestRulesByCarrier(product, state, age);
+  var rows=Object.keys(byCarrier).map(function(c){
+    var r=byCarrier[c], p=payFor(r, annual);
+    return {carrier:c, rule:r, fy:p.fy, renewal:p.renewal, needsPremium:p.needsPremium};
+  });
+  rows.sort(function(a,b){
+    if(a.fy==null&&b.fy==null)return a.carrier.localeCompare(b.carrier);
+    if(a.fy==null)return 1; if(b.fy==null)return -1;
+    return b.fy-a.fy;
+  });
+  return rows;
+}
+
+/* ═══════════ 6. Render ═══════════ */
+function render(){
+  if(!ratesLoaded||!settingsLoaded){ $('app').innerHTML='<div class="loading"><div class="spin"></div>Loading pay scale…</div>'; return; }
+  var h='';
+  h+='<div class="hdr"><div class="hdr-title">Revenue Calculator<small>Temmen Insurance</small></div>';
+  h+='<div class="hdr-right">';
+  if(isAdmin) h+='<span class="badge badge-teal">Admin unlocked</span><button class="btn btn-ghost btn-sm" onclick="lockAdmin()">🔒 Lock</button>';
+  h+='</div></div>';
+  h+='<div class="tabs">';
+  h+='<button class="tab'+(view==='calc'?' on':'')+'" onclick="setView(\'calc\')">Calculator</button>';
+  h+='<button class="tab'+(view==='admin'?' on':'')+'" onclick="setView(\'admin\')">'+(isAdmin?'⚙️ Admin':'🔒 Admin')+'</button>';
+  h+='</div>';
+  h+= view==='calc' ? renderCalc() : renderAdmin();
+  $('app').innerHTML=h;
+  h= modal ? renderModal() : '';
+  var ov=$('ovl'); if(ov)ov.remove();
+  if(h){var d=document.createElement('div');d.id='ovl';d.innerHTML=h;document.body.appendChild(d);
+    var f=document.querySelector('#ovl [autofocus]'); if(f)f.focus();}
+}
+function setView(v){
+  view=v;
+  if(v==='admin'&&!isAdmin){ modal={type:'pin', err:''}; }
+  render();
+}
+
+/* ── Calculator view ── */
+function renderCalc(){
+  var h='';
+  h+='<div class="card"><h3>Client &amp; Sale Info</h3><div class="grid">';
+  h+=fg('State', sel('c_state', ['<option value="">Select…</option>'].concat(STATES.map(function(s){return '<option'+(calcIn.state===s?' selected':'')+'>'+s+'</option>'})).join(''), 'onCalcIn(\'state\',this.value)'));
+  h+=fg('Client Age', '<input id="c_age" type="number" min="0" max="120" placeholder="e.g. 67" value="'+esc(calcIn.age)+'" oninput="onCalcIn(\'age\',this.value)">');
+  h+=fg('Product', sel('c_product', ['<option value="">Select…</option>'].concat(settings.products.map(function(p){return '<option'+(calcIn.product===p?' selected':'')+'>'+esc(p)+'</option>'})).join(''), 'onCalcIn(\'product\',this.value)'));
+  h+=fg('Premium', '<input id="c_prem" type="number" min="0" step="0.01" placeholder="0.00" value="'+esc(calcIn.premium)+'" oninput="onCalcIn(\'premium\',this.value)">');
+  h+=fg('Premium Basis', '<div class="seg"><button class="'+(calcIn.mode==='monthly'?'on':'')+'" onclick="onCalcIn(\'mode\',\'monthly\')">Monthly</button><button class="'+(calcIn.mode==='annual'?'on':'')+'" onclick="onCalcIn(\'mode\',\'annual\')">Annual</button></div>');
+  h+='</div>';
+  if(!rates.length) h+='<div class="note">⚠️ The pay scale is empty — an admin needs to add rates (Admin tab).</div>';
+  h+='</div>';
+
+  if(calcIn.product && calcIn.state){
+    var age=num(calcIn.age), annual=annualPremium();
+    var rows=rankCarriers(calcIn.product, calcIn.state, age, annual);
+    h+='<div class="card"><h3>💰 Carrier Payouts — '+esc(calcIn.product)+' · '+esc(calcIn.state)+(age!=null?' · Age '+age:'')+'</h3>';
+    if(!rows.length){
+      h+='<div class="empty"><div class="ico">🔍</div>No rates found for this product / state'+(age!=null?' / age':'')+'.<br>Ask an admin to add them in the Admin tab.</div>';
+    }else{
+      var hasPct = rows.some(function(r){return r.rule.compType==='percent'});
+      if(hasPct && annual==null) h+='<div class="warn">Some carriers pay a % of premium — enter the premium above to compare them.</div>';
+      h+='<div style="overflow-x:auto"><table><thead><tr><th></th><th>Carrier</th><th>Pay Basis</th><th>Age Band</th><th>First-Year Comp</th><th>Renewal / yr</th><th>3-Yr Total</th></tr></thead><tbody>';
+      rows.forEach(function(r,i){
+        var basis = r.rule.compType==='flat'
+          ? money(r.rule.firstYear)+' / app'
+          : r.rule.firstYear+'% FY · '+(r.rule.renewal||0)+'% renewal';
+        var band = (r.rule.ageMin==null&&r.rule.ageMax==null)?'All ages':((r.rule.ageMin==null?'≤':r.rule.ageMin+'–')+(r.rule.ageMax==null?(r.rule.ageMin!=null?'+':''):r.rule.ageMax)).replace('–+','+');
+        var total3 = (r.fy!=null)? r.fy+(r.renewal||0)*2 : null;
+        h+='<tr'+(i===0&&r.fy!=null?' class="best"':'')+'>';
+        h+='<td>'+(i===0&&r.fy!=null?'<span class="badge badge-best">★ Best</span>':'<span style="color:#9ca3af">#'+(i+1)+'</span>')+'</td>';
+        h+='<td style="font-weight:600">'+esc(r.carrier)+(r.rule.notes?'<div style="font-size:11px;color:#9ca3af;font-weight:400">'+esc(r.rule.notes)+'</div>':'')+'</td>';
+        h+='<td>'+esc(basis)+'</td><td>'+esc(band)+'</td>';
+        h+='<td class="money money-big">'+(r.needsPremium?'<span style="color:#d97706;font-weight:500;font-size:12px">enter premium</span>':money(r.fy))+'</td>';
+        h+='<td class="money">'+(r.needsPremium?'—':money(r.renewal))+'</td>';
+        h+='<td class="money">'+(total3==null?'—':money(total3))+'</td></tr>';
+      });
+      h+='</tbody></table></div>';
+      h+='<div class="note">First-year comp'+(annual!=null?' based on '+money(annual)+' annual premium':'')+'. 3-yr total = first year + 2 renewal years. Always verify against carrier contracts.</div>';
+    }
+    h+='</div>';
+    h+=renderCrossSell(age);
+  }else{
+    h+='<div class="empty card"><div class="ico">🧮</div>Pick a <b>state</b> and <b>product</b> above to see ranked carrier payouts.</div>';
+  }
+  return h;
+}
+function renderCrossSell(age){
+  var sugg=(settings.crossSells[calcIn.product]||[]).filter(function(p){return p!==calcIn.product});
+  if(!sugg.length)return '';
+  var h='<div class="card"><h3>🎯 Cross-Sell Opportunities</h3><div class="xsell">';
+  var any=false;
+  sugg.forEach(function(p){
+    var mPrem=num(settings.defaultPremiums[p]);
+    var annual=(mPrem&&mPrem>0)?mPrem*12:null;
+    var rows=rankCarriers(p, calcIn.state, age, annual);
+    var top=rows.length?rows[0]:null;
+    if(!top)return;
+    any=true;
+    h+='<div class="xsell-card"><div class="xp">'+esc(p)+'</div>';
+    h+='<div class="xc">Best payer: <b>'+esc(top.carrier)+'</b></div>';
+    if(top.fy!=null){
+      h+='<div class="xm">+'+money(top.fy)+' <span style="font-size:11px;font-weight:500;color:#6b7280">first year</span></div>';
+      h+='<div class="xs">'+(top.rule.compType==='percent'?('est. @ '+money(mPrem)+'/mo typical premium'):'flat per app')+'</div>';
+    }else{
+      h+='<div class="xs">'+top.rule.firstYear+'% of premium — set a typical premium in Admin → Settings to estimate</div>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  if(!any)h+='<div class="note">No rates entered yet for the suggested products in '+esc(calcIn.state)+'.</div>';
+  h+='<div class="note">Suggested add-on products for a '+esc(calcIn.product)+' client'+(age!=null?', age '+age:'')+'. Estimates use admin-set typical premiums.</div></div>';
+  return h;
+}
+function onCalcIn(k,v){calcIn[k]=v;render();
+  var el=$( {state:'c_state',age:'c_age',product:'c_product',premium:'c_prem'}[k] );
+  if(el&&(k==='age'||k==='premium')){el.focus();var val=el.value;el.value='';el.value=val;}}
+
+/* ── Admin view ── */
+function renderAdmin(){
+  if(!isAdmin) return '<div class="empty card"><div class="ico">🔒</div>Admin access required. <div style="margin-top:12px"><button class="btn btn-primary" onclick="modal={type:\'pin\',err:\'\'};render()">Enter Admin PIN</button></div></div>';
+  var h='<div class="subtabs">';
+  h+='<button class="subtab'+(adminSub==='rates'?' on':'')+'" onclick="adminSub=\'rates\';render()">Pay Scale ('+rates.length+')</button>';
+  h+='<button class="subtab'+(adminSub==='settings'?' on':'')+'" onclick="adminSub=\'settings\';render()">Settings</button>';
+  h+='</div>';
+  h+= adminSub==='rates' ? renderRates() : renderSettings();
+  return h;
+}
+function renderRates(){
+  var f=adminFilter;
+  var list=rates.filter(function(r){
+    if(f.product&&r.product!==f.product)return false;
+    if(f.state&&r.state!==f.state)return false;
+    if(f.carrier&&r.carrier!==f.carrier)return false;
+    if(f.q){var q=f.q.toLowerCase();if((r.carrier+' '+r.product+' '+r.state+' '+(r.notes||'')).toLowerCase().indexOf(q)<0)return false}
+    return true;
+  });
+  list.sort(function(a,b){return (a.product+a.carrier+a.state).localeCompare(b.product+b.carrier+b.state)});
+  var carriersInUse={};rates.forEach(function(r){carriersInUse[r.carrier]=1});
+  var h='<div class="card">';
+  h+='<div class="toolbar">';
+  h+=fg('Product', sel('',['<option value="">All</option>'].concat(settings.products.map(function(p){return '<option'+(f.product===p?' selected':'')+'>'+esc(p)+'</option>'})).join(''),'adminFilter.product=this.value;render()'));
+  h+=fg('State', sel('',['<option value="">All</option>'].concat(STATES.map(function(s){return '<option'+(f.state===s?' selected':'')+'>'+s+'</option>'})).join(''),'adminFilter.state=this.value;render()'));
+  h+=fg('Carrier', sel('',['<option value="">All</option>'].concat(Object.keys(carriersInUse).sort().map(function(c){return '<option'+(f.carrier===c?' selected':'')+'>'+esc(c)+'</option>'})).join(''),'adminFilter.carrier=this.value;render()'));
+  h+=fg('Search','<input value="'+esc(f.q)+'" placeholder="Search…" oninput="adminFilter.q=this.value;render();refocus(\'af_q\')" id="af_q">');
+  h+='<div class="spacer"></div>';
+  h+='<button class="btn btn-ghost" onclick="exportCsv()">⬇ CSV</button>';
+  if(!rates.length)h+='<button class="btn btn-ghost" onclick="seedSample()">🌱 Load sample data</button>';
+  else if(rates.some(function(r){return r.notes==='SAMPLE'}))h+='<button class="btn btn-danger" onclick="deleteSamples()">🗑 Remove sample data</button>';
+  h+='<button class="btn btn-primary" onclick="openRateModal(null)">+ Add Rates</button>';
+  h+='</div>';
+  if(!list.length){
+    h+='<div class="empty"><div class="ico">📋</div>'+(rates.length?'No rates match the filters.':'No rates yet. Click <b>+ Add Rates</b> to build your pay scale, or load sample data to see how it works.')+'</div>';
+  }else{
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Product</th><th>Carrier</th><th>State</th><th>Ages</th><th>Type</th><th>First-Year</th><th>Renewal</th><th>Notes</th><th></th></tr></thead><tbody>';
+    var shown=list.slice(0,400);
+    shown.forEach(function(r){
+      var band=(r.ageMin==null&&r.ageMax==null)?'All':((r.ageMin==null?'≤'+r.ageMax:(r.ageMax==null?r.ageMin+'+':r.ageMin+'–'+r.ageMax)));
+      h+='<tr><td>'+esc(r.product)+'</td><td style="font-weight:600">'+esc(r.carrier)+'</td><td>'+esc(r.state)+'</td><td>'+esc(band)+'</td>';
+      h+='<td>'+(r.compType==='flat'?'<span class="badge badge-gray">$ flat</span>':'<span class="badge badge-teal">% prem</span>')+'</td>';
+      h+='<td class="money">'+(r.compType==='flat'?money(r.firstYear):r.firstYear+'%')+'</td>';
+      h+='<td class="money">'+(r.compType==='flat'?money(r.renewal||0):(r.renewal||0)+'%')+'</td>';
+      h+='<td style="font-size:11px;color:#9ca3af;max-width:140px">'+esc(r.notes||'')+'</td>';
+      h+='<td style="white-space:nowrap"><button class="icon-btn" title="Edit" onclick="openRateModal(\''+r.id+'\')">✏️</button><button class="icon-btn" title="Duplicate" onclick="openRateModal(\''+r.id+'\',true)">⧉</button><button class="icon-btn del" title="Delete" onclick="delRate(\''+r.id+'\')">🗑</button></td></tr>';
+    });
+    h+='</tbody></table></div>';
+    if(list.length>shown.length)h+='<div class="note">Showing first '+shown.length+' of '+list.length+' — narrow the filters to see the rest.</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function renderSettings(){
+  var h='';
+  h+='<div class="card"><h3>Carriers</h3><div class="note" style="margin:0 0 10px">Master carrier list used in the Add Rates form. Removing one here doesn\'t delete its existing rates.</div>';
+  h+='<div class="chip-row">'+settings.carriers.map(function(c,i){return '<span class="chip">'+esc(c)+'<button onclick="settings.carriers.splice('+i+',1);saveSettings()">✕</button></span>'}).join('')+'</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px;max-width:360px"><input id="new_carrier" placeholder="Add carrier…" style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px" onkeydown="if(event.key===\'Enter\')addCarrier()"><button class="btn btn-primary btn-sm" onclick="addCarrier()">Add</button></div></div>';
+
+  h+='<div class="card"><h3>Cross-Sell Suggestions</h3><div class="note" style="margin:0 0 10px">When a rep quotes a product, suggest these add-ons.</div><div class="xsell-cfg">';
+  settings.products.forEach(function(p){
+    h+='<div class="xsell-row"><div class="xr-name">'+esc(p)+' →</div><div class="xr-opts">';
+    settings.products.filter(function(x){return x!==p}).forEach(function(x){
+      var on=(settings.crossSells[p]||[]).indexOf(x)>=0;
+      h+='<label><input type="checkbox"'+(on?' checked':'')+' onchange="toggleXsell(\''+esc(p).replace(/'/g,"\\'")+'\',\''+esc(x).replace(/'/g,"\\'")+'\',this.checked)">'+esc(x)+'</label>';
+    });
+    h+='</div></div>';
+  });
+  h+='</div></div>';
+
+  h+='<div class="card"><h3>Typical Monthly Premiums</h3><div class="note" style="margin:0 0 10px">Used only to estimate cross-sell commissions for %-based products. Set 0 for flat-pay products.</div><div class="grid">';
+  settings.products.forEach(function(p){
+    h+=fg(p,'<input type="number" min="0" step="1" value="'+esc(settings.defaultPremiums[p]!=null?settings.defaultPremiums[p]:0)+'" onchange="settings.defaultPremiums[\''+esc(p).replace(/'/g,"\\'")+'\']=parseFloat(this.value)||0;saveSettings()">');
+  });
+  h+='</div></div>';
+
+  h+='<div class="card"><h3>Products</h3><div class="note" style="margin:0 0 10px">Product lines offered. Removing one hides it from the calculator (existing rates stay in the database).</div>';
+  h+='<div class="chip-row">'+settings.products.map(function(p,i){return '<span class="chip">'+esc(p)+'<button onclick="if(confirm(\'Remove product?\')){settings.products.splice('+i+',1);saveSettings()}">✕</button></span>'}).join('')+'</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px;max-width:360px"><input id="new_product" placeholder="Add product…" style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px" onkeydown="if(event.key===\'Enter\')addProduct()"><button class="btn btn-primary btn-sm" onclick="addProduct()">Add</button></div></div>';
+  return h;
+}
+function addCarrier(){var v=$('new_carrier').value.trim();if(!v)return;if(settings.carriers.indexOf(v)<0)settings.carriers.push(v);settings.carriers.sort();saveSettings()}
+function addProduct(){var v=$('new_product').value.trim();if(!v)return;if(settings.products.indexOf(v)<0)settings.products.push(v);saveSettings()}
+function toggleXsell(p,x,on){var a=settings.crossSells[p]||(settings.crossSells[p]=[]);var i=a.indexOf(x);if(on&&i<0)a.push(x);if(!on&&i>=0)a.splice(i,1);saveSettings()}
+function saveSettings(){
+  db.collection('config').doc('settings').set({
+    products:settings.products, carriers:settings.carriers,
+    crossSells:settings.crossSells, defaultPremiums:settings.defaultPremiums,
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(alertErr);
+  render();
+}
+
+/* ── Modals ── */
+function renderModal(){
+  if(modal.type==='pin'){
+    return '<div class="overlay" onclick="if(event.target===this){modal=null;render()}"><div class="modal" style="max-width:360px"><div class="modal-hdr"><div class="modal-title">🔒 Admin PIN</div><button class="modal-x" onclick="modal=null;render()">✕</button></div><div class="modal-body">'
+      +(modal.err?'<div class="err">'+esc(modal.err)+'</div>':'')
+      +'<div class="fg"><label>Enter the admin PIN</label><input id="pin_in" type="password" autofocus onkeydown="if(event.key===\'Enter\')submitPin()"></div>'
+      +'<div class="note">Unlocks pay-scale editing on this device.</div></div>'
+      +'<div class="modal-ftr"><button class="btn btn-ghost" onclick="modal=null;render()">Cancel</button><button class="btn btn-primary" onclick="submitPin()" id="pin_btn">Unlock</button></div></div></div>';
+  }
+  if(modal.type==='rate'){
+    var m=modal, edit=!!m.id;
+    var h='<div class="overlay" onclick="if(event.target===this){modal=null;render()}"><div class="modal"><div class="modal-hdr"><div class="modal-title">'+(edit?'Edit Rate':'Add Rates')+'</div><button class="modal-x" onclick="modal=null;render()">✕</button></div><div class="modal-body">';
+    if(m.err)h+='<div class="err">'+esc(m.err)+'</div>';
+    h+='<div class="form2">';
+    h+=fg('Product', sel('m_product', settings.products.map(function(p){return '<option'+(m.product===p?' selected':'')+'>'+esc(p)+'</option>'}).join(''),''));
+    var carrierOpts=settings.carriers.slice();
+    rates.forEach(function(r){if(carrierOpts.indexOf(r.carrier)<0)carrierOpts.push(r.carrier)});
+    carrierOpts.sort();
+    h+='<div class="fg"><label>Carrier</label><input id="m_carrier" list="carrier_dl" value="'+esc(m.carrier||'')+'" placeholder="e.g. Humana"><datalist id="carrier_dl">'+carrierOpts.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>';
+    h+=fg('Pay Type','<div class="seg"><button class="'+(m.compType!=='flat'?'on':'')+'" onclick="modal.compType=\'percent\';grabRateForm();render()">% of annual premium</button><button class="'+(m.compType==='flat'?'on':'')+'" onclick="modal.compType=\'flat\';grabRateForm();render()">Flat $ per app</button></div>');
+    h+='<div></div>';
+    var unit=m.compType==='flat'?'$':'%';
+    h+=fg('First-Year ('+unit+')','<input id="m_fy" type="number" min="0" step="0.01" value="'+esc(m.firstYear!=null?m.firstYear:'')+'" placeholder="0">');
+    h+=fg('Renewal / yr ('+unit+')','<input id="m_rn" type="number" min="0" step="0.01" value="'+esc(m.renewal!=null?m.renewal:'')+'" placeholder="0">');
+    h+=fg('Min Age (blank = any)','<input id="m_amin" type="number" min="0" max="120" value="'+esc(m.ageMin!=null?m.ageMin:'')+'">');
+    h+=fg('Max Age (blank = any)','<input id="m_amax" type="number" min="0" max="120" value="'+esc(m.ageMax!=null?m.ageMax:'')+'">');
+    h+='<div class="fg full"><label>Notes (optional)</label><input id="m_notes" value="'+esc(m.notes||'')+'" placeholder="e.g. Level commission, GA contract"></div>';
+    if(edit){
+      h+=fg('State', sel('m_state', STATES.map(function(s){return '<option'+(m.states[0]===s?' selected':'')+'>'+s+'</option>'}).join(''),''));
+    }else{
+      h+='<div class="fg full"><label>States ('+m.states.length+' selected) — creates one rate row per state</label>';
+      h+='<div style="display:flex;gap:6px;margin-bottom:6px"><button class="btn btn-ghost btn-sm" onclick="grabRateForm();modal.states=STATES.slice();render()">All states</button><button class="btn btn-ghost btn-sm" onclick="grabRateForm();modal.states=[];render()">None</button></div>';
+      h+='<div class="states-box">'+STATES.map(function(s){return '<label><input type="checkbox" '+(m.states.indexOf(s)>=0?'checked':'')+' onchange="toggleModalState(\''+s+'\',this.checked)">'+s+'</label>'}).join('')+'</div></div>';
+    }
+    h+='</div></div>';
+    h+='<div class="modal-ftr"><button class="btn btn-ghost" onclick="modal=null;render()">Cancel</button><button class="btn btn-primary" onclick="saveRate()">'+(edit?'Save':'Add '+m.states.length+' rate'+(m.states.length===1?'':'s'))+'</button></div></div></div>';
+    return h;
+  }
+  return '';
+}
+function toggleModalState(s,on){grabRateForm();var a=modal.states,i=a.indexOf(s);if(on&&i<0)a.push(s);if(!on&&i>=0)a.splice(i,1);render()}
+function grabRateForm(){
+  if(!modal||modal.type!=='rate')return;
+  var g=function(id){var e=$(id);return e?e.value:null};
+  modal.product=g('m_product')||modal.product;
+  modal.carrier=(g('m_carrier')||'').trim();
+  modal.firstYear=num(g('m_fy'));
+  modal.renewal=num(g('m_rn'));
+  modal.ageMin=num(g('m_amin'));
+  modal.ageMax=num(g('m_amax'));
+  modal.notes=(g('m_notes')||'').trim();
+  if(modal.id){var st=g('m_state');if(st)modal.states=[st];}
+}
+function openRateModal(id, dup){
+  var base={type:'rate', id:null, product:settings.products[0], carrier:'', compType:'percent', firstYear:null, renewal:null, ageMin:null, ageMax:null, notes:'', states:[], err:''};
+  if(id){
+    var r=rates.find(function(x){return x.id===id});
+    if(r){base=Object.assign(base,{product:r.product,carrier:r.carrier,compType:r.compType,firstYear:r.firstYear,renewal:r.renewal,ageMin:r.ageMin==null?null:r.ageMin,ageMax:r.ageMax==null?null:r.ageMax,notes:r.notes||'',states:[r.state]});
+      if(!dup)base.id=id; else base.states=[];}
+  }
+  modal=base;render();
+}
+function saveRate(){
+  grabRateForm();
+  var m=modal;
+  if(!m.carrier){m.err='Carrier is required.';render();return}
+  if(m.firstYear==null){m.err='First-year amount is required.';render();return}
+  if(!m.states.length){m.err='Select at least one state.';render();return}
+  if(m.ageMin!=null&&m.ageMax!=null&&m.ageMin>m.ageMax){m.err='Min age is greater than max age.';render();return}
+  var doc={product:m.product, carrier:m.carrier, compType:m.compType==='flat'?'flat':'percent',
+    firstYear:m.firstYear, renewal:m.renewal==null?0:m.renewal,
+    ageMin:m.ageMin, ageMax:m.ageMax, notes:m.notes||'',
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(m.id){
+    doc.state=m.states[0];
+    db.collection('rates').doc(m.id).set(doc).then(function(){modal=null;render()}).catch(function(e){m.err=e.message;render()});
+  }else{
+    var batch=db.batch();
+    m.states.forEach(function(s){var d=Object.assign({},doc);d.state=s;batch.set(db.collection('rates').doc(),d)});
+    batch.commit().then(function(){modal=null;render()}).catch(function(e){m.err=e.message;render()});
+  }
+}
+function delRate(id){
+  if(!confirm('Delete this rate?'))return;
+  db.collection('rates').doc(id).delete().catch(alertErr);
+}
+function submitPin(){
+  var pin=$('pin_in').value;
+  if(!pin){modal.err='Enter the PIN.';render();return}
+  $('pin_btn').disabled=true;$('pin_btn').textContent='Checking…';
+  auth.signInWithEmailAndPassword(ADMIN_EMAIL,pin).then(function(){
+    modal=null;view='admin';render();
+  }).catch(function(e){
+    modal.err = (e.code==='auth/invalid-credential'||e.code==='auth/wrong-password')?'Wrong PIN.':(e.code==='auth/user-not-found'?'Admin account not set up yet — see SETUP.md step 4.':e.message);
+    render();
+  });
+}
+function lockAdmin(){auth.signOut();view='calc';render()}
+function alertErr(e){alert('Error: '+(e&&e.message||e))}
+
+/* ── CSV export ── */
+function exportCsv(){
+  var head=['product','carrier','state','ageMin','ageMax','compType','firstYear','renewal','notes'];
+  var lines=[head.join(',')];
+  rates.forEach(function(r){
+    lines.push(head.map(function(k){var v=r[k];if(v==null)v='';v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(','));
+  });
+  var blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pay-scale.csv';a.click();
+}
+
+/* ── Sample data (clearly marked; delete before going live) ── */
+function seedSample(){
+  if(!confirm('Load EXAMPLE rates for a few states (MO, IL, KS, FL, TX)?\n\nThese are placeholder numbers marked "SAMPLE" — replace them with your real comp before your team relies on this.'))return;
+  var S=['MO','IL','KS','FL','TX'];
+  var defs=[
+    // product, carrier, compType, fy, renewal, ageMin, ageMax
+    ['Medicare Advantage','Humana','flat',626,313,65,null],
+    ['Medicare Advantage','UnitedHealthcare','flat',626,313,65,null],
+    ['Medicare Advantage','Aetna','flat',600,300,65,null],
+    ['Medicare Advantage','Devoted Health','flat',650,325,65,null],
+    ['PDP','Humana','flat',109,55,65,null],
+    ['PDP','Wellcare','flat',100,50,65,null],
+    ['Medicare Supplement','Mutual of Omaha','percent',22,10,65,null],
+    ['Medicare Supplement','Aetna','percent',20,10,65,null],
+    ['Medicare Supplement','Cigna','percent',21,9,65,null],
+    ['Medicare Supplement','Mutual of Omaha','percent',18,8,60,64],
+    ['ACA / Health','Ambetter','flat',250,250,18,64],
+    ['ACA / Health','Oscar','flat',220,220,18,64],
+    ['Life','Mutual of Omaha','percent',95,5,18,60],
+    ['Life','Mutual of Omaha','percent',80,4,61,85],
+    ['Life','Americo','percent',100,3,18,60],
+    ['Life','Foresters','percent',90,4,18,70],
+    ['Final Expense','Mutual of Omaha','percent',110,6,50,85],
+    ['Final Expense','Americo','percent',115,5,50,80],
+    ['Final Expense','Aetna (Accendo)','percent',105,7,50,89],
+    ['Annuity','Athene','percent',6,0,40,80],
+    ['Annuity','American Equity','percent',7,0,40,80]
+  ];
+  var carriers={};defs.forEach(function(d){carriers[d[1]]=1});
+  settings.carriers=Object.keys(Object.assign(carriers,settings.carriers.reduce(function(o,c){o[c]=1;return o},{}))).sort();
+  saveSettings();
+  var docs=[];
+  defs.forEach(function(d){S.forEach(function(st){
+    docs.push({product:d[0],carrier:d[1],state:st,compType:d[2],firstYear:d[3],renewal:d[4],ageMin:d[5],ageMax:d[6],notes:'SAMPLE',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  })});
+  var chunks=[];while(docs.length)chunks.push(docs.splice(0,400));
+  var p=Promise.resolve();
+  chunks.forEach(function(ch){p=p.then(function(){var b=db.batch();ch.forEach(function(d){b.set(db.collection('rates').doc(),d)});return b.commit()})});
+  p.catch(alertErr);
+}
+function deleteSamples(){
+  if(!confirm('Delete ALL rates marked SAMPLE?'))return;
+  db.collection('rates').where('notes','==','SAMPLE').get().then(function(snap){
+    var docs=snap.docs.slice();
+    var p=Promise.resolve();
+    while(docs.length){
+      var ch=docs.splice(0,400);
+      (function(ch){p=p.then(function(){var b=db.batch();ch.forEach(function(d){b.delete(d.ref)});return b.commit()})})(ch);
+    }
+    return p;
+  }).catch(alertErr);
+}
+
+/* ── tiny helpers ── */
+function refocus(id){var e=$(id);if(e){e.focus();var v=e.value;e.value='';e.value=v}}
+function fg(label, inner){return '<div class="fg"><label>'+esc(label)+'</label>'+inner+'</div>'}
+function sel(id, opts, onchange){return '<select'+(id?' id="'+id+'"':'')+(onchange?' onchange="'+onchange+'"':'')+'>'+opts+'</select>'}
+
+/* ── Setup screen (shown until Firebase config is pasted) ── */
+function renderSetup(){
+  $('app').innerHTML='<div class="setup card"><h3 style="font-size:17px">🚀 Almost there — connect Firebase</h3>'
+  +'<p class="note" style="margin-top:6px">This calculator needs a (free) Firebase project. Full instructions are in <code>revenue-calculator/SETUP.md</code>. Short version:</p>'
+  +'<ol>'
+  +'<li>Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → <b>Add project</b>.</li>'
+  +'<li>Enable <b>Firestore Database</b> (production mode) and <b>Authentication → Email/Password</b>.</li>'
+  +'<li>Add a <b>Web app</b> to the project and copy its config object.</li>'
+  +'<li>Create one Auth user: <code>'+esc(ADMIN_EMAIL)+'</code> — its password is your admin PIN (6+ characters).</li>'
+  +'<li>Paste the config into <code>FIREBASE_CONFIG</code> at the top of <code>public/index.html</code>.</li>'
+  +'<li>Deploy: <code>firebase deploy</code> (rules + hosting).</li>'
+  +'</ol></div>';
+}
+
+boot();
+</script>
+</body>
+</html>
